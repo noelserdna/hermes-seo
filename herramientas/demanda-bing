@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+"""Demanda de búsqueda según Bing Webmaster Tools (GetRelatedKeywords): impresiones mensuales en los mercados
+del cliente.
+
+Uso: demanda-bing --cliente <slug> "<consulta>" ["<consulta>" …] [--dias 30] [--salida <archivo.md>]
+
+Imprime, por consulta, las consultas relacionadas con sus impresiones en cada mercado de cliente.json
+(«mercados»: el país va en country y «bing» en language; Bing rechaza algunos idiomas como es-CO: en ese caso
+pon {"pais": "CO", "bing": "es-ES"}). Las 15 primeras por total. Habrá ruido: quien lo llama filtra por tema.
+Añade el resultado a clientes/<slug>/datos/demanda/AAAA-MM-DD.md (o a --salida).
+Clave: BING_WEBMASTER_API_KEY en secretos.env. Nunca se imprime.
+"""
+import datetime as dt
+import importlib.util
+import json
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+def pedir(api, k, q, pais, idioma, ini, fin):
+    p = urllib.parse.urlencode({"apikey": k, "q": q, "country": pais, "language": idioma,
+                                "startDate": ini, "endDate": fin})
+    error = "desconocido"
+    for intento in range(3):
+        try:
+            H.pausa(0.6)
+            req = urllib.request.Request(f"{api}/GetRelatedKeywords?{p}", headers={"User-Agent": H.UA})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r).get("d") or []
+        except Exception as e:
+            error = type(e).__name__
+            H.pausa(3 * (intento + 1))
+    return [{"error": error}]
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("consultas", nargs="+")
+    ap.add_argument("--dias", type=int, default=30)
+    ap.add_argument("--salida", help="archivo Markdown al que añadir el resultado")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    paises, vistos = [], set()
+    for m in cfg.get("mercados") or []:
+        pais = str(m.get("pais", "")).lower()
+        if pais and pais not in vistos:
+            vistos.add(pais)
+            paises.append((pais, m.get("bing") or f"{cfg.get('idioma', 'es')}-{pais.upper()}"))
+    if not paises:
+        H.fallar(f"el cliente «{x.cliente}» no tiene mercados en cliente.json")
+    k = H.clave(x.cliente, "BING_WEBMASTER_API_KEY")
+    api = H.url_base("HSEO_URL_BING", "https://ssl.bing.com/webmaster/api.svc/json")
+    salida = Path(x.salida) if x.salida else H.datos(x.cliente, "demanda") / f"{H.hoy()}.md"
+    fin = dt.date.today() - dt.timedelta(days=2)
+    ini = fin - dt.timedelta(days=x.dias)
+    lineas = []
+    for q in x.consultas:
+        filas = {}
+        for pais, idioma in paises:
+            for f in pedir(api, k, q, pais, idioma, ini.isoformat(), fin.isoformat()):
+                if "error" in f:
+                    lineas.append(f"[{q}] {pais}: error {f['error']}"); continue
+                fila = filas.setdefault((f.get("Query") or "").lower(), {})
+                fila[pais] = f.get("Impressions") or 0
+        orden = sorted(filas.items(), key=lambda kv: -sum(kv[1].values()))[:15]
+        lineas.append(f"## «{q}» · búsquedas en Bing del {ini} al {fin}")
+        lineas.append("consulta | total | " + " | ".join(p for p, _ in paises))
+        for consulta, v in orden:
+            lineas.append(f"{consulta} | {sum(v.values())} | " + " | ".join(str(v.get(p, 0)) for p, _ in paises))
+        lineas.append("")
+    texto = H.tapar("\n".join(lineas))
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    with open(salida, "a") as f:
+        f.write(texto + "\n")
+    print(texto)
+
+
+if __name__ == "__main__":
+    main()

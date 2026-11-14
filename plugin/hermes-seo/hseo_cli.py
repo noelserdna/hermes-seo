@@ -9,6 +9,7 @@ si se lo delegaron), y lo ejecuta el notario.
     hseo puertas [cliente] · hseo puerta <id> · hseo pipelines [--cliente C] · hseo plan <pipeline> <cliente>
     hseo modelos ver [--cliente C] · hseo jev ver
   Trabajar (sola, y lo cuenta)
+    hseo leccion <cliente> <etapa> "<regla general>" <encargo|puerta>…   (la confirma una persona) · hseo lecciones
     hseo lanzar <cliente> <pipeline> [--param k=v]… [--brief TEXTO]
     hseo reintentar <cliente> <encargo> <etapa>          (una vez por etapa; después, una persona)
   Cambiar el sistema (con la aprobación de la persona)
@@ -140,6 +141,9 @@ def main(argv=None) -> int:
     x.add_argument("--param", action="append", default=[]); x.add_argument("--brief", default="")
     x.add_argument("--excepcion", action="store_true")
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
+    x = sub.add_parser("leccion"); x.add_argument("cliente"); x.add_argument("etapa"); x.add_argument("regla")
+    x.add_argument("evidencia", nargs="+")
+    sub.add_parser("lecciones").add_argument("--todas", action="store_true")
     x = sub.add_parser("alta"); x.add_argument("slug"); x.add_argument("dominio")
     x.add_argument("--estado", default="nueva", choices=C.ESTADOS_WEB); x.add_argument("--nombre", default="")
     x = sub.add_parser("config"); x.add_argument("cliente"); x.add_argument("clave"); x.add_argument("valor")
@@ -187,6 +191,13 @@ def main(argv=None) -> int:
         elif a.cmd == "reintentar":
             reintentar(a.cliente, a.encargo, a.etapa)
             print(f"🔁 {a.etapa} vuelve a la cola ({a.encargo})")
+        elif a.cmd == "leccion":
+            l = _cargar("hseo_lecciones").proponer(a.cliente, a.etapa, a.regla, a.evidencia, quien())
+            print(f"💡 Lección propuesta ({l['id']}): le llega a la persona para que la confirme.")
+        elif a.cmd == "lecciones":
+            for l in _cargar("hseo_lecciones").todas():
+                if a.todas or l["estado"] in ("propuesta", "confirmada", "revisar"):
+                    print(f"{l['id']}  {l['estado']:10} {l['etapa']:16} {l['regla']}")
         elif a.cmd == "alta":
             cfg = C.alta(a.slug, a.dominio, a.estado, a.nombre, quien())
             print(f"🌐 Alta hecha: {C.resumen(cfg)}\nSiguiente: completar su configuración y lanzar «alta».")

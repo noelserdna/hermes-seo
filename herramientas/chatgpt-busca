@@ -1,0 +1,82 @@
+#!/usr/bin/python3
+"""Hace las preguntas de decisión de un cliente a ChatGPT (API de OpenAI con su buscador web) y guarda las
+respuestas tal cual. Es la mitad ChatGPT de la prueba de visibilidad en IA.
+
+Uso: chatgpt-busca --cliente <slug> [<salida.json> | --salida <salida.json>] [--repeticiones 2]
+                   [--preguntas <archivo.md>] [--modelo gpt-5.5]
+
+De cliente.json lee mercados[0].pais (ubicación aproximada del buscador).
+Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
+Salida por defecto: clientes/<slug>/datos/ia/chatgpt-AAAA-MM-DD.json.
+Clave: OPENAI_API_KEY en secretos.env (pago por uso). Nunca se imprime.
+Última línea: CHATGPT_OK <n respuestas> | CHATGPT_ERROR <motivo> (código 1 si falta alguna respuesta).
+"""
+import importlib.util
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+def preguntar(api, k, modelo, pais, pregunta):
+    cuerpo = {"model": modelo, "input": pregunta,
+              "tools": [{"type": "web_search", "user_location": {"type": "approximate", "country": pais}}]}
+    req = urllib.request.Request(f"{api}/responses", json.dumps(cuerpo).encode(),
+                                 {"Authorization": f"Bearer {k}", "Content-Type": "application/json", "User-Agent": H.UA})
+    r = {}
+    for intento in range(3):
+        try:
+            r = json.load(urllib.request.urlopen(req, timeout=240))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503) and intento < 2:
+                H.pausa(20 * (intento + 1))
+                continue
+            raise
+    mensajes = [c for o in r["output"] if o["type"] == "message" for c in o["content"]]
+    texto = "".join(c.get("text", "") for c in mensajes)
+    citas = [a["url"] for c in mensajes for a in c.get("annotations", []) if a.get("type") == "url_citation"]
+    busquedas = [o.get("action", {}).get("query") for o in r["output"] if o["type"] == "web_search_call"]
+    return {"respuesta": texto, "citas": citas, "busquedas": [b for b in busquedas if b]}
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("salida_pos", nargs="?", metavar="salida.json")
+    ap.add_argument("--salida")
+    ap.add_argument("--repeticiones", type=int, default=2)
+    ap.add_argument("--preguntas")
+    ap.add_argument("--modelo", default="gpt-5.5")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    pais, _ = H.mercado_principal(cfg)
+    salida = Path(x.salida or x.salida_pos or H.datos(x.cliente, "ia") / f"chatgpt-{H.hoy()}.json")
+    archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
+    preguntas = H.leer_preguntas(archivo)
+    k = H.clave(x.cliente, "OPENAI_API_KEY", "CHATGPT_ERROR ")
+    api = H.url_base("HSEO_URL_OPENAI", "https://api.openai.com/v1")
+    filas = []
+    for i, p in enumerate(preguntas, 1):
+        for rep in range(1, x.repeticiones + 1):
+            try:
+                filas.append({"n": i, "pregunta": p, "repeticion": rep, **preguntar(api, k, x.modelo, pais, p)})
+            except Exception as e:  # noqa: BLE001 — se apunta y se sigue
+                filas.append({"n": i, "pregunta": p, "repeticion": rep,
+                              "error": H.tapar(f"{type(e).__name__}: {str(e)[:200]}")})
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(json.dumps({"modelo": x.modelo, "cliente": x.cliente, "pais": pais,
+                                  "fecha": time.strftime("%Y-%m-%d"), "filas": filas}, ensure_ascii=False, indent=1))
+    ok = sum("error" not in f and bool(f.get("respuesta", "").strip()) for f in filas)
+    if ok < len(filas):
+        print(f"CHATGPT_ERROR incompleto: {ok} respuestas de {len(filas)} en {salida}")
+        sys.exit(1)
+    print(f"CHATGPT_OK {ok} respuestas de {len(filas)} en {salida}")
+
+
+if __name__ == "__main__":
+    main()

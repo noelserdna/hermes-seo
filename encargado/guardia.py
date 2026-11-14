@@ -46,7 +46,8 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "file", "stat", "date", "echo", "printf", "pwd", "basename", "dirname", "realpath", "column", "nl", "true",
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
-HSEO_SOLA = {"clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar"}
+HSEO_SOLA = {"clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
+             "leccion", "lecciones"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "jev", "modelos"}
 
 
@@ -98,7 +99,7 @@ def cliente_de(args: list) -> str | None:
     pos = [a for a in resto if not a.startswith("--")]
     if sub in ("estado", "puertas"):
         return pos[0] if pos else None
-    if sub in ("encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar"):
+    if sub in ("encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion"):
         return pos[0] if pos else None
     if sub == "plan":
         return pos[1] if len(pos) > 1 else None
@@ -120,7 +121,7 @@ def orden_hseo(args: list) -> str | None:
         if sub == "alta":
             return "dar de alta otra web lo hace la coordinadora"
         ver = sub in ("jev", "modelos") and args[1:2] in (["ver"], [])
-        lectura_global = sub in ("clientes", "puerta") or (sub == "pipelines" and cli is None) or (ver and cli is None)
+        lectura_global = sub in ("clientes", "puerta", "lecciones") or (sub == "pipelines" and cli is None) or (ver and cli is None)
         if not lectura_global and cli != AMBITO:
             return f"solo puede actuar sobre {AMBITO}"
     texto = " ".join(args)

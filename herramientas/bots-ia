@@ -1,0 +1,111 @@
+#!/usr/bin/python3
+"""Bots de IA y buscadores que leen la web de un cliente (Cloudflare GraphQL, por User-Agent).
+
+Uso: bots-ia --cliente <slug> [--dias 7] [--salida <archivo.md>]
+
+Tabla Markdown: bot, operador, uso, peticiones y páginas más leídas. Se imprime y se guarda en
+clientes/<slug>/datos/bots/AAAA-MM-DD.md (o en --salida).
+De cliente.json lee capacidades.analitica: adaptador tiene que ser «cloudflare» y «zona» el id de la zona
+(Zone ID del panel de Cloudflare).
+Clave: CLOUDFLARE_ANALYTICS_TOKEN en secretos.env (solo lectura: Zone Analytics Read). Nunca se imprime.
+El User-Agent se puede falsificar: son cifras orientativas (la verificación por detection ID exige Bot
+Management, de pago). Consulta día a día porque el plan gratuito limita el rango de cada consulta.
+"""
+import importlib.util
+import json
+import re
+import sys
+import urllib.request
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+BOTS = {  # patrón de User-Agent -> (nombre, operador, uso)
+    "GPTBot": ("GPTBot", "OpenAI", "entrenamiento"),
+    "OAI-SearchBot": ("OAI-SearchBot", "OpenAI", "búsqueda de ChatGPT"),
+    "ChatGPT-User": ("ChatGPT-User", "OpenAI", "usuario de ChatGPT"),
+    "ClaudeBot": ("ClaudeBot", "Anthropic", "entrenamiento"),
+    "Claude-SearchBot": ("Claude-SearchBot", "Anthropic", "búsqueda de Claude"),
+    "Claude-User": ("Claude-User", "Anthropic", "usuario de Claude"),
+    "PerplexityBot": ("PerplexityBot", "Perplexity", "búsqueda"),
+    "Perplexity-User": ("Perplexity-User", "Perplexity", "usuario de Perplexity"),
+    "Googlebot": ("Googlebot", "Google", "buscador"),
+    "Google-Extended": ("Google-Extended", "Google", "IA de Google"),
+    "bingbot": ("Bingbot", "Microsoft", "buscador (y Copilot)"),
+    "Applebot": ("Applebot", "Apple", "buscador / IA"),
+    "meta-externalagent": ("Meta-ExternalAgent", "Meta", "entrenamiento"),
+    "Bytespider": ("Bytespider", "ByteDance", "entrenamiento"),
+    "Amazonbot": ("Amazonbot", "Amazon", "IA"),
+    "DuckAssistBot": ("DuckAssistBot", "DuckDuckGo", "IA"),
+    "YandexBot": ("YandexBot", "Yandex", "buscador"),
+}
+
+
+def consulta(api, tk, zona, desde, hasta):
+    ors = ",".join('{userAgent_like:"%%%s%%"}' % p for p in BOTS)
+    q = ('{ viewer { zones(filter:{zoneTag:"%s"}) { httpRequestsAdaptiveGroups(filter:{datetime_geq:"%s", datetime_lt:"%s", '
+         'requestSource:"eyeball", OR:[%s]}, limit:5000, orderBy:[count_DESC]) { count dimensions { userAgent clientRequestPath } } } } }'
+         % (zona, desde, hasta, ors))
+    req = urllib.request.Request(f"{api}/graphql", data=json.dumps({"query": q}).encode(),
+                                 headers={"Authorization": f"Bearer {tk}", "Content-Type": "application/json",
+                                          "User-Agent": H.UA})
+    r = json.load(urllib.request.urlopen(req, timeout=60))
+    if r.get("errors"):
+        raise RuntimeError(r["errors"][0].get("message"))
+    return r["data"]["viewer"]["zones"][0]["httpRequestsAdaptiveGroups"]
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--dias", type=int, default=7)
+    ap.add_argument("--salida", help="archivo Markdown donde guardar la tabla")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    an = (cfg.get("capacidades") or {}).get("analitica") or {}
+    if an.get("adaptador") != "cloudflare":
+        H.fallar(f"el cliente «{x.cliente}» no mide con Cloudflare (capacidades.analitica.adaptador = "
+                 f"«{an.get('adaptador', 'ninguna')}»)")
+    zona = str(an.get("zona") or "")
+    if not re.fullmatch(r"[0-9a-f]{32}", zona):
+        H.fallar(f"falta el id de la zona de Cloudflare en capacidades.analitica.zona (32 caracteres hexadecimales)")
+    tk = H.clave(x.cliente, "CLOUDFLARE_ANALYTICS_TOKEN")
+    api = H.url_base("HSEO_URL_CF", "https://api.cloudflare.com/client/v4")
+    salida = Path(x.salida) if x.salida else H.datos(x.cliente, "bots") / f"{H.hoy()}.md"
+    por_bot, paginas, avisos = Counter(), defaultdict(Counter), []
+    hoy = datetime.now(timezone.utc).replace(microsecond=0)
+    for i in range(x.dias):
+        hasta, desde = hoy - timedelta(days=i), hoy - timedelta(days=i + 1)
+        try:
+            grupos = consulta(api, tk, zona, desde.isoformat().replace("+00:00", "Z"), hasta.isoformat().replace("+00:00", "Z"))
+        except Exception as e:  # noqa: BLE001
+            avisos.append(f"{desde:%Y-%m-%d}: {e}")
+            continue
+        for g in grupos:
+            ua = g["dimensions"]["userAgent"]
+            clave = next((p for p in BOTS if re.search(re.escape(p), ua, re.I)), None)
+            if clave:
+                por_bot[clave] += g["count"]
+                paginas[clave][g["dimensions"]["clientRequestPath"]] += g["count"]
+    lineas = [f"## Bots de IA y buscadores · {cfg.get('dominio', x.cliente)} · últimos {x.dias} días "
+              f"(por User-Agent, orientativo)", ""]
+    if not por_bot:
+        lineas.append("_(ninguna petición de los bots conocidos)_")
+    else:
+        lineas += ["| bot | operador | uso | peticiones | páginas más leídas |", "|---|---|---|---|---|"]
+        for clave, n in por_bot.most_common():
+            nombre, op, uso = BOTS[clave]
+            top = ", ".join(f"{p} ({c})" for p, c in paginas[clave].most_common(3))
+            lineas.append(f"| {nombre} | {op} | {uso} | {n} | {top} |")
+    for a in avisos:
+        lineas += ["", f"_Aviso: {a}_"]
+    texto = H.tapar("\n".join(lineas))
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(texto + "\n")
+    print(texto)
+
+
+if __name__ == "__main__":
+    main()

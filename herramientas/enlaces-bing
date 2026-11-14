@@ -1,0 +1,94 @@
+#!/usr/bin/python3
+"""Enlaces entrantes a la web de un cliente según Bing Webmaster Tools (GetLinkCounts + GetUrlLinks).
+
+Uso: enlaces-bing --cliente <slug> [--salida <carpeta>]
+
+Sitio de Bing: capacidades.busqueda.bing de cliente.json (si está vacío, la «url» del cliente con barra final).
+Guarda una foto en clientes/<slug>/datos/enlaces/AAAA-MM-DD.json (o en la carpeta --salida) e imprime los
+dominios y páginas que enlazan, marcando lo NUEVO y lo PERDIDO desde la foto anterior.
+Clave: BING_WEBMASTER_API_KEY en secretos.env. Nunca se imprime.
+"""
+import importlib.util
+import json
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--salida", help="carpeta de las fotos")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    sitio = ((cfg.get("capacidades") or {}).get("busqueda") or {}).get("bing") or ""
+    if not sitio:
+        sitio = (cfg.get("url") or "").rstrip("/") + "/"
+    if sitio == "/":
+        H.fallar(f"el cliente «{x.cliente}» no tiene capacidades.busqueda.bing ni url en cliente.json")
+    k = H.clave(x.cliente, "BING_WEBMASTER_API_KEY")
+    api_base = H.url_base("HSEO_URL_BING", "https://ssl.bing.com/webmaster/api.svc/json")
+    carpeta = Path(x.salida) if x.salida else H.datos(x.cliente, "enlaces")
+
+    def api(metodo, **p):
+        p.update(apikey=k, siteUrl=sitio)
+        H.pausa(0.6)
+        req = urllib.request.Request(f"{api_base}/{metodo}?{urllib.parse.urlencode(p)}", headers={"User-Agent": H.UA})
+        with urllib.request.urlopen(req, timeout=40) as r:
+            return json.load(r).get("d")
+
+    enlaces = set()
+    try:
+        pagina = 0
+        while pagina < 20:
+            d = api("GetLinkCounts", page=pagina) or {}
+            for f in d.get("Links") or []:
+                destino = f.get("Url")
+                sub = 0
+                while sub < 10:
+                    det = api("GetUrlLinks", link=destino, page=sub) or {}
+                    for e in det.get("Details") or []:
+                        enlaces.add((e.get("Url") or "", destino, e.get("AnchorText") or ""))
+                    if sub + 1 >= (det.get("TotalPages") or 1):
+                        break
+                    sub += 1
+            if pagina + 1 >= (d.get("TotalPages") or 1):
+                break
+            pagina += 1
+    except Exception as e:  # noqa: BLE001 — sin traza: podría repetir la URL con la clave
+        H.fallar(f"error al consultar Bing: {type(e).__name__}: {str(e)[:200]}", 1)
+
+    carpeta.mkdir(parents=True, exist_ok=True)
+    previos = sorted(carpeta.glob("*.json"))
+    antes = set(map(tuple, json.loads(previos[-1].read_text()))) if previos else None
+    hoy = H.hoy()
+    (carpeta / f"{hoy}.json").write_text(json.dumps(sorted(enlaces), ensure_ascii=False, indent=1))
+
+    def dominio(u):
+        n = urllib.parse.urlparse(u).netloc
+        return n[4:] if n.startswith("www.") else n
+
+    por_dominio = {}
+    for origen, destino, ancla in enlaces:
+        por_dominio.setdefault(dominio(origen), []).append((origen, destino, ancla))
+    print(f"## Enlaces entrantes según Bing · {hoy}")
+    print(f"{len(enlaces)} enlaces desde {len(por_dominio)} dominios.")
+    if antes is None:
+        print("(Primera foto: no hay con qué comparar.)")
+    else:
+        nuevos, perdidos = enlaces - antes, antes - enlaces
+        print(f"Nuevos desde la foto anterior: {len(nuevos)} · perdidos: {len(perdidos)}")
+        for o, de, a in sorted(nuevos):
+            print(f"NUEVO  {o} → {de} («{a}»)")
+        for o, de, a in sorted(perdidos):
+            print(f"PERDIDO {o} → {de}")
+    print()
+    for dom, filas in sorted(por_dominio.items(), key=lambda kv: -len(kv[1])):
+        print(f"- {dom}: {len(filas)} · p. ej. {filas[0][0]} → {filas[0][1]}")
+
+
+if __name__ == "__main__":
+    main()

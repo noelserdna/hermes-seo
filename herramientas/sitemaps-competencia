@@ -1,0 +1,116 @@
+#!/usr/bin/python3
+"""Páginas nuevas que publica la competencia de un cliente, comparando sus sitemaps con la foto anterior.
+
+Uso: sitemaps-competencia --cliente <slug> [--todo] [--salida <carpeta>]
+
+Competidores: «competidores» de cliente.json. Cada uno es un dominio («ejemplo.com»), «dominio filtro»
+(solo cuenta las URL que contienen esa palabra, p. ej. «platzi.com mcp») u {"dominio": …, "filtro": …}.
+También admite una URL base («https://ejemplo.com/blog»), útil para las pruebas.
+Fotos en clientes/<slug>/datos/competencia/<dominio>.txt (o en --salida). Solo imprime las URL NUEVAS desde
+la última vez (la primera vez de cada dominio solo guarda la foto). Solo lee sitemaps públicos.
+"""
+import gzip
+import importlib.util
+import re
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+def leer(url):
+    req = urllib.request.Request(url, headers={"User-Agent": H.UA})
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            b = r.read(30_000_000)
+            if url.endswith(".gz") or b[:2] == b"\x1f\x8b":
+                b = gzip.decompress(b)
+            return b.decode("utf-8", "replace")
+    except Exception:
+        return ""
+
+
+def sitemaps_de(base):
+    robots = leer(f"{base}/robots.txt")
+    s = re.findall(r"(?im)^\s*sitemap:\s*(\S+)", robots)
+    return s or [f"{base}/sitemap.xml", f"{base}/sitemap_index.xml", f"{base}/sitemap-index.xml"]
+
+
+def urls_de(base, limite=60):
+    pend, vistos, urls = sitemaps_de(base), set(), set()
+    while pend and len(vistos) < limite:
+        u = pend.pop(0)
+        if u in vistos:
+            continue
+        vistos.add(u)
+        xml = leer(u)
+        locs = re.findall(r"<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)", xml)
+        if "<sitemapindex" in xml:
+            pend += locs
+        else:
+            urls.update(locs)
+    return urls
+
+
+def competidores(cfg):
+    """[(nombre para la foto, URL base, filtro o "")]"""
+    out = []
+    for c in cfg.get("competidores") or []:
+        if isinstance(c, dict):
+            dominio, filtro = str(c.get("dominio") or c.get("url") or ""), str(c.get("filtro") or "")
+        else:
+            partes = str(c).split("#")[0].split()
+            if not partes:
+                continue
+            dominio, filtro = partes[0], (partes[1] if len(partes) > 1 else "")
+        dominio = dominio.strip().rstrip("/")
+        if not dominio:
+            continue
+        if "://" in dominio:
+            base = dominio
+            nombre = urllib.parse.urlparse(dominio).netloc
+        else:
+            base, nombre = f"https://{dominio}", dominio
+        out.append((re.sub(r"[^A-Za-z0-9._-]", "_", nombre), base, filtro))
+    return out
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--todo", action="store_true", help="enseña también los dominios sin páginas nuevas")
+    ap.add_argument("--salida", help="carpeta de las fotos")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    lista = competidores(cfg)
+    if not lista:
+        H.fallar(f"el cliente «{x.cliente}» no tiene competidores en cliente.json "
+                 f"(hseo_clientes.py config {x.cliente} competidores '[\"ejemplo.com\"]')")
+    carpeta = Path(x.salida) if x.salida else H.datos(x.cliente, "competencia")
+    carpeta.mkdir(parents=True, exist_ok=True)
+    hubo = False
+    for nombre, base, filtro in lista:
+        urls = urls_de(base)
+        if filtro:
+            urls = {u for u in urls if filtro.lower() in u.lower()}
+        foto = carpeta / f"{nombre}.txt"
+        if not urls:
+            print(f"- {nombre}: sitemap no accesible"); continue
+        antes = set(foto.read_text().split()) if foto.exists() else None
+        foto.write_text("\n".join(sorted(urls)))
+        if antes is None:
+            print(f"- {nombre}: primera foto ({len(urls)} URL)"); continue
+        nuevas = sorted(urls - antes)
+        if nuevas or x.todo:
+            hubo = True
+            print(f"## {nombre}: {len(nuevas)} páginas nuevas")
+            for u in nuevas[:25]:
+                print(f"  {u}")
+    if not hubo:
+        print("Sin páginas nuevas en la competencia desde la última revisión.")
+
+
+if __name__ == "__main__":
+    main()

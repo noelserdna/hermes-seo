@@ -1,0 +1,159 @@
+#!/usr/bin/python3
+"""Guarda una copia propia de Google Search Console de un cliente (Google solo guarda 16 meses).
+
+Uso: guardar-gsc --cliente <slug> [--desde AAAA-MM-DD] [--salida <carpeta>]
+
+Un archivo por día en clientes/<slug>/datos/gsc/AAAA-MM-DD.json (o en --salida) con los totales y las filas de
+consulta×página (hasta 100), página, país y dispositivo. Salta los días ya guardados y los que aún no tienen
+datos finales (Google va 2-3 días por detrás). Sin --desde empieza en el día guardado más antiguo (rellena
+huecos) o, si no hay ninguno, 30 días antes del último día con datos.
+
+Habla JSON-RPC (MCP Streamable HTTP) con un servidor MCP de Search Console que tenga la tool
+rendimiento_busqueda. De cliente.json lee:
+  capacidades.busqueda.gsc             propiedad (p. ej. sc-domain:ejemplo.com)
+  capacidades.busqueda.gsc_mcp         URL del servidor MCP (o la variable HSEO_GSC_MCP)
+  capacidades.busqueda.gsc_perfil      perfil de Hermes que tiene el token OAuth (por defecto seo-analista)
+  capacidades.busqueda.gsc_mcp_nombre  nombre del servidor MCP en ese perfil (por defecto seo)
+El token está en ~/.hermes/profiles/<perfil>/mcp-tokens/<nombre>.json (perfil default: ~/.hermes/mcp-tokens/);
+si va a caducar, lo renueva Hermes con `hermes -p <perfil> mcp test <nombre>`. Nunca se imprime.
+Última línea: GSC_OK <n días nuevos> | GSC_ERROR <motivo> (código 3 si falta el token o ha caducado).
+"""
+import datetime as dt
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+ERR = "GSC_ERROR "
+
+
+class Cliente:
+    def __init__(self, url, sitio, token):
+        self.url, self.sitio, self.token, self.sesion, self.n = url, sitio, token, None, 0
+
+    def rpc(self, metodo, params=None, notificacion=False):
+        cab = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json",
+               "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-11-25",
+               "User-Agent": H.UA}
+        if self.sesion:
+            cab["Mcp-Session-Id"] = self.sesion
+        cuerpo = {"jsonrpc": "2.0", "method": metodo, "params": params or {}}
+        if not notificacion:
+            self.n += 1
+            cuerpo["id"] = self.n
+        r = urllib.request.urlopen(urllib.request.Request(self.url, json.dumps(cuerpo).encode(), cab), timeout=120)
+        self.sesion = r.headers.get("Mcp-Session-Id") or self.sesion
+        texto = r.read().decode()
+        if notificacion or not texto.strip():
+            return None
+        datos = json.loads(texto) if texto.lstrip().startswith("{") else next(
+            json.loads(l[5:]) for l in texto.splitlines() if l.startswith("data:"))
+        if "error" in datos:
+            raise RuntimeError(datos["error"].get("message"))
+        return datos["result"]
+
+    def rendimiento(self, dia, agrupar, limite=100):
+        r = self.rpc("tools/call", {"name": "rendimiento_busqueda", "arguments": {
+            "siteUrl": self.sitio, "fechaInicio": dia, "fechaFin": dia, "agruparPor": agrupar, "limite": limite,
+            "comparar": "ninguno"}})
+        if r.get("isError"):
+            raise RuntimeError(r["content"][0]["text"][:300])
+        return r["structuredContent"]
+
+
+def leer_token(perfil, nombre):
+    base = Path.home() / ".hermes"
+    carpeta = base if perfil == "default" else base / "profiles" / perfil
+    archivo = carpeta / "mcp-tokens" / f"{nombre}.json"
+    if not archivo.exists():
+        H.fallar(f"no hay token de Search Console en {archivo}: conecta con «hermes -p {perfil} mcp login {nombre}»",
+                 3, ERR)
+    d = json.loads(archivo.read_text())
+    if d.get("expires_at", 0) < time.time() + 300:
+        try:
+            subprocess.run(["hermes", "-p", perfil, "mcp", "test", nombre], capture_output=True, timeout=180)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        d = json.loads(archivo.read_text())
+        if d.get("expires_at", 0) < time.time() + 60:
+            H.fallar(f"el acceso a Search Console ha caducado: hay que reconectar (hermes -p {perfil} mcp login {nombre})",
+                     3, ERR)
+    if not d.get("access_token"):
+        H.fallar(f"el token de {archivo} no tiene access_token", 3, ERR)
+    H._CLAVES_VISTAS.append(d["access_token"])
+    return d["access_token"]
+
+
+def filas(res):
+    return [{**f["claves"], **f["actual"]} for f in res.get("filas", [])]
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--desde", help="primer día AAAA-MM-DD")
+    ap.add_argument("--salida", help="carpeta de los días")
+    x = ap.parse_args()
+    if x.desde:
+        try:
+            dt.date.fromisoformat(x.desde)
+        except ValueError:
+            H.fallar("--desde tiene que ser una fecha AAAA-MM-DD", 2, ERR)
+    cfg = H.cliente(x.cliente)
+    bus = (cfg.get("capacidades") or {}).get("busqueda") or {}
+    sitio = bus.get("gsc") or ""
+    url = os.environ.get("HSEO_GSC_MCP") or bus.get("gsc_mcp") or ""
+    perfil = bus.get("gsc_perfil") or "seo-analista"
+    nombre = bus.get("gsc_mcp_nombre") or "seo"
+    if not sitio:
+        H.fallar(f"el cliente «{x.cliente}» no tiene propiedad de Search Console (capacidades.busqueda.gsc)", 2, ERR)
+    if not url:
+        H.fallar(f"falta la URL del servidor MCP de Search Console (capacidades.busqueda.gsc_mcp o HSEO_GSC_MCP)", 2, ERR)
+    destino = Path(x.salida) if x.salida else H.datos(x.cliente, "gsc")
+    destino.mkdir(parents=True, exist_ok=True)
+    c = Cliente(url, sitio, leer_token(perfil, nombre))
+    c.rpc("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                         "clientInfo": {"name": "hermes-seo-guardar-gsc", "version": "0.1"}})
+    c.rpc("notifications/initialized", notificacion=True)
+    # Último día con datos finales según el propio servidor (sin fechas = periodo por defecto)
+    ult = c.rpc("tools/call", {"name": "rendimiento_busqueda", "arguments": {"siteUrl": sitio, "agruparPor": [], "comparar": "ninguno"}})
+    fin = dt.date.fromisoformat(ult["structuredContent"]["periodo"]["fin"])
+    if x.desde:
+        desde = dt.date.fromisoformat(x.desde)
+    else:
+        guardados = sorted(p.stem for p in destino.glob("????-??-??.json"))
+        desde = dt.date.fromisoformat(guardados[0]) if guardados else fin - dt.timedelta(days=29)
+    dia, nuevos = desde, 0
+    while dia <= fin:
+        archivo = destino / f"{dia}.json"
+        if not archivo.exists():
+            d = str(dia)
+            consulta_pagina = c.rendimiento(d, ["query", "page"])
+            datos = {
+                "dia": d, "sitio": sitio, "guardado": dt.datetime.now().isoformat(timespec="seconds"),
+                "totales": consulta_pagina.get("totales"),
+                "consulta_pagina": filas(consulta_pagina),
+                "pagina": filas(c.rendimiento(d, ["page"])),
+                "pais": filas(c.rendimiento(d, ["country"], 50)),
+                "dispositivo": filas(c.rendimiento(d, ["device"], 10)),
+            }
+            archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=1))
+            nuevos += 1
+        dia += dt.timedelta(days=1)
+    print(f"GSC_OK {nuevos} días nuevos (hasta {fin}) en {destino}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:  # noqa: BLE001
+        print(H.tapar(f"{ERR}{type(e).__name__}: {str(e)[:300]}"))
+        sys.exit(1)

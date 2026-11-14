@@ -5,22 +5,54 @@
   "dominio": "",
   "url": "",
   "idioma": "es",
-  "mercados": [{"pais": "ES", "bing": "es-ES"}],
+  "mercados": [
+    {
+      "pais": "ES",
+      "bing": "es-ES"
+    }
+  ],
   "zona_horaria": "Europe/Madrid",
   "estado_web": "nueva",
-  "negocio": {"publico": "", "voz": "", "objetivo": ""},
+  "negocio": {
+    "publico": "",
+    "voz": "",
+    "objetivo": ""
+  },
   "capacidades": {
-    "publicacion": {"adaptador": "ninguno"},
-    "busqueda": {"gsc": "", "bing": ""},
-    "analitica": {"adaptador": "ninguna"},
+    "publicacion": {
+      "adaptador": "ninguno"
+    },
+    "busqueda": {
+      "gsc": "",
+      "bing": "",
+      "gsc_mcp": "",
+      "gsc_perfil": "seo-analista"
+    },
+    "analitica": {
+      "adaptador": "ninguna",
+      "zona": ""
+    },
     "difusion": []
   },
   "competidores": [],
-  "politicas": {"pausado": false, "congelado_hasta": "", "tope_semanal": 0, "antes_de_publicar": ""},
+  "politicas": {
+    "pausado": false,
+    "congelado_hasta": "",
+    "tope_semanal": 0,
+    "antes_de_publicar": ""
+  },
   "modelos": {},
   "ejecutores": {},
-  "jev": {"permitido": true},
-  "telegram": {"chat_id": "", "thread_id": ""},
+  "jev": {
+    "permitido": true
+  },
+  "telegram": {
+    "chat_id": "",
+    "thread_id": ""
+  },
   "crons": {},
-  "extensiones": []
+  "extensiones": [],
+  "auditoria": {
+    "rutas_privadas": []
+  }
 }

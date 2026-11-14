@@ -1,0 +1,227 @@
+#!/usr/bin/python3
+"""Auditoría técnica de SEO de la web de un cliente, a partir de su sitemap. Solo lee páginas públicas.
+
+Uso: auditoria-web --cliente <slug> [--sitio https://…] [--sitemap <url> …] [--salida <archivo.md>]
+
+Revisa cada URL del sitemap (sin seguir redirecciones) y los enlaces internos que aparecen en ellas:
+códigos de estado, redirecciones (302/307 y cadenas), canonical, noindex, longitud y duplicados de <title>,
+meta descripción, número de H1, imágenes sin alt, enlaces internos rotos y páginas huérfanas (en el sitemap,
+pero sin ningún enlace interno que apunte a ellas).
+
+De cliente.json lee: url (o --sitio) y auditoria.rutas_privadas (lista opcional de prefijos de ruta detrás de
+login, cuyo 302 es lo esperado y no se revisan). Sitemap: --sitemap, o los de robots.txt más /sitemap-index.xml,
+/sitemap.xml y /sitemap_index.xml (los que respondan).
+Imprime un informe en Markdown y lo guarda en clientes/<slug>/datos/auditoria/AAAA-MM-DD.md (o en --salida).
+"""
+import collections
+import concurrent.futures as cf
+import html
+import importlib.util
+import re
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from html.parser import HTMLParser
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+class SinRedireccion(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+ABRIR = urllib.request.build_opener(SinRedireccion)
+
+
+def pedir(url, cuerpo=True):
+    req = urllib.request.Request(url, headers={"User-Agent": H.UA}, method="GET" if cuerpo else "HEAD")
+    try:
+        with ABRIR.open(req, timeout=25) as r:
+            datos = r.read().decode("utf-8", "replace") if cuerpo else ""
+            return r.status, dict(r.headers), datos
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers or {}), ""
+    except Exception as e:
+        return 0, {}, type(e).__name__
+
+
+class Pagina(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.titulo, self.en_titulo, self.h1 = "", False, 0
+        self.meta, self.canonical, self.robots = None, None, ""
+        self.enlaces, self.imgs_sin_alt = [], 0
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "title":
+            self.en_titulo = True
+        elif tag == "h1":
+            self.h1 += 1
+        elif tag == "meta" and (a.get("name") or "").lower() == "description":
+            self.meta = a.get("content") or ""
+        elif tag == "meta" and (a.get("name") or "").lower() == "robots":
+            self.robots = (a.get("content") or "").lower()
+        elif tag == "link" and (a.get("rel") or "").lower() == "canonical":
+            self.canonical = a.get("href")
+        elif tag == "a" and a.get("href"):
+            self.enlaces.append(a["href"])
+        elif tag == "img" and not (a.get("alt") or "").strip() and a.get("role") != "presentation" and a.get("aria-hidden") != "true":
+            self.imgs_sin_alt += 1
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self.en_titulo = False
+
+    def handle_data(self, data):
+        if self.en_titulo:
+            self.titulo += data
+
+
+def sitemaps_por_defecto(sitio):
+    _, _, robots = pedir(f"{sitio}/robots.txt")
+    desde_robots = re.findall(r"(?im)^\s*sitemap:\s*(\S+)", robots or "")
+    vistos, lista = set(), []
+    for u in desde_robots + [f"{sitio}/sitemap-index.xml", f"{sitio}/sitemap.xml", f"{sitio}/sitemap_index.xml"]:
+        if u not in vistos:
+            vistos.add(u)
+            lista.append(u)
+    return lista
+
+
+def urls_sitemap(iniciales):
+    pend, urls, vistos, leidos = list(iniciales), [], set(), []
+    while pend:
+        u = pend.pop()
+        if u in vistos:
+            continue
+        vistos.add(u)
+        st, _, xml = pedir(u)
+        if st != 200 or "<loc>" not in xml:
+            continue
+        if u in iniciales:
+            leidos.append(u)
+        locs = [html.unescape(x) for x in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml)]
+        if "<sitemapindex" in xml:
+            pend += locs
+        else:
+            urls += locs
+    return sorted(set(urls)), leidos
+
+
+def normalizar(href, base, host):
+    u = urllib.parse.urljoin(base, href.split("#")[0])
+    p = urllib.parse.urlparse(u)
+    if p.scheme not in ("http", "https") or p.netloc != host:
+        return None
+    return urllib.parse.urlunparse((p.scheme, p.netloc, p.path or "/", "", p.query, ""))
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--sitio", help="URL base de la web (por defecto, la «url» de cliente.json)")
+    ap.add_argument("--sitemap", action="append", help="URL del sitemap (se puede repetir)")
+    ap.add_argument("--salida", help="archivo Markdown donde guardar el informe")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    sitio = (x.sitio or cfg.get("url") or "").rstrip("/")
+    if not sitio:
+        H.fallar(f"el cliente «{x.cliente}» no tiene url en cliente.json (o usa --sitio)")
+    privadas = tuple(str(p) for p in ((cfg.get("auditoria") or {}).get("rutas_privadas") or []))
+    salida = Path(x.salida) if x.salida else H.datos(x.cliente, "auditoria") / f"{H.hoy()}.md"
+    host = urllib.parse.urlparse(sitio).netloc
+
+    urls, leidos = urls_sitemap(x.sitemap or sitemaps_por_defecto(sitio))
+    if not urls:
+        H.fallar(f"no encuentro ningún sitemap con URL en {sitio} (prueba con --sitemap)", 1)
+    paginas, problemas = {}, collections.defaultdict(list)
+
+    def revisar(u):
+        st, cab, cuerpo = pedir(u)
+        pg = Pagina()
+        if st == 200 and "html" in (cab.get("Content-Type") or cab.get("content-type") or ""):
+            pg.feed(cuerpo)
+        return u, st, cab, pg
+
+    with cf.ThreadPoolExecutor(8) as ex:
+        for u, st, cab, pg in ex.map(revisar, urls):
+            paginas[u] = (st, cab, pg)
+
+    titulos = collections.defaultdict(list)
+    entrantes = collections.Counter()
+    enlaces_internos = set()
+    for u, (st, cab, pg) in paginas.items():
+        if st != 200:
+            loc = cab.get("Location") or cab.get("location") or ""
+            problemas["URL del sitemap que no responde 200"].append(f"{u} → {st} {loc}".strip())
+            continue
+        t = " ".join(pg.titulo.split())
+        titulos[t].append(u)
+        if len(t) > 60:
+            problemas["Título de más de 60 caracteres (Google lo corta)"].append(f"{u} · {len(t)} · «{t}»")
+        if not t:
+            problemas["Sin <title>"].append(u)
+        if pg.meta is None or not pg.meta.strip():
+            problemas["Sin meta descripción"].append(u)
+        elif not 70 <= len(pg.meta) <= 160:
+            problemas["Meta descripción fuera de 70-160 caracteres"].append(f"{u} · {len(pg.meta)}")
+        if pg.h1 != 1:
+            problemas["Número de H1 distinto de 1"].append(f"{u} · {pg.h1}")
+        if pg.canonical and pg.canonical.rstrip("/") != u.rstrip("/"):
+            problemas["Canonical distinta de la URL del sitemap"].append(f"{u} → {pg.canonical}")
+        if not pg.canonical:
+            problemas["Sin canonical"].append(u)
+        if "noindex" in pg.robots:
+            problemas["noindex en una URL del sitemap"].append(u)
+        if pg.imgs_sin_alt:
+            problemas["Imágenes sin texto alternativo"].append(f"{u} · {pg.imgs_sin_alt}")
+        for h in pg.enlaces:
+            n = normalizar(h, u, host)
+            if n and n != u:
+                enlaces_internos.add(n)
+                entrantes[n.rstrip("/") or n] += 1
+
+    for t, us in titulos.items():
+        if t and len(us) > 1:
+            problemas["Título duplicado"].append(f"«{t}»: " + ", ".join(us))
+
+    # rutas detrás de login (auditoria.rutas_privadas): su 302 es lo esperado
+    sin_revisar = sorted(n for n in enlaces_internos if n not in paginas
+                         and not (privadas and urllib.parse.urlparse(n).path.startswith(privadas)))
+    with cf.ThreadPoolExecutor(8) as ex:
+        for n, (st, cab, _) in zip(sin_revisar, ex.map(lambda u: pedir(u, cuerpo=False), sin_revisar)):
+            if st in (404, 410) or st >= 500 or st == 0:
+                problemas["Enlace interno roto"].append(f"{n} → {st}")
+            elif st in (302, 303, 307):
+                problemas["Enlace interno a una redirección temporal"].append(f"{n} → {st} {cab.get('Location') or cab.get('location') or ''}")
+            elif st in (301, 308):
+                problemas["Enlace interno que pasa por una redirección (enlazar al destino)"].append(f"{n} → {cab.get('Location') or cab.get('location') or ''}")
+
+    portada = sitio.rstrip("/")
+    for u, (st, _, _) in paginas.items():
+        if st == 200 and u.rstrip("/") != portada and entrantes[u.rstrip("/")] == 0:
+            problemas["Página huérfana (ningún enlace interno apunta a ella)"].append(u)
+
+    lineas = [f"# Auditoría técnica · {H.hoy()}", "",
+              f"Sitio: {sitio} · {len(urls)} URL en el sitemap ({', '.join(leidos)}) · "
+              f"{len(enlaces_internos)} enlaces internos distintos.", ""]
+    if not problemas:
+        lineas.append("Sin problemas detectados.")
+    for tipo, items in sorted(problemas.items(), key=lambda kv: -len(kv[1])):
+        lineas.append(f"## {tipo} ({len(items)})")
+        lineas += [f"- {i}" for i in items[:40]]
+        if len(items) > 40:
+            lineas.append(f"- … y {len(items) - 40} más")
+        lineas.append("")
+    texto = "\n".join(lineas)
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(texto)
+    print(texto)
+
+
+if __name__ == "__main__":
+    main()

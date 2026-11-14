@@ -58,8 +58,9 @@ def _arnes() -> Path:
 # ── dónde se publica ────────────────────────────────────────────────────────────────────────────────────────────────
 def _destinos(puerta: dict) -> list:
     """[(chat_id, thread_id|None)]: el tema de la web si lo tiene; si no, el chat principal o los aprobadores."""
-    try:
-        tg = C.leer(puerta["cliente"]).get("telegram") or {}
+    try:   # la web, o «__cartera__» para lo que es de todas (lecciones): el tema 📊 Cartera si está configurado
+        tg = ((B.leer(B.home() / "seo.json", {}) or {}).get("telegram_cartera") or {}) if puerta["cliente"] == "__cartera__" \
+            else (C.leer(puerta["cliente"]).get("telegram") or {})
     except B.Rechazo:
         tg = {}
     if tg.get("chat_id"):
@@ -194,6 +195,47 @@ async def _on_respuesta(update, context) -> None:
     await m.reply_text(await _decidir(context.bot, gid, verbo, m.text.strip(), m.from_user, persona))
 
 
+# ── lecciones entre webs ────────────────────────────────────────────────────────────────────────────────────────────
+async def _avisar_lecciones(bot) -> None:
+    L = _cargar("hseo_lecciones")
+    avisadas = B.leer(B.home() / "lecciones-avisadas.json", {}) or {}
+    from telegram import InlineKeyboardButton as Bt, InlineKeyboardMarkup as Mk
+    for l in L.pendientes():
+        clave = f"{l['id']}:{l['estado']}"
+        if clave in avisadas:
+            continue
+        if l["estado"] == "propuesta":
+            texto = (f"💡 Lección propuesta desde una de tus webs (etapa «{l['etapa']}»):\n\n{l['regla']}\n\n"
+                     "Si la confirmas, se tendrá en cuenta en las demás webs.")
+            kb = Mk([[Bt("✅ Confirmar", callback_data=f"hl:confirmar:{l['id']}"), Bt("🗑 Descartar", callback_data=f"hl:descartar:{l['id']}")]])
+        else:
+            texto = f"♻️ Esta lección ya se ha usado en {len(l['usos'])} webs. ¿Sigue sirviendo?\n\n{l['regla']}"
+            kb = Mk([[Bt("♻️ Mantener", callback_data=f"hl:mantener:{l['id']}"), Bt("⌛ Caducar", callback_data=f"hl:caducar:{l['id']}")]])
+        for chat, hilo in _destinos({"cliente": "__cartera__"}):
+            await bot.send_message(chat_id=chat, message_thread_id=hilo, text=texto, reply_markup=kb)
+        avisadas[clave] = B.ahora()
+        B.escribir(B.home() / "lecciones-avisadas.json", avisadas)
+
+
+async def _on_leccion(update, context) -> None:
+    q = update.callback_query
+    _, accion, lid = (q.data.split(":", 2) + ["", ""])[:3]
+    persona, _ = PU.persona_de("telegram", q.from_user.id)
+    if not persona:
+        await q.answer("No estás autorizado", show_alert=True)
+        return
+    try:
+        l = _cargar("hseo_lecciones").decidir(lid, accion, persona)
+    except B.Rechazo as e:
+        await q.answer(str(e), show_alert=True)
+        return
+    await q.answer({"confirmada": "Confirmada", "descartada": "Descartada", "caducada": "Caducada"}.get(l["estado"], "Hecho"))
+    try:
+        await q.edit_message_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+
 # ── el bucle: Jev, publicar, firmar, sincronizar ────────────────────────────────────────────────────────────────────
 async def _vuelta() -> None:
     bot = _RT["app"].bot
@@ -228,6 +270,10 @@ async def _bucle() -> None:
             raise
         except Exception:
             log.exception("hermes-seo: error en una vuelta del bucle (sigue)")
+        try:
+            await _avisar_lecciones(_RT["app"].bot)
+        except Exception:
+            log.exception("hermes-seo: error al avisar de lecciones")
         try:
             B.escribir(B.home() / "latido.json", {"ts": B.ahora(), "pid": os.getpid()})
         except Exception:
@@ -307,6 +353,7 @@ def register(ctx):
 
         _RT["app"] = application
         application.add_handler(CallbackQueryHandler(_on_boton, pattern=rf"^{PREFIJO}:"))
+        application.add_handler(CallbackQueryHandler(_on_leccion, pattern=r"^hl:"))
         application.add_handler(MessageHandler(filters.TEXT & _EsRespuesta(), _on_respuesta))
         _asegurar_bucle()
 

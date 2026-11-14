@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+"""Mide la web de un cliente en Brave Search, el índice que usa la búsqueda web de Claude: qué páginas tiene
+indexadas (site:) y en qué puesto sale para las preguntas de decisión. Es la pieza Brave de la prueba de
+visibilidad en IA.
+
+Uso: brave-busca --cliente <slug> [<salida.json> | --salida <salida.json>] [--preguntas <archivo.md>]
+
+De cliente.json lee: dominio, mercados[0].pais (country) e idioma (search_lang).
+Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
+Salida por defecto: clientes/<slug>/datos/ia/brave-AAAA-MM-DD.json.
+Clave: BRAVE_SEARCH_API_KEY en secretos.env (una ronda son ~20 peticiones). Nunca se imprime.
+Última línea: BRAVE_OK <páginas indexadas> <preguntas donde sale> | BRAVE_ERROR <motivo>.
+"""
+import importlib.util
+import json
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+
+
+def buscar(api, k, q, pais, idioma, offset=0):
+    params = urllib.parse.urlencode({"q": q, "count": 20, "offset": offset, "country": pais, "search_lang": idioma})
+    req = urllib.request.Request(f"{api}?{params}",
+                                 headers={"Accept": "application/json", "X-Subscription-Token": k, "User-Agent": H.UA})
+    d = {}
+    for intento in range(3):
+        try:
+            d = json.load(urllib.request.urlopen(req, timeout=60))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503) and intento < 2:
+                H.pausa(5 * (intento + 1))
+                continue
+            raise
+    H.pausa(1.1)  # el plan permite 1 petición por segundo
+    return [{"url": r["url"], "titulo": r.get("title", "")} for r in d.get("web", {}).get("results", [])]
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("salida_pos", nargs="?", metavar="salida.json")
+    ap.add_argument("--salida")
+    ap.add_argument("--preguntas")
+    x = ap.parse_args()
+    cfg = H.cliente(x.cliente)
+    dominio = cfg.get("dominio") or ""
+    if not dominio:
+        H.fallar(f"el cliente «{x.cliente}» no tiene dominio en cliente.json", 2, "BRAVE_ERROR ")
+    pais, idioma = H.mercado_principal(cfg)
+    salida = Path(x.salida or x.salida_pos or H.datos(x.cliente, "ia") / f"brave-{H.hoy()}.json")
+    archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
+    preguntas = H.leer_preguntas(archivo)
+    k = H.clave(x.cliente, "BRAVE_SEARCH_API_KEY", "BRAVE_ERROR ")
+    api = H.url_base("HSEO_URL_BRAVE", "https://api.search.brave.com/res/v1/web/search")
+    indexadas = []
+    try:
+        for offset in range(5):  # site: devuelve 20 por página; offset máximo 9
+            pagina = buscar(api, k, f"site:{dominio}", pais, idioma, offset)
+            indexadas += [r["url"] for r in pagina if r["url"] not in indexadas]
+            if len(pagina) < 20:
+                break
+    except Exception as e:  # noqa: BLE001
+        H.fallar(f"{type(e).__name__}: {str(e)[:200]}", 1, "BRAVE_ERROR ")
+    filas = []
+    for i, p in enumerate(preguntas, 1):
+        try:
+            res = buscar(api, k, p, pais, idioma)
+            puesto = next((n for n, r in enumerate(res, 1) if H.es_nuestro(urllib.parse.urlparse(r["url"]).netloc, dominio)), None)
+            filas.append({"n": i, "pregunta": p, "puesto": puesto,
+                          "nuestra_url": res[puesto - 1]["url"] if puesto else None,
+                          "top10": [r["url"] for r in res[:10]]})
+        except Exception as e:  # noqa: BLE001 — se apunta y se sigue
+            filas.append({"n": i, "pregunta": p, "error": H.tapar(f"{type(e).__name__}: {str(e)[:200]}")})
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(json.dumps({"buscador": "brave", "cliente": x.cliente, "dominio": dominio, "pais": pais,
+                                  "idioma": idioma, "fecha": time.strftime("%Y-%m-%d"), "indexadas": indexadas,
+                                  "preguntas": filas}, ensure_ascii=False, indent=1))
+    salimos = sum(1 for f in filas if f.get("puesto"))
+    print(f"BRAVE_OK {len(indexadas)} páginas indexadas, salimos en {salimos} de {len(filas)} preguntas ({salida})")
+
+
+if __name__ == "__main__":
+    main()

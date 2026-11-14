@@ -37,7 +37,7 @@ E = _cargar("hseo_encargos")
 M = _cargar("hseo_modelos")
 
 
-def contexto(slug: str) -> str:
+def contexto(slug: str, etapa: str | None = None) -> str:
     """Lo que todo agente sabe del cliente (el plugin lo pone también en el prompt de los perfiles)."""
     cfg = C.leer(slug)
     neg = cfg.get("negocio") or {}
@@ -61,15 +61,16 @@ def contexto(slug: str) -> str:
         l.append(f"- Sin piezas nuevas hasta {pol['congelado_hasta']}")
     l += ["", f"Memoria del cliente (wiki): {wiki} (empieza por index.md; enlaza, no copies).",
           f"Datos: {C.carpeta(slug) / 'datos'}"]
-    lecciones = _lecciones(slug)
+    lecciones = _lecciones(slug, etapa)
     if lecciones:
         l += ["", "## Lecciones de otros proyectos (confirmadas por una persona)", *[f"- {x}" for x in lecciones]]
     return "\n".join(l) + "\n"
 
 
-def _lecciones(slug: str) -> list:
+def _lecciones(slug: str, etapa: str | None) -> list:
+    """Lecciones confirmadas de otras webs: las de la etapa (y se anota el uso) o, sin etapa, todas sin anotar."""
     try:
-        return _cargar("hseo_lecciones").para_cliente(slug)
+        return _cargar("hseo_lecciones").para_cliente(slug, etapa, anotar=etapa is not None)
     except Exception:
         return []
 
@@ -103,7 +104,7 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     salidas = {x["id"]: x.get("salida") for x in p["etapas"]}
     previas = [f"{salidas[i]} ({i})" for i in orden[:orden.index(etapa)] if salidas.get(i) and (d / salidas[i]).exists()]
     salida = s.get("salida") or f"{etapa}.md"
-    (d / "contexto-cliente.md").write_text(contexto(slug))
+    (d / "contexto-cliente.md").write_text(contexto(slug, etapa))
     ejecutor = (cfg.get("ejecutores") or {}).get(etapa) or s.get("ejecutor", "hermes")
     arnes = PL.raiz()
     skill_md = arnes / "skills" / s["skill"] / "SKILL.md"
