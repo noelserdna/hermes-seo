@@ -12,6 +12,7 @@ Scripts de solo lectura (no publican ni escriben en ninguna web). Todos piden `-
 | `sitemaps-competencia` · páginas nuevas de `competidores` | ninguna | `datos/competencia/<dominio>.txt` |
 | `brave-busca` · páginas indexadas en Brave y puesto en las preguntas de decisión | `BRAVE_SEARCH_API_KEY` | `datos/ia/brave-AAAA-MM-DD.json` |
 | `chatgpt-busca` · respuestas de ChatGPT con buscador a las preguntas de decisión | `OPENAI_API_KEY` | `datos/ia/chatgpt-AAAA-MM-DD.json` |
+| `claude-busca` · respuestas de Claude con búsqueda web (Claude Code) a las preguntas de decisión | `CLAUDE_CODE_OAUTH_TOKEN` (o la sesión de la máquina) | `datos/ia/claude-AAAA-MM-DD.json` |
 | `guardar-gsc` · copia diaria de Search Console por un servidor MCP (`capacidades.busqueda.gsc_mcp`) | token OAuth del perfil de Hermes (`gsc_perfil`) | `datos/gsc/AAAA-MM-DD.json` |
 | `bots-ia` · bots de IA y buscadores por User-Agent (Cloudflare) | `CLOUDFLARE_ANALYTICS_TOKEN` | `datos/bots/AAAA-MM-DD.md` |
 

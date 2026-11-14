@@ -26,7 +26,8 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-analista`).
 1. Preguntas: `preguntas-decision.md` en la carpeta de la web (una por línea; es lo que leen las herramientas). Si no
    existe, propón 10 preguntas de decisión de su público y anótalas en el informe para que la coordinadora las guarde.
 2. ChatGPT con búsqueda: `chatgpt-busca --cliente <nombre corto>` (coste de API: ya aprobado al lanzar). Brave:
-   `brave-busca --cliente <nombre corto>`. Claude: si está disponible, con búsqueda web.
+   `brave-busca --cliente <nombre corto>`. Claude con búsqueda web: `claude-busca --cliente <nombre corto>` (tarda;
+   lánzalo con un timeout de terminal amplio).
 3. Por pregunta y motor: ¿cita la web (enlace)?, ¿la menciona?, ¿a quién cita en su lugar? Separa cita y mención.
 4. Tabla de huecos: por qué citan a otros (formato, autoridad, frescura, la web no tiene esa página…).
 5. Escribe `visibilidad.md`: resultado por motor (x de N), la tabla de huecos, **como mucho 3 acciones** y «Lo que no

@@ -1,0 +1,88 @@
+#!/usr/bin/python3
+"""Hace las preguntas de decisión de un cliente a Claude con búsqueda web (Claude Code, `claude -p` con WebSearch y la
+sesión de la cuenta) y guarda las respuestas tal cual. Es la mitad Claude de la prueba de visibilidad en IA.
+
+Uso: claude-busca --cliente <slug> [--salida <salida.json>] [--repeticiones 2] [--preguntas <archivo.md>]
+                  [--modelo sonnet]
+
+Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
+Salida por defecto: clientes/<slug>/datos/ia/claude-AAAA-MM-DD.json.
+Sesión: CLAUDE_CODE_OAUTH_TOKEN en secretos.env (si no está, la sesión de Claude Code de la máquina). Nunca se imprime.
+Ejecutable: CLAUDE_BIN o `claude` en el PATH (o ~/.npm-global/bin/claude).
+Última línea: CLAUDE_OK <n respuestas> | CLAUDE_ERROR <motivo> (código 1 si falta alguna respuesta).
+"""
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+_s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).resolve().parent / "_comun.py")
+H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
+INSTRUCCION = ("Answer the user's question as you normally would, in the user's language, searching the web first. "
+               "At the end, list the URLs you relied on, one per line, under a line that says SOURCES:")
+
+
+def binario() -> str:
+    for b in (os.environ.get("CLAUDE_BIN"), shutil.which("claude"), str(Path.home() / ".npm-global/bin/claude")):
+        if b and Path(b).exists():
+            return b
+    return ""
+
+
+def preguntar(exe: str, env: dict, modelo: str, pregunta: str) -> dict:
+    r = subprocess.run([exe, "-p", pregunta, "--output-format", "json", "--model", modelo, "--max-turns", "12",
+                        "--allowedTools", "WebSearch,WebFetch", "--append-system-prompt", INSTRUCCION],
+                       capture_output=True, text=True, timeout=600, env=env, cwd=str(Path.home()))
+    datos = json.loads(r.stdout or "{}")
+    if datos.get("is_error") or r.returncode != 0:
+        raise RuntimeError((datos.get("result") or r.stderr or "")[:200])
+    texto = datos.get("result") or ""
+    citas = re.findall(r"https?://[^\s)\]>\"']+", texto.split("SOURCES:")[-1] if "SOURCES:" in texto else texto)
+    return {"respuesta": texto, "citas": sorted(set(c.rstrip(".,;") for c in citas)), "coste_usd": datos.get("total_cost_usd")}
+
+
+def main():
+    ap = H.parser(__doc__)
+    ap.add_argument("--salida")
+    ap.add_argument("--repeticiones", type=int, default=2)
+    ap.add_argument("--preguntas")
+    ap.add_argument("--modelo", default="sonnet")
+    x = ap.parse_args()
+    H.cliente(x.cliente)
+    salida = Path(x.salida or H.datos(x.cliente, "ia") / f"claude-{H.hoy()}.json")
+    archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
+    preguntas = H.leer_preguntas(archivo)
+    exe = binario()
+    if not exe:
+        H.fallar("no encuentro Claude Code (claude)", 3, "CLAUDE_ERROR ")
+    env = {"HOME": str(Path.home()), "PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "es_ES.UTF-8",
+           "DISABLE_AUTOUPDATER": "1"}
+    tok = H.C.secretos(x.cliente).get("CLAUDE_CODE_OAUTH_TOKEN")
+    if tok:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
+        H._CLAVES_VISTAS.append(tok)
+    filas = []
+    for i, p in enumerate(preguntas, 1):
+        for rep in range(1, x.repeticiones + 1):
+            try:
+                filas.append({"n": i, "pregunta": p, "repeticion": rep, **preguntar(exe, env, x.modelo, p)})
+            except Exception as e:  # noqa: BLE001 — se apunta y se sigue
+                filas.append({"n": i, "pregunta": p, "repeticion": rep,
+                              "error": H.tapar(f"{type(e).__name__}: {str(e)[:200]}")})
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    salida.write_text(json.dumps({"modelo": x.modelo, "cliente": x.cliente, "fecha": time.strftime("%Y-%m-%d"),
+                                  "filas": filas}, ensure_ascii=False, indent=1))
+    ok = sum("error" not in f and bool(f.get("respuesta", "").strip()) for f in filas)
+    if ok < len(filas):
+        print(f"CLAUDE_ERROR incompleto: {ok} respuestas de {len(filas)} en {salida}")
+        sys.exit(1)
+    print(f"CLAUDE_OK {ok} respuestas de {len(filas)} en {salida}")
+
+
+if __name__ == "__main__":
+    main()
