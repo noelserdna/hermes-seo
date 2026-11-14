@@ -229,6 +229,10 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
         enc["puerta_id"] = gid
         enc["estado"] = "en-puerta"
         E.guardar(slug, enc)
+        try:
+            _cargar("hseo_publicacion").aligerar(slug, eid)
+        except Exception:
+            pass
     return puerta
 
 
@@ -540,6 +544,8 @@ def _aplicar(puerta: dict, firma: str) -> str:
         raise Rechazo(f"Verbo desconocido: {verbo}")
     if enc:
         E.guardar(slug, enc)
+        if enc.get("estado") == "descartado":   # al publicar ya lo quita el despliegue; al descartar, aquí
+            _cargar("hseo_publicacion").limpiar_worktree(slug, eid)
     return resultado
 
 

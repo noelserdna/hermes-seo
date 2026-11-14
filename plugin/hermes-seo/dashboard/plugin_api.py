@@ -87,6 +87,12 @@ async def webs(request: Request):
     return await run_in_threadpool(hacer)
 
 
+@router.get("/sistema")
+async def sistema(request: Request):
+    _actor(request)
+    return await run_in_threadpool(lambda: {"disco": B.disco()})
+
+
 @router.get("/puertas")
 async def puertas(request: Request):
     _actor(request)

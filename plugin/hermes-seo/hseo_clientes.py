@@ -126,6 +126,10 @@ def validar(cfg: dict) -> list:
         e.append("capacidades.publicacion.repo: la ruta del repo de la web (para publicar por PR)")
     if ad == "wordpress" and not str(pub.get("url_api", "")).startswith("https://"):
         e.append("capacidades.publicacion.url_api: la dirección https de la API de WordPress")
+    reg = pub.get("regenerables")
+    if reg is not None and not (isinstance(reg, list) and all(isinstance(x, str) and re.fullmatch(r"[\w@-][\w.@-]*", x)
+                                                               for x in reg)):
+        e.append("capacidades.publicacion.regenerables: lista de nombres de carpeta (p. ej. [\"node_modules\"])")
     if (cap.get("analitica") or {}).get("adaptador") not in ANALITICA:
         e.append(f"capacidades.analitica.adaptador: uno de {', '.join(ANALITICA)}")
     if not isinstance(cap.get("difusion", []), list):

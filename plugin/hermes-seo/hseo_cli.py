@@ -61,7 +61,7 @@ def estado(slug: str | None = None) -> str:
     slugs = [slug] if slug else C.listar()
     if not slugs:
         return "Aún no hay ninguna web dada de alta."
-    lineas = []
+    lineas = [B.disco_linea()] if not slug else [x for x in [B.disco_linea([d for d in B.disco() if d["aviso"]])] if x]
     global_pausa = (B.home() / "pausa").exists()
     if global_pausa:
         lineas.append("⏸ Todo en pausa")

@@ -23,12 +23,21 @@
     return [datos, error, cargar];
   }
 
+  function Disco() {
+    const [s] = usarDatos("/sistema", 60000);
+    if (!s || !s.disco || !s.disco.length) return null;
+    return h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } }, s.disco.map((d) =>
+      h(Badge, { key: d.punto, variant: d.aviso ? "destructive" : "outline" },
+        (d.aviso ? "⚠️ " : "💾 ") + "Disco" + (s.disco.length > 1 ? " " + d.punto : "") + ": " + d.usado_pct + " % usado · " +
+        String(d.libres_gb).replace(".", ",") + " GB libres de " + Math.round(d.total_gb))));
+  }
+
   function Cartera() {
     const [webs, error] = usarDatos("/webs", 15000);
     if (error) return h("p", { style: tenue }, error);
     if (!webs) return h("p", { style: tenue }, "Cargando…");
-    if (!webs.length) return h("p", null, "Aún no hay ninguna web. Pídeselo a la coordinadora: «da de alta mi web …».");
-    return h("div", null, webs.map((w) => h("div", { key: w.slug, style: caja },
+    if (!webs.length) return h("div", null, h(Disco), h("p", null, "Aún no hay ninguna web. Pídeselo a la coordinadora: «da de alta mi web …»."));
+    return h("div", null, h(Disco), webs.map((w) => h("div", { key: w.slug, style: caja },
       h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
         h("strong", null, w.nombre), h("a", { href: w.url, target: "_blank", rel: "noreferrer", style: tenue }, w.url),
         h(Badge, { variant: "outline" }, "web " + w.estado_web), h(Badge, { variant: "outline" }, "publica: " + w.publica),

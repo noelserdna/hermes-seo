@@ -38,7 +38,7 @@ si "wiki de la web y global, con git propio" "[ -d $S/clientes/web/wiki/.git ] &
 si "WIKI_PATH en su .env, sin el token del bot" "grep -q 'WIKI_PATH=$S/clientes/web/wiki' $H/profiles/seo-p-web/.env && ! grep -q TELEGRAM $H/profiles/seo-p-web/.env"
 si "guardia aprobado con ámbito de su web" "jq -e '.approvals[0].command | test(\"guardia.py web \")' $H/profiles/seo-p-web/shell-hooks-allowlist.json"
 si "vigía: cron cada 5 min con monitor" "grep -q 'seo-p-web cron create every 5m .*--monitor-script vigia.sh' $FALSO_LLAMADAS && [ -x $H/profiles/seo-p-web/scripts/vigia.sh ]"
-si "el script del vigía funciona (sin asuntos: nada)" "[ -z \"\$(bash $H/profiles/seo-p-web/scripts/vigia.sh)\" ]"
+si "el script del vigía funciona (sin asuntos: nada)" "[ -z \"\$(HSEO_AVISO_DISCO=101 bash $H/profiles/seo-p-web/scripts/vigia.sh)\" ]"
 si "registrado en encargados.json" "jq -e '.web == \"seo-p-web\"' $S/encargados.json"
 si "tema: ruta por chat y tema al encargado" "bash $S/actual/encargado.sh tema web 12345 77 && jq -e '.[0].profile == \"seo-p-web\" and .[0].thread_id == \"77\"' $T/rutas"
 si "tema: la web sabe dónde avisar" "$HOME/.local/bin/hseo clientes >/dev/null && jq -e '.telegram.thread_id == \"77\"' $S/clientes/web/cliente.json"

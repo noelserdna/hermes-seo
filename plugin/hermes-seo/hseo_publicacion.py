@@ -314,6 +314,52 @@ def entrega(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
 ADAPTADORES = {"repo-pr": repo_pr, "wordpress": wordpress, "entrega": entrega}
 
 
+# ── worktrees: que no se coman el disco ──────────────────────────────────────────────────────────────────────────────
+def _worktree(slug: str, eid: str) -> tuple:
+    """(repo, carpeta del worktree del encargo) según publicacion.worktrees (o <cliente>/wt), o (None, None)."""
+    conf = (C.leer(slug).get("capacidades") or {}).get("publicacion") or {}
+    if not conf.get("repo"):
+        return None, None
+    base = Path(os.path.expanduser(str(conf.get("worktrees") or C.carpeta(slug) / "wt")))
+    wt = base / eid
+    return Path(os.path.expanduser(conf["repo"])), (wt if (wt / ".git").exists() else None)
+
+
+def aligerar(slug: str, eid: str) -> list:
+    """Mientras la puerta espera, borra lo regenerable del worktree (publicacion.regenerables, p. ej. node_modules).
+    Si hay que rehacer, la etapa lo vuelve a instalar. Devuelve lo borrado."""
+    conf = (C.leer(slug).get("capacidades") or {}).get("publicacion") or {}
+    _, wt = _worktree(slug, eid)
+    borrado = []
+    for nombre in conf.get("regenerables") or []:
+        if not nombre or "/" in nombre or nombre.startswith("."):
+            continue
+        d = wt / nombre if wt else None
+        if d and d.is_dir() and not d.is_symlink():
+            shutil.rmtree(d, ignore_errors=True)
+            borrado.append(nombre)
+    return borrado
+
+
+def limpiar_worktree(slug: str, eid: str) -> str:
+    """Al cerrarse el encargo, quita su worktree si no pierde nada: sin cambios sin guardar y con el último commit
+    ya en el remoto (la rama sigue en GitHub)."""
+    repo, wt = _worktree(slug, eid)
+    if not wt:
+        return ""
+    try:
+        if _git(wt, "status", "--porcelain").strip():
+            return f"no se quita {wt}: tiene cambios sin guardar"
+        _git(repo, "fetch", "-q", "origin")
+        if not _git(wt, "branch", "-r", "--contains", "HEAD").strip():
+            return f"no se quita {wt}: tiene commits que no están en el remoto"
+        _git(repo, "worktree", "remove", "--force", str(wt))
+        _git(repo, "worktree", "prune")
+        return f"quitado {wt}"
+    except Exception as e:   # nunca debe romper el cierre de una puerta
+        return f"no se quitó {wt}: {e}"
+
+
 def publicar(slug: str, eid: str, firma: str) -> str:
     cfg = C.leer(slug)
     ad = (cfg["capacidades"].get("publicacion") or {}).get("adaptador", "ninguno")

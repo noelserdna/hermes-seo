@@ -11,6 +11,7 @@ Asuntos del vigía:
   DECIDIDA SIN FIRMAR | <puerta> | …              pasó la ventana y el notario no firmó (¿gateway caído?)
   ENCARGO SIN AVANZAR | <encargo> | más de 12 h   en marcha pero ninguna etapa registró nada
   DATOS SIN ACTUALIZAR | <fuente> | más de 3 días la copia de Search Console no se actualiza
+  DISCO CASI LLENO | <punto> | más del 85 % / 95 %   se acaba el espacio (worktrees, cachés, datos)
 """
 from __future__ import annotations
 
@@ -89,6 +90,9 @@ def vigia(slug: str, ahora: float | None = None) -> list:
             t = _tramo(ahora - fotos[-1].stat().st_mtime, ((7 * 86400, "más de 7 días"), (3 * 86400, "más de 3 días")))
             if t:
                 out.append(f"DATOS SIN ACTUALIZAR | search-console | {t}")
+    for x in B.disco():
+        if x["aviso"]:
+            out.append(f"DISCO CASI LLENO | {x['punto']} | {'más del 95 %' if x['usado_pct'] >= 95 else 'más del 85 %'}")
     return out
 
 
