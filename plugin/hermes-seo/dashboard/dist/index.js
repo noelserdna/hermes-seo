@@ -107,7 +107,8 @@
       : r.error ? h("p", { style: tenue }, r.error)
       : !r.hay_datos ? h("p", null, "Aún no hay datos de Search Console de esta web (se recogen cada día si está configurada).")
       : h("div", null,
-          h("p", { style: tenue }, `Últimos ${r.dias} días hasta el ${r.hasta}, frente a los ${r.dias} anteriores (Search Console).`),
+          h("p", { style: tenue }, `Últimos ${r.dias} días hasta el ${r.hasta}, frente a los ${r.dias} anteriores (Search Console).` +
+            (r.anterior.dias < r.dias ? ` Ojo: del periodo anterior solo hay ${r.anterior.dias} días de datos guardados; la comparación aún no es justa.` : "")),
           h("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 } },
             h(Dato, { nombre: "Clics", ahora: r.actual.clics, antes: r.anterior.clics }),
             h(Dato, { nombre: "Impresiones", ahora: r.actual.impresiones, antes: r.anterior.impresiones }),
