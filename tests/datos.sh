@@ -27,7 +27,7 @@ for i in range(100):
     "encargo": "art-x", "url": "https://web.com/x/", "hipotesis": "más clics"}) + "\n")
 PY
 si "actualizar carga 100 días" "python3 $ROOT/plugin/hermes-seo/hseo_datos.py actualizar web | grep -q '^100 días'"
-si "es idempotente" "python3 $ROOT/plugin/hermes-seo/hseo_datos.py actualizar web | grep -q '^100 días' && [ \$(sqlite3 $HERMES_SEO_HOME/clientes/web/datos/metricas.db 'select count(*) from gsc_dia') = 100 ]"
+si "es idempotente" "python3 $ROOT/plugin/hermes-seo/hseo_datos.py actualizar web | grep -q '^100 días' && [ \$(python3 -c \"import sqlite3,sys;print(sqlite3.connect(sys.argv[1]).execute('select count(*) from gsc_dia').fetchone()[0])\" $HERMES_SEO_HOME/clientes/web/datos/metricas.db) = 100 ]"
 R=$($H datos resumen web)
 echo "$R" | jq -e '.actual.clics == 700 and .anterior.clics == 690 and .actual.dias == 28' >/dev/null && ok "resumen: 28 días frente a los 28 anteriores" || bad "resumen ($(echo "$R" | jq -c '.actual,.anterior'))"
 echo "$R" | jq -e '[.pagina_dos[].consulta] == ["qué es x"]' >/dev/null && ok "resumen: consultas en posiciones 8-20 (no la de la posición 4)" || bad "página 2"

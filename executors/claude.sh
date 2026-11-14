@@ -52,7 +52,9 @@ AJUSTES=$(jq -nc --arg h "$H" '{permissions: {deny: [
   ("Edit(" + $h + "/puertas/**)"), ("Edit(" + $h + "/decisiones/**)"), ("Edit(" + $h + "/*.json)"),
   ("Edit(" + $h + "/secretos.env)"), ("Edit(" + $h + "/clientes/*/cliente.json)"), ("Edit(" + $h + "/clientes/*/secretos.env)"),
   ("Edit(" + $h + "/clientes/*/wiki/**)"), ("Edit(" + $h + "/actual/**)"), "Edit(~/.hermes/config.yaml)", "Edit(~/.hermes/.env)",
-  "Read(~/.hermes/.env)", ("Read(" + $h + "/secretos.env)"), ("Read(" + $h + "/clientes/*/secretos.env)")]}}')
+  "Read(~/.hermes/.env)", ("Read(" + $h + "/secretos.env)"), ("Read(" + $h + "/clientes/*/secretos.env)"),
+  "Bash(git push origin main:*)", "Bash(git push origin HEAD:main:*)", "Bash(git push -f:*)", "Bash(git push --force:*)",
+  "Bash(gh pr merge:*)", "Bash(wrangler:*)", "Bash(npx wrangler:*)", "Bash(pnpm exec wrangler:*)", "Bash(pnpm wrangler:*)"]}}')
 TOOLS="Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(jq:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(curl -sI:*)"
 [ -n "${HSEO_CLAUDE_TOOLS_EXTRA:-}" ] && TOOLS="$TOOLS,$HSEO_CLAUDE_TOOLS_EXTRA"
 PASAR=(); for v in $(compgen -e | grep '^HSEO_PASAR_' || true); do PASAR+=("${v#HSEO_PASAR_}=${!v}"); done
