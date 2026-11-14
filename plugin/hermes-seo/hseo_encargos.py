@@ -198,6 +198,13 @@ def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", 
     enc["rondas"] = int(enc.get("rondas") or 0) + 1
     enc["estado"] = "en-curso"
     enc.pop("puerta_id", None)
+    for s in enc["etapas"][ids.index(etapa):]:   # las tarjetas viejas de esas etapas no deben quedarse esperando
+        viejo = (enc.get("tarjetas") or {}).get(s["id"])
+        if viejo:
+            try:
+                kanban(slug, "archive", viejo)
+            except Rechazo:
+                pass   # ya hecha o ya archivada
     _tarjetas(slug, enc, ids.index(etapa), f"-r{enc['rondas']}")
     guardar(slug, enc)
     B.anotar(d / ".estado" / "historial.jsonl", {"ts": B.ahora(), "accion": accion, "desde": etapa,

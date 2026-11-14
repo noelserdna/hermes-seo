@@ -92,6 +92,7 @@ enc = json.load(open(next(d.glob("*/encargo.json"))))
 assert enc["estado"] == "en-curso" and enc["rondas"] == 1 and "puerta_id" not in enc
 assert "Más ejemplos" in (next(d.glob("*")) / ".estado/feedback-redactar.txt").read_text()
 PY
+si "rehacer archiva las 4 tarjetas viejas" "[ \$(grep -c 'kanban --board web archive' $FALSO_LLAMADAS) = 4 ]"
 si "rehacer crea 4 tarjetas nuevas (redactar → preparar)" "[ \$(grep -c -- '--idempotency-key $EID-.*-r1' $FALSO_LLAMADAS) = 4 ]"
 si "el feedback llega al prompt de redactar" "bash $ROOT/etapa.sh web $EID redactar >/dev/null && grep -q . $D/.estado/feedback-redactar.txt"
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
