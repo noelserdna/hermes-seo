@@ -108,7 +108,10 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     (d / "contexto-cliente.md").write_text(contexto(slug, etapa))
     ejecutor = (cfg.get("ejecutores") or {}).get(etapa) or s.get("ejecutor", "hermes")
     arnes = PL.raiz()
-    skill_md = arnes / "skills" / s["skill"] / "SKILL.md"
+    propia = C.carpeta(slug) / "extensiones" / "skills" / s["skill"] / "SKILL.md"   # las de la web mandan
+    skill_md = propia if propia.exists() else arnes / "skills" / s["skill"] / "SKILL.md"
+    if ejecutor == "claude" and not skill_md.exists():
+        return {"outcome": "failed", "reason": f"no encuentro la skill {s['skill']} (ni en la web ni en el plugin)"}
     titulo = next(x["titulo"] for x in enc["etapas"] if x["id"] == etapa)
     prompt = PROMPT.format(etapa=etapa, titulo=titulo, skill=s["skill"], dir=d, salida=salida, idioma=cfg["idioma"],
                            previas=", ".join(previas) or "nothing (first stage)",

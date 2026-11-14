@@ -52,6 +52,12 @@ def _publicar(slug: str, d: Path, avisos: list) -> None:
     if not isinstance(pub, dict):
         _aviso(avisos, True, "sin-publicacion", "No hay una publicación preparada válida (publicacion.json)")
         return
+    if pub.get("tipo") not in ("nuevo", "actualizacion", "cambio-tecnico"):
+        _aviso(avisos, True, "publicacion-sin-tipo", "publicacion.json no dice qué se publica (tipo nuevo, actualizacion o cambio-tecnico)")
+    conf = (C.leer(slug).get("capacidades") or {}).get("publicacion") or {}
+    if conf.get("adaptador") == "repo-pr" and conf.get("desplegar") and not (pub.get("pr") or pub.get("pr_url")) \
+            and pub.get("contenido") is None:
+        _aviso(avisos, True, "sin-pr", "La web publica por PR y la publicación no trae ni el PR ni el contenido")
     for f, quien in (("verificacion.md", "La verificación de datos"), ("lectura.md", "La revisión de lectura")):
         if (d / f).exists():
             v = _veredicto(d / f)

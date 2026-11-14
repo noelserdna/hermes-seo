@@ -54,6 +54,8 @@ def _leer_publicacion(slug: str, eid: str) -> tuple:
     pub = B.leer(d / "publicacion.json")
     if not isinstance(pub, dict):
         raise Rechazo("Falta publicacion.json en el encargo (la etapa «preparar» no lo dejó)")
+    if not pub.get("pr") and pub.get("pr_url"):   # sinónimo frecuente
+        pub["pr"] = pub["pr_url"]
     cuerpo, meta = "", {}
     if pub.get("contenido"):
         f = (d / pub["contenido"]).resolve()

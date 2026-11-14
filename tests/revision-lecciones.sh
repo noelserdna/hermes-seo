@@ -19,6 +19,8 @@ d = C.carpeta("tienda") / "encargos" / "art-uno"; d.mkdir(parents=True)
 E.guardar("tienda", {"id": "art-uno", "pipeline": "articulo", "etapas": [], "saltadas": [{"id": "competencia", "falta": ["competidores"]}]})
 codigos = lambda r: {a["codigo"]: a["grave"] for a in r["avisos"]}
 r = R.revisar("tienda", "art-uno", "publicar"); assert codigos(r) == {"sin-publicacion": True, "etapas-saltadas": False}, r
+(d / "publicacion.json").write_text(json.dumps({"estado": "pr-abierto", "pr_url": "x"}))
+assert codigos(R.revisar("tienda", "art-uno", "publicar"))["publicacion-sin-tipo"]
 (d / "publicacion.json").write_text(json.dumps({"tipo": "nuevo", "contenido": "borrador.md", "url": "https://tienda.com/a",
                                                 "busqueda_principal": "zapatillas trail"}))
 (d / "borrador.md").write_text("---\ntitulo: Corto\n---\n# Uno\n# Dos\n" + "palabra " * 50)

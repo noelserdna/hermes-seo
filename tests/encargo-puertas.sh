@@ -116,6 +116,13 @@ R=$($EN lanzar web radar); RD=$(echo "$R" | jq -r .encargo)
 GR=$(bash "$ROOT/etapa.sh" web "$RD" radar | tail -1 | jq -r '.puerta // empty')
 si "rechazar cierra el encargo como descartado" "$PU decidir-local $GR rechazo 'No interesa' && jq -e '.estado == \"descartado\"' $HERMES_SEO_HOME/clientes/web/encargos/$RD/encargo.json"
 
+mkdir -p "$HERMES_SEO_HOME/clientes/web/extensiones/skills/radar-propia"; echo "# propia" > "$HERMES_SEO_HOME/clientes/web/extensiones/skills/radar-propia/SKILL.md"
+cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/conpropia.json" <<'J'
+{"id":"conpropia","nombre":"Con skill propia","etapas":[{"id":"redactar","titulo":"x","perfil":"seo-redactor","skill":"radar-propia","ejecutor":"claude","salida":"x.md"}]}
+J
+CP=$($EN lanzar web conpropia | jq -r .encargo); bash "$ROOT/etapa.sh" web "$CP" redactar >/dev/null
+si "Claude recibe la ruta de la skill propia de la web" "grep -q 'extensiones/skills/radar-propia/SKILL.md' $HERMES_SEO_HOME/clientes/web/encargos/$CP/.estado/ultimo-prompt.txt"
+
 # ── continuación con herencia y script de la web ──
 mkdir -p "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines"
 cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/primera.json" <<'J'
