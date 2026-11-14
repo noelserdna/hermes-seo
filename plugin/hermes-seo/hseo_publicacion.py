@@ -173,6 +173,8 @@ def repo_pr(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
     if not (repo / ".git").exists():
         raise Rechazo(f"{repo} no es un repositorio git")
     rama_base = conf.get("rama", "main")
+    if pub.get("pr"):   # la etapa de la web ya abrió el PR con sus convenciones: aquí solo se despliega
+        return _desplegar(slug, eid, conf, repo, str(pub["pr"]))
     rama = f"hseo/{eid}"
     wt = C.carpeta(slug) / "wt" / eid
     if wt.exists():
@@ -220,19 +222,28 @@ def repo_pr(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
     r = subprocess.run(args, capture_output=True, text=True, cwd=str(wt), timeout=120, env=env)
     if r.returncode != 0:
         raise Rechazo(f"gh pr create falló: {(r.stderr or r.stdout).strip()[-300:]}")
-    url_pr = r.stdout.strip().splitlines()[-1]
-    resultado = f"PR {url_pr}"
-    if conf.get("desplegar"):
-        numero = url_pr.rstrip("/").rsplit("/", 1)[-1]
-        script = conf["desplegar"].replace("{pr}", numero)
-        partes = script.split()
-        ruta = (C.carpeta(slug) / "extensiones" / partes[0]).resolve()
-        if not str(ruta).startswith(str((C.carpeta(slug) / "extensiones").resolve())) or not ruta.exists():
-            raise Rechazo(f"PR abierto ({url_pr}), pero no encuentro el script de despliegue {partes[0]} en las extensiones")
-        subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(repo), env=env,
-                         stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)
-        resultado += " · despliegue lanzado"
-    return resultado
+    return _desplegar(slug, eid, conf, repo, r.stdout.strip().splitlines()[-1], env)
+
+
+def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict | None = None) -> str:
+    """Con capacidades.publicacion.desplegar («script {pr}», en las extensiones de la web) lanza el despliegue."""
+    resultado = f"PR {pr}"
+    if not conf.get("desplegar"):
+        return resultado
+    numero = pr.rstrip("/").rsplit("/", 1)[-1]
+    if not numero.isdigit():
+        raise Rechazo(f"No entiendo el número del PR: {pr}")
+    partes = conf["desplegar"].replace("{pr}", numero).split()
+    ruta = (C.carpeta(slug) / "extensiones" / partes[0]).resolve()
+    if not str(ruta).startswith(str((C.carpeta(slug) / "extensiones").resolve())) or not ruta.exists():
+        raise Rechazo(f"PR {pr}, pero no encuentro el script de despliegue {partes[0]} en las extensiones")
+    if env is None:
+        s = C.secretos(slug)
+        env = {**os.environ, **({"GH_TOKEN": s["GH_TOKEN"]} if s.get("GH_TOKEN") else {})}
+    (C.carpeta(slug) / "logs").mkdir(parents=True, exist_ok=True)
+    subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(repo), env=env,
+                     stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)
+    return resultado + " · despliegue lanzado"
 
 
 def wordpress(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firma: str) -> str:

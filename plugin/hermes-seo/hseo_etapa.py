@@ -118,10 +118,16 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     modelo = M.para(etapa, ejecutor, slug, s["perfil"])
     antes = (d / salida).stat().st_mtime if (d / salida).exists() else 0
     env = {**os.environ, "HERMES_SEO_HOME": str(B.home())}
-    if ejecutor == "claude":   # Claude Code con la sesión de la cuenta (si el sistema la guarda en los secretos globales)
-        tok = C.secretos(slug).get("CLAUDE_CODE_OAUTH_TOKEN")
-        if tok:
-            env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
+    if ejecutor == "claude":   # Claude Code con la sesión de la cuenta (si el sistema la guarda en los secretos)
+        sec = C.secretos(slug)
+        if sec.get("CLAUDE_CODE_OAUTH_TOKEN"):
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = sec["CLAUDE_CODE_OAUTH_TOKEN"]
+        extra = (cfg.get("ejecutor_claude") or {})
+        if extra.get("herramientas_extra"):   # p. ej. git, gh o el build de la web, si una etapa propia los necesita
+            env["HSEO_CLAUDE_TOOLS_EXTRA"] = str(extra["herramientas_extra"])
+        for k in extra.get("secretos", []):   # claves del cliente que esa etapa necesita (p. ej. GH_TOKEN)
+            if sec.get(k):
+                env["HSEO_PASAR_" + k] = sec[k]
     ejecutores = Path(os.environ.get("HSEO_EJECUTORES") or arnes / "executors")   # las pruebas ponen los suyos
     if not (ejecutores / f"{ejecutor}.sh").exists():
         return {"outcome": "failed", "reason": f"no existe el ejecutor «{ejecutor}»"}

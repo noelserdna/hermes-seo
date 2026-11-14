@@ -54,12 +54,14 @@ AJUSTES=$(jq -nc --arg h "$H" '{permissions: {deny: [
   ("Edit(" + $h + "/clientes/*/wiki/**)"), ("Edit(" + $h + "/actual/**)"), "Edit(~/.hermes/config.yaml)", "Edit(~/.hermes/.env)",
   "Read(~/.hermes/.env)", ("Read(" + $h + "/secretos.env)"), ("Read(" + $h + "/clientes/*/secretos.env)")]}}')
 TOOLS="Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(jq:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(curl -sI:*)"
+[ -n "${HSEO_CLAUDE_TOOLS_EXTRA:-}" ] && TOOLS="$TOOLS,$HSEO_CLAUDE_TOOLS_EXTRA"
+PASAR=(); for v in $(compgen -e | grep '^HSEO_PASAR_' || true); do PASAR+=("${v#HSEO_PASAR_}=${!v}"); done
 ARGS=(-p "$PROMPT" --output-format json --settings "$AJUSTES" --permission-mode acceptEdits --allowedTools "$TOOLS"
       --max-turns "${MAX_TURNS:-80}")
 [ -n "$MODELO" ] && ARGS+=(--model "$MODELO")
 cd "$DIR"
 env -i HOME="$HOME" USER="${USER:-$(id -un)}" LOGNAME="${LOGNAME:-${USER:-}}" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-es_ES.UTF-8}" \
-  PATH="$PATH_LIMPIO" TERM=dumb DISABLE_AUTOUPDATER=1 HSEO_RUN="$RUN" \
+  PATH="$PATH_LIMPIO" TERM=dumb DISABLE_AUTOUPDATER=1 HSEO_RUN="$RUN" ${PASAR[@]+"${PASAR[@]}"} \
   ${CLAUDE_CODE_OAUTH_TOKEN:+CLAUDE_CODE_OAUTH_TOKEN="$CLAUDE_CODE_OAUTH_TOKEN"} \
   perl -e 'setpgrp(0,0); exec @ARGV' "$BIN" "${ARGS[@]}" > "$OUT" 2> "$ERR" &
 CPID=$!

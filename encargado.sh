@@ -4,6 +4,7 @@
 #
 #   encargado.sh crear <web>                      perfil, carta (SOUL), guardia, wiki y vigía (idempotente)
 #   encargado.sh tema <web> <chat_id> <thread_id>  ese tema de Telegram habla con el encargado (profile_routes)
+#   encargado.sh skills <web>                      los perfiles de rol ven las skills propias de las webs
 #   encargado.sh crons <web>                       tareas periódicas de la web (datos, radar, métricas…) en su perfil
 #   encargado.sh borrar <web>                      quita el perfil y su ruta (la wiki y los datos se quedan)
 #   encargado.sh perfil <web>                      nombre del perfil
@@ -96,6 +97,13 @@ tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan): s
 
 case "$CMD" in
   crons) tareas ;;
+
+  skills)   # tras añadir skills propias de la web: los perfiles de rol las ven (skills.external_dirs)
+    D=$({ echo "$ARNES/skills"; for d in "$HSEO"/clientes/*/extensiones/skills; do [ -d "$d" ] && echo "$d"; done; } | jq -Rnc '[inputs]')
+    for R in seo-investigador seo-redactor seo-verificador seo-editor seo-analista; do
+      "$HERMES" -p "$R" config set skills.external_dirs "$D" >/dev/null 2>&1 || true
+    done
+    echo "Skills de los perfiles de rol: $D" ;;
 
   crear)
     wiki "$CARPETA/wiki" "$NOMBRE"

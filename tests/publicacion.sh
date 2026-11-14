@@ -58,6 +58,11 @@ $C config conrepo capacidades.publicacion.desplegar "../../../malo.sh" >/dev/nul
 encargo conrepo enc3 '{"tipo":"nuevo","titulo":"Tercera","contenido":"borrador.md"}'
 R=$(py conrepo enc3); echo "$R" | grep -q "no encuentro el script" && ok "repo-pr: el despliegue solo desde las extensiones de la web" || bad "repo-pr: script fuera ($R)"
 
+$C config conrepo capacidades.publicacion.desplegar "desplegar.sh {pr}" >/dev/null; rm -f "$T/desplegado"; : > "$FALSO_GH"
+encargo conrepo enc5 '{"tipo":"nuevo","titulo":"Con PR propio","pr":"https://github.com/ejemplo/web/pull/77"}'
+R=$(py conrepo enc5); sleep 1
+echo "$R" | grep -q "pull/77 · despliegue lanzado" && grep -q "desplegando 77" "$T/desplegado" && [ ! -s "$FALSO_GH" ] && ok "repo-pr: si la etapa ya abrió el PR, solo se despliega" || bad "repo-pr con PR propio: $R"
+
 # ── política antes de publicar y pausa ──
 printf '#!/usr/bin/env bash\necho "la web sirve una copia: hay partido"; exit 1\n' > "$HERMES_SEO_HOME/clientes/conrepo/extensiones/ventana.sh"
 $C config conrepo politicas.antes_de_publicar ventana.sh >/dev/null

@@ -80,6 +80,9 @@ carta() {  # SOUL.md = carta del perfil + reglas comunes (con copia de la anteri
   [ -f "$PD/SOUL.md" ] && ! cmp -s "$PD/SOUL.md" <(cat "$ROOT/perfiles/$1.md" "$ROOT/perfiles/comun.md") && cp "$PD/SOUL.md" "$PD/SOUL.md.bak-$(date +%Y%m%d%H%M%S)"
   cat "$ROOT/perfiles/$1.md" "$ROOT/perfiles/comun.md" > "$PD/SOUL.md"
 }
+skills_dirs() {  # las skills del arnés y las propias de cada web (clientes/<web>/extensiones/skills)
+  { echo "$ARNES/skills"; for d in "$HSEO"/clientes/*/extensiones/skills; do [ -d "$d" ] && echo "$d"; done; } | jq -Rnc '[inputs]'
+}
 DENY='["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*firmar*","*decidir*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes config*","*hermes cron*","*hermes kanban*","*sqlite3*","*git push*","*wrangler deploy*"]'
 
 if ! existe seo-estacion; then
@@ -101,7 +104,7 @@ for P in seo-investigador seo-redactor seo-verificador seo-editor seo-analista; 
     copiar_modelo "$P"
   fi
   carta "$P"
-  "$HERMES" -p "$P" config set skills.external_dirs "[\"$ARNES/skills\"]" >/dev/null 2>&1 || true
+  "$HERMES" -p "$P" config set skills.external_dirs "$(skills_dirs)" >/dev/null 2>&1 || true
   "$HERMES" -p "$P" config set approvals.deny "$DENY" >/dev/null 2>&1 || true
   "$HERMES" -p "$P" tools disable cronjob delegation >/dev/null 2>&1 || true
   for kv in "terminal.timeout 2400" "terminal.lifetime_seconds 2400" "display.language es"; do
