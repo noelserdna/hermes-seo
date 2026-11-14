@@ -26,7 +26,8 @@ si "skills del arnés en los perfiles de rol" "grep -q 'seo-redactor config set 
 si "sin --coordinadora no toca el SOUL principal" "[ \"\$(cat $H/SOUL.md)\" = 'Eres mi asistente.' ]"
 echo "secreto viejo" > "$H/profiles/seo-analista/.env"
 si "reinstalar no recrea perfiles ni pisa sus claves" "bash $ROOT/instalar.sh && [ \$(grep -c '^profile create' $FALSO_LLAMADAS) = 6 ] && grep -q 'secreto viejo' $H/profiles/seo-analista/.env"
-si "con --coordinadora: carta añadida y guardia" "bash $ROOT/instalar.sh --coordinadora && grep -q 'Eres mi asistente' $H/SOUL.md && grep -q 'hermes-seo:inicio' $H/SOUL.md && grep -q 'guardia.py cartera' $H/shell-hooks-allowlist.json"
+si "con --coordinadora: carta y prohibiciones duras, sin guardia" "bash $ROOT/instalar.sh --coordinadora && grep -q 'Eres mi asistente' $H/SOUL.md && grep -q 'hermes-seo:inicio' $H/SOUL.md && grep -q 'config set approvals.deny .*hseo_puertas.py' $FALSO_LLAMADAS && [ ! -f $H/shell-hooks-allowlist.json ]"
+si "con --coordinadora-estricta: además el guardia" "bash $ROOT/instalar.sh --coordinadora-estricta && grep -q 'guardia.py cartera' $H/shell-hooks-allowlist.json"
 si "la carta no se duplica al reinstalar" "bash $ROOT/instalar.sh --coordinadora && [ \$(grep -c 'hermes-seo:inicio' $H/SOUL.md) = 1 ]"
 
 # ── encargado ──

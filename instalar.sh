@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Instala (o actualiza) hermes-seo en este Hermes. Idempotente: nunca borra perfiles, claves, clientes ni datos.
 #
-#   bash instalar.sh [--coordinadora] [--seco]
+#   bash instalar.sh [--coordinadora | --coordinadora-estricta] [--seco]
 #
-#   --coordinadora   convierte además el perfil principal (default) en la coordinadora: añade su carta a SOUL.md y el
-#                    guardia (fail-closed) que la limita a la CLI hseo. Cambia cómo se comporta el chat principal:
-#                    úsalo cuando ese perfil sea solo para el SEO.
+#   --coordinadora            el perfil principal (default) pasa a ser también la coordinadora: su carta en SOUL.md y
+#                             prohibiciones duras (approvals.deny) solo para lo irreversible: decidir o firmar puertas,
+#                             secretos, aprobadores y ajustes de Jev. Conserva su terminal: «ojos y manos en todo».
+#   --coordinadora-estricta   además, el guardia (fail-closed) que la limita a la CLI hseo y a leer.
 #
 # Qué deja:
 #   ~/.hermes/hermes-seo/<versión> + enlace «actual», instalacion.json, aprobadores.json (si no existe)
@@ -17,8 +18,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 HH="$HOME/.hermes"; HSEO="${HERMES_SEO_HOME:-$HH/hermes-seo}"
 HERMES="${HERMES_BIN:-hermes}"
-COORD=false; SECO=false
-for a in "$@"; do case $a in --coordinadora) COORD=true ;; --seco) SECO=true ;; *) sed -n '2,16p' "$0"; exit 2 ;; esac; done
+COORD=false; ESTRICTA=false; SECO=false
+for a in "$@"; do case $a in --coordinadora) COORD=true ;; --coordinadora-estricta) COORD=true; ESTRICTA=true ;;
+  --seco) SECO=true ;; *) sed -n '2,18p' "$0"; exit 2 ;; esac; done
 
 falta=()
 for c in jq rsync git python3; do command -v "$c" >/dev/null || falta+=("$c"); done
@@ -120,6 +122,12 @@ else:
     s = s.rstrip() + "\n\n" + bloque + "\n"
 open(sys.argv[1], "w").write(s)
 PY
+  # lo irreversible nunca, ni siquiera con la terminal libre (se suma a lo que ya hubiera en approvals.deny)
+  ACTUAL=$("$HERMES" config get approvals.deny --json 2>/dev/null || echo '[]'); jq -e 'type == "array"' <<< "$ACTUAL" >/dev/null 2>&1 || ACTUAL='[]'
+  "$HERMES" config set approvals.deny "$(jq -c '. + ["*hseo_puertas.py*","*decidir-local*","*/puertas/g*","*aprobadores.json*","*jev.json*","*hermes-seo/secretos.env*"] | unique' <<< "$ACTUAL")" >/dev/null
+  echo "Coordinadora: carta añadida a $S; lo irreversible (decidir puertas, aprobadores, Jev, secretos) prohibido"
+fi
+if $ESTRICTA; then
   GUARDIA="python3 -I $ARNES/encargado/guardia.py cartera $ARNES"
   "$HERMES" config set hooks.pre_tool_call \
     "[{\"matcher\":\"terminal|write_file|patch|read_file|execute_code|delegate_task\",\"command\":\"$GUARDIA\",\"timeout\":10,\"fail_closed\":true}]" >/dev/null
@@ -134,7 +142,7 @@ d["approvals"] = [a for a in d.get("approvals", []) if "encargado/guardia.py car
 d["approvals"].append({"event": "pre_tool_call", "command": c, "approved_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")})
 json.dump(d, open(f, "w"), indent=2)
 PY
-  echo "Coordinadora: carta añadida a $S y guardia activo (solo hseo)"
+  echo "Coordinadora estricta: guardia activo (solo hseo y lectura)"
 fi
 
 # ── 6. encargados existentes, al día ────────────────────────────────────────────────────────────────────────────────
