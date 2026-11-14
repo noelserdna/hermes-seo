@@ -1,0 +1,10 @@
+{
+  "name": "hermes-seo",
+  "label": "SEO",
+  "description": "SEO de tus webs: cartera, decisiones pendientes (canal dashboard; firma el notario), métricas y cambios con su hipótesis.",
+  "icon": "TrendingUp",
+  "version": "0.1.0",
+  "tab": { "path": "/seo", "position": "end" },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}

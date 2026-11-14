@@ -9,8 +9,8 @@ Es un plugin para [Hermes Agent](https://github.com/NousResearch/hermes-agent), 
 [hermes-sdd](https://github.com/noelserdna/hermes-sdd) (el mismo esqueleto: puertas, notario, encargado por proyecto,
 vigía sin IA, memoria con llm-wiki), aplicado al SEO.
 
-> **Estado: en construcción.** Diseño en [docs/diseno.md](docs/diseno.md). Las fases y lo hecho, en
-> [docs/estado.md](docs/estado.md).
+> **Estado:** núcleo completo y probado sin IA (`bash tests/todo.sh`); falta la primera instalación en un Hermes de
+> producción. Diseño en [docs/diseno.md](docs/diseno.md); fases y pendientes en [docs/estado.md](docs/estado.md).
 
 ## La idea en una tabla
 
@@ -44,5 +44,38 @@ alta → línea base técnica → estrategia y mapa temático → producción �
                                      ▲                                                    │
                                      └── decisión ◀── telemetría (GSC, Bing, analítica, IA) ◀┘
 ```
+
+## Instalación
+
+```bash
+git clone https://github.com/noelserdna/hermes-seo && cd hermes-seo
+bash tests/todo.sh                 # todas las pruebas, sin IA ni red
+bash instalar.sh                   # arnés, plugin, CLI hseo y perfiles (no toca tu perfil principal)
+bash instalar.sh --coordinadora    # opcional: convierte el perfil principal en la coordinadora del SEO
+hermes gateway restart
+```
+
+Después, en Telegram o en el panel, a la coordinadora: «da de alta mi web ejemplo.com». Ella pregunta lo que falte,
+pide tu aprobación y lanza la comprobación inicial. Para hablar con el encargado de una web: `/seo_tema <web>`.
+
+| Comando de Telegram | Para qué |
+|---|---|
+| `/seo [web]` | cómo va todo |
+| `/seo_puertas` | decisiones pendientes, con sus botones |
+| `/seo_jev [web] [modo]` | modo de Jev: humano, consejo, piloto, auto |
+| `/seo_tema <web>` | un tema para hablar con el encargado de esa web |
+| `/seo_pausar` · `/seo_reanudar` `[web\|todo]` | parar y seguir |
+
+## Estructura
+
+| Ruta | Qué es |
+|---|---|
+| `plugin/hermes-seo/` | el plugin: clientes, pipelines, encargos, etapas, puertas y Jev, publicación, datos, lecciones, revisión, CLI, Telegram y la pestaña del panel (`dashboard/`) |
+| `pipelines/` | el ciclo de vida como datos (JSON) |
+| `skills/` | lo que hace cada etapa |
+| `herramientas/` | datos de solo lectura por web (Search Console, Bing, Brave, ChatGPT, auditoría…) |
+| `perfiles/`, `encargado/` | cartas de los perfiles, guardia, plantilla del encargado y de su wiki |
+| `executors/` | Claude Code (con supervisor) y Hermes |
+| `instalar.sh`, `encargado.sh`, `etapa.sh`, `hseo` | instalación, encargados, ejecución de una etapa y la CLI |
 
 Licencia MIT.

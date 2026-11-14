@@ -51,6 +51,7 @@ def _num(fila: dict, *claves) -> float:
 
 
 def _db(slug: str) -> sqlite3.Connection:
+    C.leer(slug)   # Rechazo si la web no existe (no se crean carpetas de webs inventadas)
     f = C.carpeta(slug) / "datos" / "metricas.db"
     f.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(f)
