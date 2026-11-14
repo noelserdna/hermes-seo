@@ -115,6 +115,31 @@ R=$($EN lanzar web radar); RD=$(echo "$R" | jq -r .encargo)
 GR=$(bash "$ROOT/etapa.sh" web "$RD" radar | tail -1 | jq -r '.puerta // empty')
 si "rechazar cierra el encargo como descartado" "$PU decidir-local $GR rechazo 'No interesa' && jq -e '.estado == \"descartado\"' $HERMES_SEO_HOME/clientes/web/encargos/$RD/encargo.json"
 
+# ── continuación con herencia y script de la web ──
+mkdir -p "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines"
+cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/primera.json" <<'J'
+{"id":"primera","nombre":"Primera","parametros":{"tema":"t"},"nueva_pieza":true,"etapas":[{"id":"investigar","titulo":"Uno: {tema}","perfil":"seo-investigador","skill":"radar","salida":"uno.md"}],
+ "puerta":{"tipo":"difusion","al_aprobar":"pipeline:segunda"}}
+J
+cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/segunda.json" <<'J'
+{"id":"segunda","nombre":"Segunda","parametros":{"tema":"t"},"etapas":[{"id":"redactar","titulo":"Dos: {tema}","perfil":"seo-redactor","skill":"radar","salida":"dos.md"}],
+ "puerta":{"tipo":"difusion","al_aprobar":"script:publicar.sh {encargo} extra"}}
+J
+printf '#!/usr/bin/env bash\necho "$1 $2 $HSEO_FIRMA" > "$HERMES_SEO_HOME/script-hecho"\n' > "$HERMES_SEO_HOME/clientes/web/extensiones/publicar.sh"
+$C config web politicas.tope_semanal 0 >/dev/null; $C config web politicas.congelado_hasta "" >/dev/null
+P1=$($EN lanzar web primera --param tema=capturas | jq -r .encargo)
+G1=$(bash "$ROOT/etapa.sh" web "$P1" investigar | tail -1 | jq -r '.puerta // empty')
+$C config web politicas.congelado_hasta 2099-01-01 >/dev/null
+$PU decidir-local $G1 acepto > $T/dl.out 2>&1; cat $T/dl.out >&2
+si "aprobar lanza la continuación aunque haya congelación (ya pasó las políticas)" "grep -q Firmada $T/dl.out"
+P2=$(ls $HERMES_SEO_HOME/clientes/web/encargos | grep '^segunda-' | head -1)
+si "la continuación hereda parámetros y salidas" "[ -n '$P2' ] && jq -e '.params.tema == \"capturas\" and .origen == \"$P1\"' $HERMES_SEO_HOME/clientes/web/encargos/$P2/encargo.json && [ -f $HERMES_SEO_HOME/clientes/web/encargos/$P2/uno.md ]"
+si "y no cuenta como pieza nueva otra vez" "tail -1 $HERMES_SEO_HOME/clientes/web/encargos.jsonl | jq -e '.nueva_pieza == false'"
+G2=$(bash "$ROOT/etapa.sh" web "$P2" redactar | tail -1 | jq -r '.puerta // empty')
+si "la etapa ve lo heredado como previo" "grep -q 'uno.md (from $P1)' $HERMES_SEO_HOME/clientes/web/encargos/$P2/.estado/ultimo-prompt.txt"
+si "script: lanza el script de la web con el encargo y la firma" "$PU decidir-local $G2 acepto && sleep 1 && grep -q '^$P2 extra' $HERMES_SEO_HOME/script-hecho"
+$C config web politicas.congelado_hasta "" >/dev/null
+
 # ── Jev ──
 R=$($EN lanzar web radar); J1=$(echo "$R" | jq -r .encargo)
 GJ=$(bash "$ROOT/etapa.sh" web "$J1" radar | tail -1 | jq -r '.puerta // empty')

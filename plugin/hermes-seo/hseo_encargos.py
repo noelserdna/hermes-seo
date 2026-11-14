@@ -112,24 +112,29 @@ def guardar(slug: str, e: dict) -> None:
 
 
 def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", excepcion: bool = False,
-           quien: str = "", seco: bool = False) -> dict:
+           quien: str = "", seco: bool = False, origen: str | None = None) -> dict:
     """Valida (parámetros, capacidades, políticas), crea la carpeta del encargo y sus tarjetas encadenadas."""
     params = {k: str(v).strip() for k, v in (params or {}).items() if str(v).strip()}
     r = PL.plan(pid, slug)
     p = r["pipeline"]
+    if origen:   # continuación de un encargo: hereda sus parámetros (los que admite esta pipeline) y sus salidas
+        previo = leer(slug, origen)
+        params = {**{k: v for k, v in (previo.get("params") or {}).items() if k in (p.get("parametros") or {})}, **params}
     falta = [k for k in (p.get("parametros") or {}) if k not in params]
     if falta:
         raise Rechazo(f"«{p['nombre']}» necesita: " + "; ".join(f"{k} ({p['parametros'][k]})" for k in falta))
     sobra = [k for k in params if k not in (p.get("parametros") or {})]
     if sobra:
         raise Rechazo(f"«{p['nombre']}» no admite: {', '.join(sobra)}")
-    PL.politicas(pid, slug, excepcion=excepcion)
+    # una continuación ya pasó las políticas al empezar (la pausa sí cuenta siempre)
+    PL.politicas(pid, slug, excepcion=excepcion or bool(origen))
     eid = _id(pid, params)
     etapas = [{"id": s["id"], "titulo": _titulo(s, params), "max_runtime": s.get("max_runtime", "60m")} for s in r["etapas"]]
     plan = {"id": eid, "cliente": slug, "pipeline": pid, "nombre": p["nombre"], "params": params,
             "etapas": etapas, "saltadas": [{"id": s["id"], "falta": s["falta"]} for s in r["saltadas"]],
             "puerta": p.get("puerta"), "nueva_pieza": bool(p.get("nueva_pieza")), "excepcion": excepcion,
-            "quien": quien, "creado": B.ahora(), "estado": "en-curso", "tarjetas": {}}
+            "quien": quien, "creado": B.ahora(), "estado": "en-curso", "tarjetas": {}, "origen": origen,
+            "heredados": []}
     if seco:
         return plan
     d = carpeta(slug, eid)
@@ -139,12 +144,23 @@ def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", exc
     lineas += [f"- {k}: {v}" for k, v in params.items()]
     if excepcion:
         lineas.append("- Excepción a las políticas pedida expresamente por una persona")
+    if origen:
+        lineas.append(f"- Continúa el encargo {origen}: sus resultados están en esta carpeta")
+        po = carpeta(slug, origen)
+        for f in sorted(po.iterdir()):
+            if f.is_file() and not f.name.startswith(".") and f.name not in ("encargo.json", "brief.md", "contexto-cliente.md"):
+                shutil.copy2(f, d / f.name)
+                plan["heredados"].append(f.name)
+        if (po / "brief.md").exists():
+            shutil.copy2(po / "brief.md", d / "brief-origen.md")
+            plan["heredados"].append("brief-origen.md")
     (d / "brief.md").write_text("\n".join(lineas) + ("\n\n## Brief\n\n" + brief.strip() if brief.strip() else "") + "\n")
     guardar(slug, plan)
     _tarjetas(slug, plan, 0, "")
     guardar(slug, plan)
     B.anotar(C.carpeta(slug) / "encargos.jsonl", {"ts": plan["creado"], "id": eid, "pipeline": pid, "quien": quien,
-                                                 "nueva_pieza": plan["nueva_pieza"], "excepcion": excepcion})
+                                                 "nueva_pieza": plan["nueva_pieza"] and not origen, "excepcion": excepcion,
+                                                 "origen": origen})
     return plan
 
 

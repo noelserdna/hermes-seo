@@ -103,6 +103,7 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     orden = [x["id"] for x in enc["etapas"]]
     salidas = {x["id"]: x.get("salida") for x in p["etapas"]}
     previas = [f"{salidas[i]} ({i})" for i in orden[:orden.index(etapa)] if salidas.get(i) and (d / salidas[i]).exists()]
+    previas += [f"{h} (from {enc['origen']})" for h in enc.get("heredados") or [] if (d / h).exists()]
     salida = s.get("salida") or f"{etapa}.md"
     (d / "contexto-cliente.md").write_text(contexto(slug, etapa))
     ejecutor = (cfg.get("ejecutores") or {}).get(etapa) or s.get("ejecutor", "hermes")

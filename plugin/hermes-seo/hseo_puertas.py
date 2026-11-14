@@ -489,8 +489,11 @@ def _aplicar(puerta: dict, firma: str) -> str:
         elif accion.startswith("pipeline:"):
             params = {"que": "\n".join(h if isinstance(h, str) else json.dumps(h, ensure_ascii=False)
                                        for h in puerta.get("hallazgos") or [])[:2000]} if puerta["tipo"] == "mantenimiento" else {}
-            nuevo = E.lanzar(slug, accion.split(":", 1)[1], params, quien=f"notario: puerta {puerta['id']} ({firma})")
+            nuevo = E.lanzar(slug, accion.split(":", 1)[1], params, quien=f"notario: puerta {puerta['id']} ({firma})",
+                             origen=eid)
             resultado = f"lanzado {nuevo['id']}"
+        elif accion.startswith("script:"):
+            resultado = _script(slug, eid, accion[len("script:"):], firma)
         else:
             resultado = "aprobado"
         if enc:
@@ -510,6 +513,22 @@ def _aplicar(puerta: dict, firma: str) -> str:
     if enc:
         E.guardar(slug, enc)
     return resultado
+
+
+def _script(slug: str, eid: str | None, orden: str, firma: str) -> str:
+    """al_aprobar «script:<fichero> [args]»: un script de extensiones/ de la web, desacoplado, con su log."""
+    import subprocess
+    partes = orden.replace("{encargo}", eid or "").replace("{carpeta}", str(E.carpeta(slug, eid)) if eid else "").split()
+    ext = (C.carpeta(slug) / "extensiones").resolve()
+    ruta = (ext / partes[0]).resolve()
+    if not str(ruta).startswith(str(ext) + os.sep) or not ruta.is_file():
+        raise Rechazo(f"No encuentro el script {partes[0]} en las extensiones de la web")
+    log = C.carpeta(slug) / "logs" / f"script-{eid or 'puerta'}-{partes[0]}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid or "", "HERMES_SEO_HOME": str(B.home())}
+    subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(C.carpeta(slug)), env=env,
+                     stdout=open(log, "w"), stderr=subprocess.STDOUT)
+    return f"lanzado {partes[0]} (registro en logs/{log.name})"
 
 
 def firmar(gid: str, ahora: float | None = None) -> dict:

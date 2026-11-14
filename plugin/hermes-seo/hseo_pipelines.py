@@ -12,6 +12,9 @@ cliente: añade pipelines propias o sustituye una del plugin con el mismo id).
                "requiere": [], "salida": "investigacion.md"}, …],
    "puerta": {"tipo": "publicar", "al_aprobar": "publicar"}}     (opcional; se abre al acabar la última etapa)
 
+al_aprobar: nada | publicar | pipeline:<id> (sigue con otra pipeline: mismos parámetros y las salidas de este
+encargo) | script:<fichero de extensiones/> [args con {encargo} y {carpeta}] (un script propio de la web).
+
 Una etapa con `requiere` que el cliente no cumple se salta (p. ej. «competencia» sin competidores); una pipeline con
 `requiere` que no cumple no se lanza y dice qué falta.
 
@@ -51,7 +54,7 @@ PERFILES_ROL = ("seo-investigador", "seo-redactor", "seo-verificador", "seo-edit
 EJECUTORES = ("hermes", "claude", "replay")
 TIPOS_PUERTA = ("alta", "plan-tecnico", "plan-editorial", "publicar", "cambio-tecnico", "decision", "veredicto",
                 "mantenimiento", "difusion")
-AL_APROBAR = re.compile(r"^(nada|publicar|pipeline:[a-z0-9-]+)$")
+AL_APROBAR = re.compile(r"^(nada|publicar|pipeline:[a-z0-9-]+|script:[A-Za-z0-9._-]+( [^;&|`$<>]*)?)$")
 ID = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 DURACION = re.compile(r"^\d{1,3}[mh]$")
 
@@ -131,7 +134,7 @@ def validar(p: dict) -> list:
         if not isinstance(puerta, dict) or puerta.get("tipo") not in TIPOS_PUERTA:
             e.append(f"puerta.tipo: uno de {', '.join(TIPOS_PUERTA)}")
         elif not AL_APROBAR.match(str(puerta.get("al_aprobar", "nada"))):
-            e.append("puerta.al_aprobar: nada | publicar | pipeline:<id>")
+            e.append("puerta.al_aprobar: nada | publicar | pipeline:<id> | script:<fichero> [args]")
         elif puerta.get("rehacer") and puerta["rehacer"] not in vistos:
             e.append("puerta.rehacer: el id de una de sus etapas")
     return e
