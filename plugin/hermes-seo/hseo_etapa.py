@@ -125,6 +125,8 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
         extra = (cfg.get("ejecutor_claude") or {})
         if extra.get("herramientas_extra"):   # p. ej. git, gh o el build de la web, si una etapa propia los necesita
             env["HSEO_CLAUDE_TOOLS_EXTRA"] = str(extra["herramientas_extra"])
+        if extra.get("directorios"):   # carpetas fuera del encargo en las que puede trabajar (el repo, sus worktrees)
+            env["HSEO_CLAUDE_DIRS"] = ":".join(os.path.expanduser(str(x)) for x in extra["directorios"])
         for k in extra.get("secretos", []):   # claves del cliente que esa etapa necesita (p. ej. GH_TOKEN)
             if sec.get(k):
                 env["HSEO_PASAR_" + k] = sec[k]

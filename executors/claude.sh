@@ -59,6 +59,7 @@ PASAR=(); for v in $(compgen -e | grep '^HSEO_PASAR_' || true); do PASAR+=("${v#
 ARGS=(-p "$PROMPT" --output-format json --settings "$AJUSTES" --permission-mode acceptEdits --allowedTools "$TOOLS"
       --max-turns "${MAX_TURNS:-80}")
 [ -n "$MODELO" ] && ARGS+=(--model "$MODELO")
+IFS=: read -r -a DIRS <<< "${HSEO_CLAUDE_DIRS:-}"; for d in ${DIRS[@]+"${DIRS[@]}"}; do [ -n "$d" ] && ARGS+=(--add-dir "$d"); done
 cd "$DIR"
 env -i HOME="$HOME" USER="${USER:-$(id -un)}" LOGNAME="${LOGNAME:-${USER:-}}" TMPDIR="${TMPDIR:-/tmp}" LANG="${LANG:-es_ES.UTF-8}" \
   PATH="$PATH_LIMPIO" TERM=dumb DISABLE_AUTOUPDATER=1 HSEO_RUN="$RUN" ${PASAR[@]+"${PASAR[@]}"} \

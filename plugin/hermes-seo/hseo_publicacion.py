@@ -174,7 +174,7 @@ def repo_pr(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
         raise Rechazo(f"{repo} no es un repositorio git")
     rama_base = conf.get("rama", "main")
     if pub.get("pr"):   # la etapa de la web ya abrió el PR con sus convenciones: aquí solo se despliega
-        return _desplegar(slug, eid, conf, repo, str(pub["pr"]))
+        return _desplegar(slug, eid, conf, repo, str(pub["pr"]), firma=firma)
     rama = f"hseo/{eid}"
     wt = C.carpeta(slug) / "wt" / eid
     if wt.exists():
@@ -222,10 +222,10 @@ def repo_pr(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
     r = subprocess.run(args, capture_output=True, text=True, cwd=str(wt), timeout=120, env=env)
     if r.returncode != 0:
         raise Rechazo(f"gh pr create falló: {(r.stderr or r.stdout).strip()[-300:]}")
-    return _desplegar(slug, eid, conf, repo, r.stdout.strip().splitlines()[-1], env)
+    return _desplegar(slug, eid, conf, repo, r.stdout.strip().splitlines()[-1], env, firma)
 
 
-def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict | None = None) -> str:
+def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict | None = None, firma: str = "") -> str:
     """Con capacidades.publicacion.desplegar («script {pr}», en las extensiones de la web) lanza el despliegue."""
     resultado = f"PR {pr}"
     if not conf.get("desplegar"):
@@ -240,6 +240,7 @@ def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict |
     if env is None:
         s = C.secretos(slug)
         env = {**os.environ, **({"GH_TOKEN": s["GH_TOKEN"]} if s.get("GH_TOKEN") else {})}
+    env = {**env, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid}   # quién aprobó (una persona o Jev): el script decide
     (C.carpeta(slug) / "logs").mkdir(parents=True, exist_ok=True)
     subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(repo), env=env,
                      stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)
