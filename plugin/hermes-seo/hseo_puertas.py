@@ -154,6 +154,34 @@ def _resumen_de(d: Path, nombre: str, maximo: int = 1800) -> str:
     return t if len(t) <= maximo else t[:maximo].rsplit("\n", 1)[0] + "\n…"
 
 
+def _resumen_publicacion(d: Path) -> str:
+    """publicacion.json contado para una persona (lo que se va a publicar), en vez del JSON en bruto."""
+    pub = B.leer(d / "publicacion.json")
+    if not isinstance(pub, dict):
+        return _resumen_de(d, "publicacion.json")
+    l = []
+    if pub.get("titulo"):
+        l.append(f"📰 {pub['titulo']}")
+    if pub.get("url"):
+        l.append(f"🔗 {pub['url']}")
+    if pub.get("meta_descripcion"):
+        l.append(f"📝 {pub['meta_descripcion']}")
+    for c in (pub.get("cambios") or [])[:8]:
+        l.append(f"• {c.get('accion', 'cambio')}: «{str(c.get('antes', '—'))[:160]}» → «{str(c.get('despues', '—'))[:160]}»")
+    if pub.get("pr"):
+        l.append(f"🔀 PR: {pub['pr']}")
+    if pub.get("hipotesis"):
+        l.append(f"🎯 Hipótesis: {pub['hipotesis']}")
+    revs = [f"{k}: {pub[k]}" for k in ("verificacion", "lectura") if pub.get(k)]
+    if revs:
+        l.append("🔎 " + " · ".join(revs))
+    if pub.get("como_deshacer"):
+        l.append(f"↩ Cómo deshacerlo: {pub['como_deshacer']}")
+    if pub.get("error"):
+        l.append(f"⚠️ {pub['error']}")
+    return "\n".join(l)
+
+
 def _revision(slug: str, eid: str | None, tipo: str) -> dict:
     """Revisión mecánica del encargado (hseo_revision.py, sin IA). Si aún no existe o falla, sin avisos."""
     try:
@@ -178,7 +206,7 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
         d = E.carpeta(slug, eid)
         salidas = [s.get("salida") for s in p["etapas"] if s["id"] in [x["id"] for x in enc["etapas"]] and s.get("salida")]
         principal = salidas[-1] if salidas else ""
-        resumen = _resumen_de(d, principal)
+        resumen = _resumen_publicacion(d) if principal == "publicacion.json" else _resumen_de(d, principal)
         detalles = [f"{tipo_param}: {v}" for tipo_param, v in (enc.get("params") or {}).items()]
         titulo = titulo or f"{EMOJI.get(tipo, '🚪')} {p['nombre']} · {cfg['nombre']}"
         texto = texto or ("\n".join(detalles) + ("\n\n" if detalles else "") + resumen +
