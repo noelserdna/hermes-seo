@@ -83,7 +83,7 @@ carta() {  # SOUL.md = carta del perfil + reglas comunes (con copia de la anteri
 skills_dirs() {  # las skills del arnés y las propias de cada web (clientes/<web>/extensiones/skills)
   { echo "$ARNES/skills"; for d in "$HSEO"/clientes/*/extensiones/skills; do [ -d "$d" ] && echo "$d"; done; } | jq -Rnc '[inputs]'
 }
-DENY='["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*firmar*","*decidir*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes config*","*hermes cron*","*hermes kanban*","*sqlite3*","*git push*","*wrangler deploy*"]'
+DENY='["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*decidir-local*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes config*","*hermes cron*","*hermes kanban*","*sqlite3*","*git push*","*wrangler deploy*"]'
 
 if ! existe seo-estacion; then
   "$HERMES" profile create seo-estacion --no-alias --no-skills \

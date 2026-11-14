@@ -133,7 +133,7 @@ case "$CMD" in
     done
     "$HERMES" -p "$P" config set skills.external_dirs "[\"$ARNES/encargado/skills\"]" >/dev/null
     "$HERMES" -p "$P" config set approvals.deny \
-      '["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*etapa.sh*","*firmar*","*decidir*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes kanban*","*hermes config*","*hermes cron*","*sqlite3*","*git push*"]' >/dev/null
+      '["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*etapa.sh*","*decidir-local*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes kanban*","*hermes config*","*hermes cron*","*sqlite3*","*git push*"]' >/dev/null
     GUARDIA="python3 -I $ARNES/encargado/guardia.py $SLUG $ARNES"
     "$HERMES" -p "$P" config set hooks.pre_tool_call \
       "[{\"matcher\":\"terminal|write_file|patch|read_file|execute_code|delegate_task|cronjob\",\"command\":\"$GUARDIA\",\"timeout\":10,\"fail_closed\":true}]" >/dev/null
