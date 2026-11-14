@@ -47,7 +47,7 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
 HSEO_SOLA = {"clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
-             "leccion", "lecciones"}
+             "leccion", "lecciones", "datos"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "jev", "modelos"}
 
 
@@ -101,6 +101,8 @@ def cliente_de(args: list) -> str | None:
         return pos[0] if pos else None
     if sub in ("encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion"):
         return pos[0] if pos else None
+    if sub == "datos":
+        return pos[1] if len(pos) > 1 else None
     if sub == "plan":
         return pos[1] if len(pos) > 1 else None
     if sub == "jev" and pos[:1] == ["modo"]:

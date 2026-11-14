@@ -4,6 +4,7 @@
 #
 #   encargado.sh crear <web>                      perfil, carta (SOUL), guardia, wiki y vigía (idempotente)
 #   encargado.sh tema <web> <chat_id> <thread_id>  ese tema de Telegram habla con el encargado (profile_routes)
+#   encargado.sh crons <web>                       tareas periódicas de la web (datos, radar, métricas…) en su perfil
 #   encargado.sh borrar <web>                      quita el perfil y su ruta (la wiki y los datos se quedan)
 #   encargado.sh perfil <web>                      nombre del perfil
 set -euo pipefail
@@ -69,7 +70,33 @@ V
   echo "  Vigía: cada 5 min (sin IA salvo si algo cambia), avisa en $destino"
 }
 
+tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan): se borran los hseo-* y se recrean
+  local PD="$HH/profiles/$P" destino tz plan
+  mkdir -p "$PD/scripts"
+  destino=$(jq -r 'if (.telegram.chat_id // "") != "" then "telegram:\(.telegram.chat_id):\(.telegram.thread_id)" else "telegram" end' "$CARPETA/cliente.json")
+  tz=$(jq -r '.zona_horaria' "$CARPETA/cliente.json")
+  plan=$(python3 "$ARNES/plugin/hermes-seo/hseo_crons.py" plan "$SLUG") || return 1
+  for id in $(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name | startswith("hseo-")) | .id' "$PD/cron/jobs.json" 2>/dev/null || true); do
+    "$HERMES" -p "$P" cron remove "$id" >/dev/null 2>&1 || true
+  done
+  rm -f "$PD"/scripts/hseo-*.sh
+  while IFS=$'\t' read -r nombre horario orden; do
+    [ -n "$nombre" ] || continue
+    # sin salida si todo va bien (no avisa); si falla, el motivo llega al tema de la web
+    printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q HSEO_QUIEN=cron PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nsalida=$(python3 %q %s 2>&1) || echo "⚠️ ${salida}"\n' \
+      "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
+    [ "$nombre" = datos ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
+      "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
+    chmod +x "$PD/scripts/hseo-$nombre.sh"
+    "$HERMES" -p "$P" cron create "$horario" --name "hseo-$nombre" --no-agent --script "hseo-$nombre.sh" \
+      --deliver "$destino" --timezone "$tz" --catch-up off >/dev/null
+    echo "  ⏰ $nombre: $horario ($tz)"
+  done < <(jq -r '.[] | [.nombre, .horario, (.orden | join(" "))] | @tsv' <<< "$plan")
+}
+
 case "$CMD" in
+  crons) tareas ;;
+
   crear)
     wiki "$CARPETA/wiki" "$NOMBRE"
     wiki "$HSEO/wiki" "hermes-seo (global)"
@@ -107,6 +134,7 @@ case "$CMD" in
     registrar "$P"
     echo "Encargado de $NOMBRE listo: perfil $P, wiki en $CARPETA/wiki"
     vigilante
+    tareas
     echo "  Hablar con él: /seo_tema $SLUG en Telegram · hermes -p $P chat" ;;
 
   tema)   # Ruta por chat Y tema (si fuera solo por chat, todo el privado iría al encargado)
@@ -126,7 +154,8 @@ case "$CMD" in
     "$HERMES" config set platforms.telegram.extra.dm_topics "$TEMAS" >/dev/null
     $PYC config "$SLUG" telegram "{\"chat_id\":\"$CHAT\",\"thread_id\":\"$HILO\"}" --quien "encargado.sh tema" >/dev/null
     echo "Tema «🧭 ${NOMBRE}» ($CHAT/$HILO) → $P (se activa al reiniciar el gateway)"
-    vigilante ;;
+    vigilante
+    tareas ;;
 
   borrar)
     "$HERMES" profile delete -y "$P" >/dev/null 2>&1 || true

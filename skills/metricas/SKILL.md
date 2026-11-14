@@ -23,9 +23,9 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-analista`).
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento
-1. Actualiza los datos: `guardar-gsc --cliente <nombre corto>` (si hay `gsc`), y lee las fotos de `datos/`. Con el
-   MCP `seo`: 28 días frente a los 28 anteriores (clics, impresiones, CTR, posición), consultas y páginas que más
-   suben y bajan, consultas en posiciones 8-20 («de la página 2 a la 1»).
+1. Datos de Search Console (si hay `gsc`): `hseo datos resumen <nombre corto>` da los últimos 28 días frente a los
+   28 anteriores y las consultas en posiciones 8-20 («de la página 2 a la 1»), desde la copia diaria. Con el MCP
+   `seo` puedes profundizar (consultas y páginas que más suben y bajan).
 2. Bing (si hay `bing`), analítica (si hay `analitica`) y bots de IA (`bots-ia`, si la analítica es Cloudflare).
 3. Los cambios publicados en las últimas semanas (`cambios.jsonl` del cliente): ¿se ve algo? Sin veredictos: los da
    la pipeline `veredicto` a los 28 días.

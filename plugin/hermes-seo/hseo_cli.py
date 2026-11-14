@@ -8,6 +8,7 @@ si se lo delegaron), y lo ejecuta el notario.
     hseo clientes · hseo estado [cliente] · hseo encargos <cliente> [--todos] · hseo encargo <cliente> <id>
     hseo puertas [cliente] · hseo puerta <id> · hseo pipelines [--cliente C] · hseo plan <pipeline> <cliente>
     hseo modelos ver [--cliente C] · hseo jev ver
+    hseo datos resumen <cliente> [--dias 28] · hseo datos comparar <cliente> <cambio> · hseo datos recoger <cliente>
   Trabajar (sola, y lo cuenta)
     hseo leccion <cliente> <etapa> "<regla general>" <encargo|puerta>…   (la confirma una persona) · hseo lecciones
     hseo lanzar <cliente> <pipeline> [--param k=v]… [--brief TEXTO]
@@ -141,6 +142,8 @@ def main(argv=None) -> int:
     x.add_argument("--param", action="append", default=[]); x.add_argument("--brief", default="")
     x.add_argument("--excepcion", action="store_true")
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
+    x = sub.add_parser("datos"); x.add_argument("accion", choices=("recoger", "resumen", "comparar"))
+    x.add_argument("cliente"); x.add_argument("cambio", nargs="?"); x.add_argument("--dias", type=int, default=28)
     x = sub.add_parser("leccion"); x.add_argument("cliente"); x.add_argument("etapa"); x.add_argument("regla")
     x.add_argument("evidencia", nargs="+")
     sub.add_parser("lecciones").add_argument("--todas", action="store_true")
@@ -191,6 +194,18 @@ def main(argv=None) -> int:
         elif a.cmd == "reintentar":
             reintentar(a.cliente, a.encargo, a.etapa)
             print(f"🔁 {a.etapa} vuelve a la cola ({a.encargo})")
+        elif a.cmd == "datos":
+            D = _cargar("hseo_datos")
+            if a.accion == "recoger":
+                fallos = D.recoger(a.cliente)
+                if fallos:
+                    print(f"⚠️ No se pudieron recoger todos los datos de {a.cliente}:\n" + "\n".join(f"- {f}" for f in fallos))
+            elif a.accion == "resumen":
+                print(json.dumps(D.resumen(a.cliente, a.dias), ensure_ascii=False, indent=1))
+            else:
+                if not a.cambio:
+                    raise Rechazo("uso: hseo datos comparar <cliente> <cambio>")
+                print(json.dumps(D.comparar(a.cliente, a.cambio), ensure_ascii=False, indent=1))
         elif a.cmd == "leccion":
             l = _cargar("hseo_lecciones").proponer(a.cliente, a.etapa, a.regla, a.evidencia, quien())
             print(f"💡 Lección propuesta ({l['id']}): le llega a la persona para que la confirme.")

@@ -24,8 +24,9 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-analista`).
 
 ## Procedimiento
 1. Busca el cambio en `cambios.jsonl` del cliente (id del brief): fecha, URL, clase e hipótesis.
-2. Datos de las URL afectadas: 28 días antes frente a 28 días después (si aún no han pasado 28 días, dilo y para).
-   Clics, impresiones, CTR, posición; y el conjunto de la web para descontar la tendencia general.
+2. Datos: `hseo datos comparar <nombre corto> <cambio>` da las URL afectadas y la web entera, 28 días antes frente a
+   28 después (si aún no han pasado 28 días lo dice: entonces dilo y para). Clics, impresiones, CTR y posición; la
+   web entera sirve para descontar la tendencia general.
 3. ¿Se cumple la hipótesis? Con cuidado: pocas impresiones no permiten concluir; estacionalidad; otros cambios a la
    vez. Di cuánta confianza hay.
 4. Escribe `veredicto.md`: la tabla antes/después, la lectura honesta y la propuesta (mantener, revertir, insistir

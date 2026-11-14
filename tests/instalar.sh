@@ -44,5 +44,14 @@ si "tema: la web sabe dónde avisar" "$HOME/.local/bin/hseo clientes >/dev/null 
 si "tema: el vigía avisa en el tema" "grep -q -- '--deliver telegram:12345:77' $FALSO_LLAMADAS"
 si "tema dos veces no duplica la ruta" "bash $S/actual/encargado.sh tema web 12345 77 && [ \$(jq length $T/rutas) = 1 ]"
 si "la foto del encargado" "python3 $S/actual/plugin/hermes-seo/hseo_encargado.py foto web | grep -q 'Desde tu última sesión'"
+si "tareas periódicas: datos todos los días (sin búsqueda configurada no hay métricas)" "grep -q 'seo-p-web cron create 0 6 \* \* \* --name hseo-datos --no-agent' $FALSO_LLAMADAS && ! grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && grep -q 'hseo-radar' $FALSO_LLAMADAS"
+si "el script de la tarea lanza con hseo" "grep -q 'hseo_cli.py lanzar web radar' $H/profiles/seo-p-web/scripts/hseo-radar.sh && grep -q 'datos recoger web' $H/profiles/seo-p-web/scripts/hseo-datos.sh"
+$HOME/.local/bin/hseo config web capacidades.busqueda.bing https://web.com/ >/dev/null
+$HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1 * *", "revision-mensual": "malo"}' >/dev/null
+si "un horario mal escrito se rechaza" "! bash $S/actual/encargado.sh crons web"
+$HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1 * *"}' >/dev/null
+: > $FALSO_LLAMADAS
+si "crons: con Bing hay métricas; radar desactivado; visibilidad solo si se activa (y sin preguntas no hay pipeline… pero sí la tarea)" "bash $S/actual/encargado.sh crons web && grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && ! grep -q 'hseo-radar' $FALSO_LLAMADAS && grep -q 'hseo-visibilidad-ia' $FALSO_LLAMADAS && [ ! -f $H/profiles/seo-p-web/scripts/hseo-radar.sh ]"
+si "en la zona horaria de la web" "grep -q -- '--timezone Europe/Madrid' $FALSO_LLAMADAS"
 si "reinstalar pone al día los encargados" "bash $ROOT/instalar.sh > $T/salida; grep -q 'Encargado de web al día' $T/salida"
 exit $fail
