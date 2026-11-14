@@ -168,21 +168,23 @@ def _tarjetas(slug: str, enc: dict, desde: int, sufijo: str) -> None:
         padre = tid
 
 
-def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "") -> dict:
-    """«Cambios» en una puerta: la etapa indicada y las siguientes se vuelven a hacer con lo que pidió la persona."""
+def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", accion: str = "rehacer") -> dict:
+    """«Cambios» en una puerta (o un reintento): la etapa indicada y las siguientes se vuelven a hacer; con `texto`, con
+    lo que pidió la persona."""
     enc = leer(slug, eid)
     ids = [s["id"] for s in enc["etapas"]]
     if etapa not in ids:
         raise Rechazo(f"La etapa {etapa} no es de este encargo")
     d = carpeta(slug, eid)
     (d / ".estado").mkdir(parents=True, exist_ok=True)
-    (d / ".estado" / f"feedback-{etapa}.txt").write_text(texto.strip() + "\n")
+    if texto.strip():
+        (d / ".estado" / f"feedback-{etapa}.txt").write_text(texto.strip() + "\n")
     enc["rondas"] = int(enc.get("rondas") or 0) + 1
     enc["estado"] = "en-curso"
     enc.pop("puerta_id", None)
     _tarjetas(slug, enc, ids.index(etapa), f"-r{enc['rondas']}")
     guardar(slug, enc)
-    B.anotar(d / ".estado" / "historial.jsonl", {"ts": B.ahora(), "accion": "rehacer", "desde": etapa,
+    B.anotar(d / ".estado" / "historial.jsonl", {"ts": B.ahora(), "accion": accion, "desde": etapa,
                                                 "texto": texto, "quien": quien, "ronda": enc["rondas"]})
     return enc
 

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# hseo: acciones de la coordinadora y de los encargados (ver plugin/hermes-seo/hseo_cli.py y `hseo -h`).
+ROOT="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
+exec python3 "$ROOT/plugin/hermes-seo/hseo_cli.py" "$@"

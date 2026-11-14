@@ -16,5 +16,6 @@
   "puerta": {
     "tipo": "decision",
     "al_aprobar": "nada"
-  }
+  },
+  "coste_externo": true
 }
