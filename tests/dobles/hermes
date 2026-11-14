@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Hermes falso para las pruebas: apunta cada llamada y simula el kanban (tableros y tarjetas).
+echo "$*" >> "${FALSO_LLAMADAS:?}"
+case "$*" in
+  "kanban boards list --json") cat "${FALSO_TABLEROS:-/dev/null}" 2>/dev/null || echo "[]" ;;
+  "kanban boards create "*) b=$(echo "$*" | awk '{print $4}'); echo "[{\"slug\":\"$b\"}]" > "${FALSO_TABLEROS:?}" ;;
+  "kanban --board "*" create "*) n=$(grep -c ' create ' "$FALSO_LLAMADAS"); echo "{\"id\":\"t_$(printf '%04d' "$n")\"}" ;;
+  *) echo "{}" ;;
+esac

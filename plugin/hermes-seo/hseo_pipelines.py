@@ -132,6 +132,8 @@ def validar(p: dict) -> list:
             e.append(f"puerta.tipo: uno de {', '.join(TIPOS_PUERTA)}")
         elif not AL_APROBAR.match(str(puerta.get("al_aprobar", "nada"))):
             e.append("puerta.al_aprobar: nada | publicar | pipeline:<id>")
+        elif puerta.get("rehacer") and puerta["rehacer"] not in vistos:
+            e.append("puerta.rehacer: el id de una de sus etapas")
     return e
 
 

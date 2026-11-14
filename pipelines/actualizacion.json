@@ -58,6 +58,7 @@
   ],
   "puerta": {
     "tipo": "publicar",
-    "al_aprobar": "publicar"
+    "al_aprobar": "publicar",
+    "rehacer": "redactar"
   }
 }

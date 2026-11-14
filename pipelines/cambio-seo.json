@@ -39,6 +39,7 @@
   ],
   "puerta": {
     "tipo": "cambio-tecnico",
-    "al_aprobar": "publicar"
+    "al_aprobar": "publicar",
+    "rehacer": "aplicar-cambio"
   }
 }
