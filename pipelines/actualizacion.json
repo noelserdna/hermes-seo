@@ -1,0 +1,63 @@
+{
+  "id": "actualizacion",
+  "nombre": "Actualizar una página",
+  "descripcion": "Mejorar una página que ya existe con lo que piden los datos.",
+  "requiere": [
+    "publicacion"
+  ],
+  "parametros": {
+    "url": "La página que se actualiza",
+    "motivo": "Qué dicen los datos o qué se quiere conseguir"
+  },
+  "etapas": [
+    {
+      "id": "investigar",
+      "titulo": "Investigar: {url}",
+      "perfil": "seo-investigador",
+      "skill": "investigacion-a-fondo",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "investigacion.md"
+    },
+    {
+      "id": "redactar",
+      "titulo": "Reescribir: {url}",
+      "perfil": "seo-redactor",
+      "skill": "redactar",
+      "ejecutor": "claude",
+      "max_runtime": "90m",
+      "salida": "borrador.md"
+    },
+    {
+      "id": "verificar",
+      "titulo": "Verificar: {url}",
+      "perfil": "seo-verificador",
+      "skill": "verificar",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "verificacion.md"
+    },
+    {
+      "id": "revisar-lectura",
+      "titulo": "Revisión de lectura: {url}",
+      "perfil": "seo-editor",
+      "skill": "revision-lectura",
+      "ejecutor": "hermes",
+      "max_runtime": "45m",
+      "salida": "lectura.md"
+    },
+    {
+      "id": "preparar",
+      "titulo": "Preparar la publicación: {url}",
+      "perfil": "seo-redactor",
+      "skill": "preparar-publicacion",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "publicacion.json"
+    }
+  ],
+  "puerta": {
+    "tipo": "publicar",
+    "al_aprobar": "publicar"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "metricas-semanales",
+  "nombre": "Métricas de la semana",
+  "descripcion": "Search Console, Bing, analítica y bots de IA en números absolutos; como mucho 3 propuestas.",
+  "etapas": [
+    {
+      "id": "metricas",
+      "titulo": "Métricas de la semana",
+      "perfil": "seo-analista",
+      "skill": "metricas",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "requiere": [
+        "gsc|bing|analitica"
+      ],
+      "salida": "metricas.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "decision",
+    "al_aprobar": "nada"
+  }
+}

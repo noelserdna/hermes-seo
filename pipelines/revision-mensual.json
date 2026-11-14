@@ -1,0 +1,29 @@
+{
+  "id": "revision-mensual",
+  "nombre": "Revisión mensual",
+  "descripcion": "Auditoría técnica, enlaces, indexación y visibilidad; como mucho 3 encargos.",
+  "etapas": [
+    {
+      "id": "auditoria",
+      "titulo": "Auditoría técnica del mes",
+      "perfil": "seo-analista",
+      "skill": "auditoria-inicial",
+      "ejecutor": "hermes",
+      "max_runtime": "45m",
+      "salida": "auditoria.md"
+    },
+    {
+      "id": "revision-mensual",
+      "titulo": "Revisión mensual",
+      "perfil": "seo-analista",
+      "skill": "revision-mensual",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "revision.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "decision",
+    "al_aprobar": "nada"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "id": "cambio-seo",
+  "nombre": "Cambio SEO técnico",
+  "descripcion": "Títulos, redirecciones, enlazado, datos estructurados… con hipótesis medible.",
+  "requiere": [
+    "publicacion"
+  ],
+  "parametros": {
+    "que": "Qué cambio se quiere y por qué"
+  },
+  "etapas": [
+    {
+      "id": "analizar-cambio",
+      "titulo": "Analizar: {que}",
+      "perfil": "seo-analista",
+      "skill": "analizar-cambio",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "analisis.md"
+    },
+    {
+      "id": "aplicar-cambio",
+      "titulo": "Preparar el cambio: {que}",
+      "perfil": "seo-redactor",
+      "skill": "aplicar-cambio",
+      "ejecutor": "claude",
+      "max_runtime": "90m",
+      "salida": "publicacion.json"
+    },
+    {
+      "id": "verificar",
+      "titulo": "Verificar: {que}",
+      "perfil": "seo-verificador",
+      "skill": "verificar",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "verificacion.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "cambio-tecnico",
+    "al_aprobar": "publicar"
+  }
+}

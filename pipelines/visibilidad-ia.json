@@ -1,0 +1,20 @@
+{
+  "id": "visibilidad-ia",
+  "nombre": "Visibilidad en IA",
+  "descripcion": "Preguntas de decisión a ChatGPT y Claude (y Brave), con la tabla de huecos.",
+  "etapas": [
+    {
+      "id": "visibilidad",
+      "titulo": "Visibilidad en IA",
+      "perfil": "seo-analista",
+      "skill": "visibilidad-ia",
+      "ejecutor": "hermes",
+      "max_runtime": "90m",
+      "salida": "visibilidad.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "decision",
+    "al_aprobar": "nada"
+  }
+}

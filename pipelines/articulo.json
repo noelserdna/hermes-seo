@@ -1,0 +1,63 @@
+{
+  "id": "articulo",
+  "nombre": "Artículo nuevo",
+  "descripcion": "Investigar, redactar, verificar, revisar y dejarlo listo para publicar.",
+  "requiere": [
+    "publicacion"
+  ],
+  "nueva_pieza": true,
+  "parametros": {
+    "tema": "De qué trata el artículo (y para quién)"
+  },
+  "etapas": [
+    {
+      "id": "investigar",
+      "titulo": "Investigar: {tema}",
+      "perfil": "seo-investigador",
+      "skill": "investigacion-a-fondo",
+      "ejecutor": "hermes",
+      "max_runtime": "90m",
+      "salida": "investigacion.md"
+    },
+    {
+      "id": "redactar",
+      "titulo": "Redactar: {tema}",
+      "perfil": "seo-redactor",
+      "skill": "redactar",
+      "ejecutor": "claude",
+      "max_runtime": "120m",
+      "salida": "borrador.md"
+    },
+    {
+      "id": "verificar",
+      "titulo": "Verificar: {tema}",
+      "perfil": "seo-verificador",
+      "skill": "verificar",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "verificacion.md"
+    },
+    {
+      "id": "revisar-lectura",
+      "titulo": "Revisión de lectura: {tema}",
+      "perfil": "seo-editor",
+      "skill": "revision-lectura",
+      "ejecutor": "hermes",
+      "max_runtime": "45m",
+      "salida": "lectura.md"
+    },
+    {
+      "id": "preparar",
+      "titulo": "Preparar la publicación: {tema}",
+      "perfil": "seo-redactor",
+      "skill": "preparar-publicacion",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "publicacion.json"
+    }
+  ],
+  "puerta": {
+    "tipo": "publicar",
+    "al_aprobar": "publicar"
+  }
+}

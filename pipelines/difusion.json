@@ -1,0 +1,20 @@
+{
+  "id": "difusion",
+  "nombre": "Difusión",
+  "descripcion": "Destinos donde mover lo publicado, con el texto listo; cada uno se aprueba por separado.",
+  "etapas": [
+    {
+      "id": "difusion",
+      "titulo": "Buscar destinos de difusión",
+      "perfil": "seo-investigador",
+      "skill": "difusion",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "difusion.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "difusion",
+    "al_aprobar": "nada"
+  }
+}

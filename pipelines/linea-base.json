@@ -1,0 +1,29 @@
+{
+  "id": "linea-base",
+  "nombre": "Línea base técnica",
+  "descripcion": "Auditoría técnica, indexación y primera foto de los datos; propone el plan técnico.",
+  "etapas": [
+    {
+      "id": "auditoria",
+      "titulo": "Auditoría técnica",
+      "perfil": "seo-analista",
+      "skill": "auditoria-inicial",
+      "ejecutor": "hermes",
+      "max_runtime": "45m",
+      "salida": "auditoria.md"
+    },
+    {
+      "id": "plan-tecnico",
+      "titulo": "Plan técnico",
+      "perfil": "seo-analista",
+      "skill": "plan-tecnico",
+      "ejecutor": "hermes",
+      "max_runtime": "45m",
+      "salida": "plan-tecnico.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "plan-tecnico",
+    "al_aprobar": "nada"
+  }
+}

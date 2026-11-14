@@ -1,0 +1,20 @@
+{
+  "id": "radar",
+  "nombre": "Radar de temas",
+  "descripcion": "Qué se mueve en el nicho, qué busca la gente y qué ha publicado la competencia; propone piezas con demanda medida.",
+  "etapas": [
+    {
+      "id": "radar",
+      "titulo": "Radar de temas",
+      "perfil": "seo-investigador",
+      "skill": "radar",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "radar.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "plan-editorial",
+    "al_aprobar": "nada"
+  }
+}

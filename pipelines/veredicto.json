@@ -1,0 +1,23 @@
+{
+  "id": "veredicto",
+  "nombre": "Veredicto de un cambio",
+  "descripcion": "Datos antes y después de un cambio publicado (28 días); propone mantener, revertir o insistir.",
+  "parametros": {
+    "cambio": "El id del cambio en cambios.jsonl"
+  },
+  "etapas": [
+    {
+      "id": "veredicto",
+      "titulo": "Veredicto: {cambio}",
+      "perfil": "seo-analista",
+      "skill": "veredicto",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "veredicto.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "veredicto",
+    "al_aprobar": "nada"
+  }
+}

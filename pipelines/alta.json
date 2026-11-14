@@ -1,0 +1,20 @@
+{
+  "id": "alta",
+  "nombre": "Alta de la web",
+  "descripcion": "Comprueba qué hay (sitemap, robots, Search Console, Bing, analítica, IndexNow) y deja la lista de lo que falta para que una persona lo complete.",
+  "etapas": [
+    {
+      "id": "alta",
+      "titulo": "Alta: comprobar accesos",
+      "perfil": "seo-analista",
+      "skill": "alta-comprobar",
+      "ejecutor": "hermes",
+      "max_runtime": "30m",
+      "salida": "alta.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "alta",
+    "al_aprobar": "pipeline:linea-base"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "estrategia",
+  "nombre": "Estrategia y mapa temático",
+  "descripcion": "Mercado y demanda, competencia y mapa temático sin canibalizaciones; propone el plan editorial.",
+  "etapas": [
+    {
+      "id": "mercado",
+      "titulo": "Mercado y palabras clave",
+      "perfil": "seo-investigador",
+      "skill": "investigar-mercado",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "mercado.md"
+    },
+    {
+      "id": "competencia",
+      "titulo": "Competencia",
+      "perfil": "seo-investigador",
+      "skill": "analizar-competencia",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "requiere": [
+        "competidores"
+      ],
+      "salida": "competencia.md"
+    },
+    {
+      "id": "mapa-tematico",
+      "titulo": "Mapa temático y plan editorial",
+      "perfil": "seo-analista",
+      "skill": "mapa-tematico",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "plan-editorial.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "plan-editorial",
+    "al_aprobar": "nada"
+  }
+}
