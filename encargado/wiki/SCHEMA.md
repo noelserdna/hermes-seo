@@ -1,0 +1,47 @@
+# Wiki Schema — {{WEB}}
+
+## Domain
+Memoria del SEO de {{WEB}} (hermes-seo): el negocio y su público, la voz, el mapa temático (qué página responde a
+qué búsqueda), las decisiones y su porqué, lo que funcionó y lo que no, los riesgos y las lecciones. **No** es un
+almacén de datos: las métricas viven en `datos/` y en los informes de los encargos, y aquí solo se resumen y enlazan.
+
+## Conventions
+- File names: lowercase, hyphens, no spaces (e.g., `mapa-tematico.md`). Pages in Spanish.
+- Every page starts with YAML frontmatter (see below). Use `[[wikilinks]]` (at least 2 outbound links per page).
+- **Enlazar, no copiar**: cite encargos (`encargo articulo-que-es-x-1a2b`), informes, puertas (`puerta g…`), URLs of
+  the site and dated data snapshots — never paste long text or tables of data here.
+- When updating a page, bump `updated`. Every new page goes into `index.md`; every action is appended to `log.md`.
+
+## Frontmatter
+```yaml
+---
+title: Page Title
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+type: entity | concept | comparison | query | summary
+tags: [from taxonomy below]
+sources: [raw/…, encargo …, puerta …, datos/…, conversación YYYY-MM-DD]
+confidence: high | medium | low
+contested: true            # optional
+---
+```
+
+## Tag Taxonomy
+- Negocio: publico, voz, objetivo, producto, competencia
+- Búsqueda: palabra-clave, intencion, mapa-tematico, canibalizacion, serp, ia
+- Técnico: indexacion, rendimiento, enlazado, datos-estructurados, migracion
+- Proceso: decision, hipotesis, resultado, riesgo, leccion, incidente
+- Meta: comparacion, pregunta-abierta
+
+Rule: every tag on a page must appear here. Add a new tag here first, then use it.
+
+## Page Thresholds
+- **Create a page** for a decision with consequences, a recurring concept of the business or the audience, an entry
+  of the topic map, a risk, a change with its hypothesis and its result, or a comparison the person asked for.
+- **Don't create a page** for passing remarks or for data that already lives in `datos/` or in a report.
+- **Archive** (`_archive/`) when superseded; never delete.
+
+## Decisions and changes
+A decision page records what was decided, by whom and when, the options (recommended first), why, and what it
+affects. A published change records its class, hypothesis, date and URLs; its verdict is added after the comparison
+with data (28 days), never before.

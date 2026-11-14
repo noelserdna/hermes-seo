@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# Hermes falso para las pruebas: apunta cada llamada y simula el kanban (tableros y tarjetas).
+# Hermes falso para las pruebas: apunta cada llamada y simula el kanban, los perfiles y las rutas de Telegram.
 echo "$*" >> "${FALSO_LLAMADAS:?}"
+F=$(dirname "$FALSO_LLAMADAS")
 case "$*" in
   "kanban boards list --json") cat "${FALSO_TABLEROS:-/dev/null}" 2>/dev/null || echo "[]" ;;
   "kanban boards create "*) b=$(echo "$*" | awk '{print $4}'); echo "[{\"slug\":\"$b\"}]" > "${FALSO_TABLEROS:?}" ;;
   "kanban --board "*" create "*) n=$(grep -c ' create ' "$FALSO_LLAMADAS"); echo "{\"id\":\"t_$(printf '%04d' "$n")\"}" ;;
+  "profile list"*) cat "$F/perfiles" 2>/dev/null || true ;;
+  "profile create "*) p=$(echo "$*" | awk '{print $3}'); echo "$p" >> "$F/perfiles"; mkdir -p "$HOME/.hermes/profiles/$p" ;;
+  "config get gateway.profile_routes --json") cat "$F/rutas" 2>/dev/null || echo "[]" ;;
+  "config get platforms.telegram.extra.dm_topics --json") cat "$F/temas" 2>/dev/null || echo "[]" ;;
+  "config set gateway.profile_routes "*) printf '%s' "${4}" > "$F/rutas" ;;
+  "config set platforms.telegram.extra.dm_topics "*) printf '%s' "${4}" > "$F/temas" ;;
+  "config get "*) ;;
   *) echo "{}" ;;
 esac

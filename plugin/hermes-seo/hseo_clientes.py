@@ -57,7 +57,7 @@ SUBCARPETAS = ("wiki", "datos", "informes", "briefs", "logs", "wt", "extensiones
 
 def plantilla() -> dict:
     raiz = AQUI.parent.parent   # repo/plugin/hermes-seo → repo; instalado: actual/plugin/hermes-seo → actual
-    for p in (raiz / "plantillas" / "cliente.json", AQUI / "cliente.json"):
+    for p in (raiz / "plantillas" / "cliente.json", B.home() / "actual" / "plantillas" / "cliente.json", AQUI / "cliente.json"):
         if p.exists():
             return json.loads(p.read_text())
     raise Rechazo("No encuentro la plantilla del cliente (plantillas/cliente.json)")
