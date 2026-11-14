@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "slug": "",
+  "nombre": "",
+  "dominio": "",
+  "url": "",
+  "idioma": "es",
+  "mercados": [{"pais": "ES", "bing": "es-ES"}],
+  "zona_horaria": "Europe/Madrid",
+  "estado_web": "nueva",
+  "negocio": {"publico": "", "voz": "", "objetivo": ""},
+  "capacidades": {
+    "publicacion": {"adaptador": "ninguno"},
+    "busqueda": {"gsc": "", "bing": ""},
+    "analitica": {"adaptador": "ninguna"},
+    "difusion": []
+  },
+  "competidores": [],
+  "politicas": {"pausado": false, "congelado_hasta": "", "tope_semanal": 0, "antes_de_publicar": ""},
+  "modelos": {},
+  "ejecutores": {},
+  "jev": {"permitido": true},
+  "telegram": {"chat_id": "", "thread_id": ""},
+  "crons": {},
+  "extensiones": []
+}

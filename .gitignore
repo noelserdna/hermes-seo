@@ -1,0 +1,9 @@
+node_modules/
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+# los datos de los clientes nunca van al repo
+clientes/
+secretos.env
+*.env
