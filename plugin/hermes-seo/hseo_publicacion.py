@@ -320,7 +320,7 @@ def publicar(slug: str, eid: str, firma: str) -> str:
         raise Rechazo(f"{cfg['nombre']} está en pausa: no se publica")
     _antes_de_publicar(slug, cfg)
     pub, meta, cuerpo = _leer_publicacion(slug, eid)
-    if pub.get("tipo") != "cambio-tecnico" and not cuerpo.strip():
+    if pub.get("tipo") != "cambio-tecnico" and not pub.get("pr") and not cuerpo.strip():
         raise Rechazo("El contenido está vacío")
     resultado = ADAPTADORES[ad](slug, eid, cfg, pub, meta, cuerpo, firma)
     _anotar_cambio(slug, eid, pub, ad, resultado, firma)
