@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# gh falso: apunta la llamada y devuelve la URL de un PR.
+echo "$*" >> "${FALSO_GH:?}"
+case "$1 $2" in "pr create") echo "https://github.com/ejemplo/web/pull/42" ;; *) echo "{}" ;; esac

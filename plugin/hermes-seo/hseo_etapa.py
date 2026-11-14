@@ -44,6 +44,8 @@ def contexto(slug: str) -> str:
     pol = cfg.get("politicas") or {}
     wiki = C.carpeta(slug) / "wiki"
     l = [f"# Cliente: {cfg['nombre']} ({cfg['url']})", "",
+         f"- Nombre corto (para las herramientas: --cliente): {slug}",
+         f"- Herramientas de datos: {PL.raiz() / 'herramientas'} (cada una con --cliente {slug}; `--help` para el uso)",
          f"- Idioma: {cfg['idioma']} · mercados: {', '.join(m['pais'] for m in cfg['mercados'])} · zona: {cfg['zona_horaria']}",
          f"- Estado de la web: {cfg['estado_web']} · publica con: {cfg['capacidades']['publicacion'].get('adaptador')}",
          f"- Capacidades: {', '.join(sorted(C.capacidades(cfg)))}"]

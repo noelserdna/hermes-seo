@@ -97,13 +97,13 @@ si "el feedback llega al prompt de redactar" "bash $ROOT/etapa.sh web $EID redac
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
 GID2=$(bash "$ROOT/etapa.sh" web "$EID" preparar | tail -1 | jq -r '.puerta // empty')
 si "segunda ronda: nueva puerta" "[ -n '$GID2' ] && [ '$GID2' != '$GID' ]"
-python3 - "$GID2" <<PY && ok "aprobar publicar sin adaptador: error visible, no se pierde la decisión" || bad "publicar sin adaptador"
+python3 - "$GID2" <<PY && ok "aprobar sin una publicación válida: error visible, no se pierde la decisión" || bad "publicar sin adaptador"
 exec(open("$T/py").read())
 g = sys.argv[1]
 PU.decidir(g, "acepto", "", "ana", "telegram", "111")
 assert rechaza(lambda: PU.firmar(g))
 p = PU.leer(g)
-assert p["estado"] == "error" and "publicar" in p["error"].lower(), p
+assert p["estado"] == "error" and "publicacion.json" in p["error"], p
 PY
 si "puertas.jsonl registra la firma" "grep -q '\"verbo\": \"cambios\"' $HERMES_SEO_HOME/clientes/web/puertas.jsonl"
 
