@@ -92,7 +92,15 @@ if ! existe seo-estacion; then
 fi
 carta seo-estacion
 "$HERMES" -p seo-estacion tools disable web browser image_gen tts computer_use cronjob delegation code_execution connections memory >/dev/null 2>&1 || true
-for kv in "terminal.timeout 7200" "terminal.lifetime_seconds 7200" "curator.enabled false" "display.language es"; do
+# Hermes corta los comandos en primer plano a los 420 s salvo que el perfil suba TERMINAL_MAX_FOREGROUND_TIMEOUT
+# (en .env) y timeouts.tools.*: sin esto, una etapa de Claude de más de 7 min se pierde (pasó con el caso, 14-11).
+env_linea() {   # env_linea <perfil> <CLAVE> <valor>: pone o cambia la línea sin tocar el resto del .env
+  local f="$HH/profiles/$1/.env"; touch "$f"; chmod 600 "$f"
+  grep -v "^$2=" "$f" > "$f.tmp" || true; echo "$2=$3" >> "$f.tmp"; mv "$f.tmp" "$f"; chmod 600 "$f"
+}
+env_linea seo-estacion TERMINAL_MAX_FOREGROUND_TIMEOUT 9600
+for kv in "terminal.timeout 9600" "terminal.lifetime_seconds 9600" "timeouts.tools.sequential_call 9600" \
+          "timeouts.tools.concurrent_batch 9600" "curator.enabled false" "display.language es"; do
   "$HERMES" -p seo-estacion config set $kv >/dev/null 2>&1 || true
 done
 "$HERMES" -p seo-estacion config set approvals.deny "$DENY" >/dev/null 2>&1 || true
@@ -107,7 +115,9 @@ for P in seo-investigador seo-redactor seo-verificador seo-editor seo-analista; 
   "$HERMES" -p "$P" config set skills.external_dirs "$(skills_dirs)" >/dev/null 2>&1 || true
   "$HERMES" -p "$P" config set approvals.deny "$DENY" >/dev/null 2>&1 || true
   "$HERMES" -p "$P" tools disable cronjob delegation >/dev/null 2>&1 || true
-  for kv in "terminal.timeout 2400" "terminal.lifetime_seconds 2400" "display.language es"; do
+  env_linea "$P" TERMINAL_MAX_FOREGROUND_TIMEOUT 2400
+  for kv in "terminal.timeout 2400" "terminal.lifetime_seconds 2400" "timeouts.tools.sequential_call 2400" \
+            "timeouts.tools.concurrent_batch 2400" "display.language es"; do
     "$HERMES" -p "$P" config set $kv >/dev/null 2>&1 || true
   done
 done
