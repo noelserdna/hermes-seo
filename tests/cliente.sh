@@ -11,7 +11,7 @@ no() { if eval "$2" >/dev/null 2>&1; then bad "$1"; else ok "$1"; fi; }
 
 si "alta de una web nueva" "$C alta nueva-web nueva-web.com"
 si "crea su carpeta con wiki, datos y secretos 600" \
-   "[ -d $HERMES_SEO_HOME/clientes/nueva-web/wiki ] && [ -d $HERMES_SEO_HOME/clientes/nueva-web/datos ] && [ \$(stat -f %Lp $HERMES_SEO_HOME/clientes/nueva-web/secretos.env 2>/dev/null || stat -c %a $HERMES_SEO_HOME/clientes/nueva-web/secretos.env) = 600 ]"
+   "[ -d $HERMES_SEO_HOME/clientes/nueva-web/wiki ] && [ -d $HERMES_SEO_HOME/clientes/nueva-web/datos ] && [ \$(python3 -c \"import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])\" $HERMES_SEO_HOME/clientes/nueva-web/secretos.env) = 600 ]"
 no "no repite un alta" "$C alta nueva-web otra.com"
 no "rechaza un slug con mayúsculas" "$C alta Mala otra.com"
 no "rechaza un nombre reservado" "$C alta cartera otra.com"

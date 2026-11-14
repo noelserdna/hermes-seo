@@ -272,7 +272,7 @@ corre "$HT/sitemaps-competencia" --cliente prueba
 
 # ---------- generales ----------
 si "ninguna herramienta lleva un dominio, ruta o perfil fijos de otra web" \
-   "! grep -rniE 'desarrollomcp|/home/opc|\\.config/desarrollomcp|6cc5768e' $HT"
+   "! grep -rIniE --exclude-dir=__pycache__ 'desarrollomcp|/home/opc|\\.config/desarrollomcp|6cc5768e' $HT"
 si "todas usan el User-Agent de hermes-seo" "grep -q 'hermes-seo/0.1 (+https://github.com/noelserdna/hermes-seo)' $HT/_comun.py"
 si "ninguna usa sintaxis de Python 3.10+ (compilan con ast de 3.9)" "python3 - $HT <<'PY'
 import ast, sys
