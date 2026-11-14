@@ -116,7 +116,7 @@ def proveedor_de(perfil_hermes: str | None) -> str:
         texto = p.read_text(errors="replace")
     except OSError:
         return ""
-    m = re.search(r"(?m)^model:\s*\n((?:[ \t]+.*\n?)*)", texto)
+    m = re.search(r"(?m)^model:[ \t]*\n((?:(?:[ \t]+.*|[ \t]*)\n?)*)", texto)   # hasta la siguiente clave sin sangría
     if not m:
         return ""
     pm = re.search(r"(?m)^[ \t]+provider:\s*['\"]?([\w.-]+)", m.group(1))

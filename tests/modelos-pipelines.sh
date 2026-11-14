@@ -15,6 +15,8 @@ no() { if eval "$2" >/dev/null 2>&1; then bad "$1"; else ok "$1"; fi; }
 $C alta web web.com --estado repo >/dev/null
 printf 'model:\n  default: claude-sonnet-5-5\n  provider: anthropic\n' > "$HOME/.hermes/profiles/seo-redactor/config.yaml"
 printf 'model:\n  provider: openai-codex\n  default: gpt-6-sol\n' > "$HOME/.hermes/profiles/seo-gpt/config.yaml"
+mkdir -p "$HOME/.hermes/profiles/seo-comentado"
+printf 'model:\n  # Default model\n  default: "claude-sonnet-5-5"\n\n  # Inference provider:\n  #   "auto" - x\n  provider: "anthropic"\nterminal:\n  provider: otro\n' > "$HOME/.hermes/profiles/seo-comentado/config.yaml"
 
 # ── modelos ──
 igual "equilibrado: redactar con Opus en Claude Code" "$($M para redactar claude)" opus
@@ -22,6 +24,7 @@ igual "equilibrado: verificar con Sonnet" "$($M para verificar claude)" sonnet
 igual "etapa desconocida: el ligero" "$($M para inventada claude)" sonnet
 igual "Hermes con Anthropic directo: id de Anthropic" "$($M para redactar hermes --perfil seo-redactor)" claude-opus-5-5
 igual "Hermes con OpenRouter: id de OpenRouter" "$($M para verificar hermes --proveedor openrouter)" anthropic/claude-sonnet-5.5
+igual "config con comentarios y líneas en blanco" "$($M para redactar hermes --perfil seo-comentado)" claude-opus-5-5
 igual "Hermes con ChatGPT: no fuerza modelo" "$($M para redactar hermes --perfil seo-gpt)" ""
 si "perfil calidad" "$M perfil calidad"
 igual "calidad: verificar con Opus" "$($M para verificar claude)" opus
