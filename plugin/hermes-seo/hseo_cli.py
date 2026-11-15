@@ -180,6 +180,7 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("wiki"); x.add_argument("accion", choices=("sembrar",)); x.add_argument("cliente")
     for n in ("preguntar", "ordenar"):
         x = sub.add_parser(n); x.add_argument("cliente"); x.add_argument("texto", nargs="+")
     x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
@@ -238,6 +239,8 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "wiki":
+            print("🧠 Memoria sembrada: " + ", ".join(_cargar("hseo_wiki").sembrar(a.cliente)))
         elif a.cmd == "vigilancia":
             for l in _cargar("hseo_vigilancia").ciclo(a.cliente):
                 print(l)

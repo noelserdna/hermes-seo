@@ -146,6 +146,10 @@ def _anotar_cambio(slug: str, eid: str, pub: dict, adaptador: str, resultado: st
         "hipotesis": pub.get("hipotesis", ""), "url": pub.get("url", ""),
         "urls": [c.get("url") for c in pub.get("cambios") or [] if c.get("url")], "adaptador": adaptador,
         "resultado": resultado, "firma": firma})
+    try:
+        _cargar("hseo_wiki").regenerar_cambios(slug)
+    except Exception:   # noqa: BLE001 — la memoria nunca frena una publicación
+        pass
 
 
 def _antes_de_publicar(slug: str, cfg: dict) -> None:

@@ -141,6 +141,13 @@ def turno(slug: str, ahora: float | None = None) -> str:
         lineas.append(f"Propuestas del parte del {parte.get('fecha', '?')} (la persona responde «haz la N»):")
         lineas += [f"{i}. {p.get('texto', '')[:110]}" for i, p in enumerate(parte["propuestas"], 1)]
 
+    try:
+        notas = _cargar("hseo_wiki").ultimas(slug, 3)
+    except Exception:   # noqa: BLE001
+        notas = []
+    if notas:
+        lineas.append("Memoria (últimas notas de la wiki): " + " | ".join(n[2:90] for n in notas))
+
     at = B.leer(d / "aterrizaje.json")
     if isinstance(at, dict) and at.get("pasos"):
         hechos_at = sum(1 for p in at["pasos"].values() if p.get("ok"))

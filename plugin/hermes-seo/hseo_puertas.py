@@ -404,6 +404,10 @@ def firmar(gid: str, ahora: float | None = None) -> dict:
             "texto": dec.get("texto", ""), "persona": dec["actor"].get("persona"), "canal": dec["actor"].get("canal"),
             "firma": firma, "resultado": resultado, "forzado": (dec.get("prueba") or {}).get("forzado", ""),
             "segundos_hasta_decidir": _segundos_entre(p.get("creada"), dec.get("at"))})
+        try:   # la memoria de la web: decisiones y correcciones (sin modelo; nunca frena al notario)
+            _cargar("hseo_wiki").regenerar_decisiones(p["cliente"])
+        except Exception:   # noqa: BLE001
+            pass
         return p
 
 

@@ -25,5 +25,9 @@
   "puerta": {
     "tipo": "plan-tecnico",
     "al_aprobar": "nada"
+  },
+  "memoria": {
+    "pagina": "linea-base",
+    "de": "plan-tecnico.md"
   }
 }

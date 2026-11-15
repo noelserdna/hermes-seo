@@ -176,6 +176,10 @@ def _guardar(slug: str, cfg: dict) -> None:
     if errores:
         raise Rechazo("La configuración no es válida:\n- " + "\n- ".join(errores))
     B.escribir(carpeta(slug) / "cliente.json", cfg)
+    try:   # la página «negocio» de su memoria sigue a la configuración
+        _cargar("hseo_wiki").regenerar_negocio(slug)
+    except Exception:   # noqa: BLE001
+        pass
 
 
 def alta(slug: str, dominio: str, estado_web: str = "nueva", nombre: str = "", quien: str = "") -> dict:

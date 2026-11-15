@@ -37,5 +37,10 @@
   "puerta": {
     "tipo": "plan-editorial",
     "al_aprobar": "nada"
+  },
+  "memoria": {
+    "pagina": "mapa-tematico",
+    "de": "plan-editorial.md",
+    "seccion": "Mapa temático"
   }
 }

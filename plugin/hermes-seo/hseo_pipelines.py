@@ -138,6 +138,9 @@ def validar(p: dict) -> list:
         for marca in re.findall(r"\{(\w+)\}", s.get("titulo", "")):
             if marca not in (p.get("parametros") or {}):
                 e.append(f"{donde}.titulo usa {{{marca}}}, que no es un parámetro")
+    mem = p.get("memoria")
+    if mem is not None and (not isinstance(mem, dict) or not mem.get("pagina") or not mem.get("de")):
+        e.append("memoria: {pagina, de, seccion?} (la página fija de la wiki que escribe al acabar)")
     puerta = p.get("puerta")
     if puerta is not None:
         if not isinstance(puerta, dict) or puerta.get("tipo") not in TIPOS_PUERTA:

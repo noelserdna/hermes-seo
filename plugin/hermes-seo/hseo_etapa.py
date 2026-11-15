@@ -61,10 +61,29 @@ def contexto(slug: str, etapa: str | None = None) -> str:
         l.append(f"- Sin piezas nuevas hasta {pol['congelado_hasta']}")
     l += ["", f"Memoria del cliente (wiki): {wiki} (empieza por index.md; enlaza, no copies).",
           f"Datos: {C.carpeta(slug) / 'datos'}"]
+    if etapa:
+        try:
+            mem = _cargar("hseo_wiki").para_etapa(slug, etapa, _lee(slug, etapa))
+        except Exception:   # noqa: BLE001
+            mem = ""
+        if mem:
+            l += ["", "## Memoria que te toca (de la wiki de la web; la escribe el sistema)", mem]
     lecciones = _lecciones(slug, etapa)
     if lecciones:
         l += ["", "## Lecciones de otros proyectos (confirmadas por una persona)", *[f"- {x}" for x in lecciones]]
     return "\n".join(l) + "\n"
+
+
+def _lee(slug: str, etapa: str) -> list | None:
+    """Páginas de memoria que declara la etapa («lee»), si las declara en alguna pipeline de la web."""
+    try:
+        for p in PL.listar(slug).values():
+            for s in p.get("etapas") or []:
+                if s.get("id") == etapa and s.get("lee"):
+                    return s["lee"]
+    except Exception:   # noqa: BLE001
+        pass
+    return None
 
 
 def _lecciones(slug: str, etapa: str | None) -> list:
@@ -186,6 +205,8 @@ def fin(slug: str, eid: str, etapa: str, res: dict, t0: float) -> dict:
                 "ejecutor": res.get("ejecutor", ""), "modelo": res.get("modelo", ""),
                 "minutos": round((time.time() - t0) / 60, 1), "coste_usd": res.get("cost_usd", 0), "puerta": ""})
             return res
+    if res.get("outcome") == "done" and ultima and isinstance(PL.cargar(enc["pipeline"], slug).get("memoria"), dict):
+        _cargar("hseo_wiki").de_salida(slug, eid, PL.cargar(enc["pipeline"], slug)["memoria"])
     if res.get("outcome") == "done" and ultima:
         # una puerta solo existe si aprobarla ejecuta algo; si no, es un informe: se guarda y sale en el parte
         decide = bool(enc.get("puerta")) and str((enc.get("puerta") or {}).get("al_aprobar", "nada")) != "nada"
