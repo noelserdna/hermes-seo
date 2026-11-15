@@ -11,7 +11,7 @@ si() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
 P="$ROOT/plugin/hermes-seo"; H="python3 $P/hseo_cli.py"
 git config --global user.name p >/dev/null 2>&1; git config --global user.email p@x >/dev/null 2>&1; git config --global init.defaultBranch main >/dev/null 2>&1
 mkdir -p "$T/bin" "$HERMES_SEO_HOME"; printf '#!/bin/sh\necho "Hermes Agent v0.23.1 (2026.9.24)"\n' > "$T/bin/hermes"; chmod +x "$T/bin/hermes"; export HERMES_BIN="$T/bin/hermes"
-git init -q --bare "$T/hermes.git"; git init -q "$T/h"; (cd "$T/h" && git commit -q --allow-empty -m a && git tag v0.23.1 && git tag v0.24.0 && git tag v0.25.0-canary.3 && git tag v2026.9.24 && git remote add origin "$T/hermes.git" && git push -q origin main --tags)
+git init -q --bare -b main "$T/hermes.git"; git init -q -b main "$T/h"; (cd "$T/h" && git commit -q --allow-empty -m a && git tag v0.23.1 && git tag v0.24.0 && git tag v0.25.0-canary.3 && git tag v2026.9.24 && git remote add origin "$T/hermes.git" && git push -q origin main --tags)
 export HSEO_REPO_HERMES="$T/hermes.git" HSEO_REPO_PLUGIN="$T/hermes.git"
 echo "{\"yo\":{\"nombre\":\"Yo\",\"canales\":{\"local\":\"$(id -un)\"},\"clientes\":[\"*\"]}}" > "$HERMES_SEO_HOME/aprobadores.json"
 R=$($H novedad recoger)
@@ -22,7 +22,7 @@ si "más de 3 al mes: se apunta como descartada" "$H novedad proponer h i j | gr
 G=$(python3 $P/hseo_puertas.py listar | grep -m1 Novedad | awk '{print $1}')
 si "aprobar una novedad solo la apunta" "python3 $P/hseo_puertas.py decidir-local $G acepto | grep -q 'apuntada' && [ -s $HERMES_SEO_HOME/novedades/apuntadas.jsonl ]"
 # mejoras: un repo del plugin de mentira
-git init -q --bare "$T/plugin.git"; git init -q "$T/repo"
+git init -q --bare -b main "$T/plugin.git"; git init -q -b main "$T/repo"
 (cd "$T/repo" && mkdir -p tests skills/x encargado && printf '#!/bin/sh\necho "todo ok"\n' > tests/todo.sh && echo a > skills/x/SKILL.md && echo g > encargado/guardia.py \
   && git add -A && git commit -qm base && git remote add origin "$T/plugin.git" && git push -q origin main \
   && git checkout -qb buena && echo b >> skills/x/SKILL.md && git commit -qam buena && git push -q origin buena \
