@@ -49,6 +49,11 @@ GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse"
 HSEO_SOLA = {"preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos"}
+# El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
+# bloquea (el hook va con matcher ".*"). La coordinadora no tiene esta lista: es «ojos y manos en todo».
+HERRAMIENTAS_ENCARGADO = {"terminal", "read_file", "write_file", "patch", "search_files", "skills_list", "skill_view",
+                          "todo_list", "memory", "session_search", "clarify", "vision_analyze"}
+CON_VALOR = {"--param", "--brief", "--cliente", "--dias", "--quien"}   # opciones de hseo que llevan un valor detrás
 
 
 def bloquear(motivo: str) -> None:
@@ -96,7 +101,15 @@ def cliente_de(args: list) -> str | None:
     if "--cliente" in resto:
         i = resto.index("--cliente")
         return resto[i + 1] if i + 1 < len(resto) else None
-    pos = [a for a in resto if not a.startswith("--")]
+    pos, saltar = [], False
+    for a in resto:   # posicionales de verdad: sin las opciones ni sus valores («--brief web otra» no engaña)
+        if saltar:
+            saltar = False
+            continue
+        if a.startswith("--"):
+            saltar = a in CON_VALOR
+            continue
+        pos.append(a)
     if sub in ("estado", "puertas"):
         return pos[0] if pos else None
     if sub in ("encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion", "parte", "propuesta", "vigilancia", "preguntar", "ordenar"):
@@ -221,6 +234,13 @@ def main() -> None:
     base = os.path.join(CLIENTES, AMBITO) if not CARTERA else HSEO
     if herramienta in ("execute_code", "delegate_task", "cronjob"):
         bloquear(f"sin {herramienta}")
+    if not CARTERA and herramienta not in HERRAMIENTAS_ENCARGADO:
+        bloquear(f"la herramienta {herramienta} no está entre las del encargado")
+    if herramienta == "search_files":
+        p = ruta(str(entrada.get("path") or entrada.get("directory") or base), base)
+        if SECRETOS.search(p) or (not CARTERA and not dentro(p, os.path.join(CLIENTES, AMBITO)) and not any(dentro(p, x) for x in ARNES_RUTAS)):
+            bloquear(f"solo busca en las carpetas de {AMBITO}" if not CARTERA else "los secretos no se buscan")
+        sys.exit(0)
     if herramienta in ("write_file", "patch"):
         p = ruta(str(entrada.get("path") or entrada.get("file_path") or ""), base)
         if "/.git/" in p + "/" or not any(dentro(p, w) for w in ESCRIBE):
@@ -235,6 +255,9 @@ def main() -> None:
         sys.exit(0)
     if herramienta == "terminal":
         terminal(str(entrada.get("command") or ""), ruta(str(entrada.get("workdir") or entrada.get("cwd") or base), base))
+        if APROBAR and not CARTERA:   # el encargado nunca pide aprobaciones: un «sí» de un tercero no debe valer
+            bloquear("eso necesita la aprobación de la persona: explícale qué harías y que se lo pida a la coordinadora ("
+                     + "; ".join(APROBAR)[:200] + ")")
         if APROBAR:   # Hermes la pasa a su aprobación humana; sin respuesta (o en un cron) se deniega
             print(json.dumps({"action": "approve", "message": "; ".join(APROBAR),
                               "rule_key": "hermes-seo:" + re.sub(r"\W+", "-", APROBAR[0][:40])}, ensure_ascii=False))

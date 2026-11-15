@@ -141,7 +141,9 @@ case "$CMD" in
       '["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*etapa.sh*","*decidir-local*","*aprobadores.json*","*secretos.env*","*hermes kanban*","*hermes config*","*hermes cron*","*sqlite3*","*git push*"]' >/dev/null
     GUARDIA="python3 -I $ARNES/encargado/guardia.py $SLUG $ARNES"
     "$HERMES" -p "$P" config set hooks.pre_tool_call \
-      "[{\"matcher\":\"terminal|write_file|patch|read_file|execute_code|delegate_task|cronjob\",\"command\":\"$GUARDIA\",\"timeout\":10,\"fail_closed\":true}]" >/dev/null
+      "[{\"matcher\":\".*\",\"command\":\"$GUARDIA\",\"timeout\":10,\"fail_closed\":true}]" >/dev/null
+    # las mismas herramientas en Telegram (y en cualquier otra plataforma) que en la CLI: nada de más
+    "$HERMES" -p "$P" config set platform_toolsets.telegram '["clarify","file","memory","session_search","skills","terminal","todo","vision"]' >/dev/null
     jq -n --arg c "$GUARDIA" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       '{approvals: [{event: "pre_tool_call", command: $c, approved_at: $t}]}' > "$PD/shell-hooks-allowlist.json"
     registrar "$P"
