@@ -112,7 +112,7 @@ si "puertas.jsonl registra la firma" "grep -q '\"verbo\": \"cambios\"' $HERMES_S
 # ── pipeline siguiente y descartar ──
 R=$($EN lanzar web alta --quien ana); A=$(echo "$R" | jq -r .encargo)
 GA=$(bash "$ROOT/etapa.sh" web "$A" alta | tail -1 | jq -r '.puerta // empty')
-si "aprobar el alta lanza la línea base" "$PU decidir-local $GA acepto && ls $HERMES_SEO_HOME/clientes/web/encargos | grep -q '^linea-base-'"
+si "el alta es un informe (la línea base la lanza el aterrizaje): no abre puerta" "[ -z '$GA' ] && jq -e '.estado == \"hecho\" and .informe' $HERMES_SEO_HOME/clientes/web/encargos/$A/encargo.json"
 # un informe (al_aprobar: nada) no abre puerta: queda hecho y sale en el parte
 R=$($EN lanzar web radar); RI=$(echo "$R" | jq -r .encargo)
 GI=$(bash "$ROOT/etapa.sh" web "$RI" radar | tail -1 | jq -r '.puerta // empty')

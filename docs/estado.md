@@ -11,7 +11,7 @@
 | F6 | Instalación en el Hermes del VPS y migración de desarrollomcp | ✅ 14-11 |
 | v2 · Entrega 1 | Asegurar, limpiar, corregir, saber (ver abajo) | ✅ 15-11 |
 | v2 · Entrega 2 | Memoria de la web sin modelo, tandas con control y veredicto, autoridad y presencia | ✅ 15-11 |
-| v2 · Entrega 3 | Correo (buzón único en Cloudflare, botones con código) y aterrizaje guiado | ⏳ |
+| v2 · Entrega 3 | Correo (buzón único en Cloudflare, botones con código) y aterrizaje guiado | ✅ 15-11 |
 | v2 · Entrega 4 | Visibilidad en IA mensual, cuaderno del método y costes, novedades y puerta `mejora` | ⏳ |
 
 ## v2 · Entrega 1 (15-11-2026)
@@ -45,6 +45,20 @@
   buscadores a otros y no a la web; ≤4 gestiones; puerta «Todas / Solo algunas / No»; las tuyas en el parte hasta
   `hseo gestion hecha`. Cron mensual (día 2).
 
+## v2 · Entrega 3 (15-11-2026)
+- **Correo** (`correo/` Worker `hermes-correo` + `hseo_correo`): un buzón (`hermes_seo@leonbohorquez.dev`, regla de
+  Email Routing al Worker) y envío desde el subdominio `seo.leonbohorquez.dev` (Email Sending, Reply-To al buzón). Solo
+  entra lo auténtico (primera `Authentication-Results` de `mx.cloudflare.net` con `dmarc=pass`) y no automático. Cada
+  web tiene un contacto único (`hseo contacto <web> <correo> --canal correo|ambos|telegram`); un correo auténtico desde
+  él lo deja comprobado. Puertas con texto legible y botones `mailto:` con un código de un solo uso por opción: decide
+  el código (remitente de esa web, puerta suya, contenido sin cambios), con confirmación y DESHACER (30 min); un «sí»
+  suelto o el texto libre van al encargado (sesión «correo»), que contesta en el hilo. Parte, incidencias y resultados
+  también por correo. Probado en vivo el 15-11 (entrega, respuesta del encargado, descartar por botón).
+- **Aterrizaje guiado** (`hseo_aterrizaje`, `hseo aterrizaje …`): 10 pasos que se comprueban solos; ningún cron arranca
+  sin su acceso comprobado (las webs anteriores, «legado», no cambian); con los mínimos (1, 2, 3, 5) se lanza la línea
+  base una vez y al cerrarla la estrategia; la vigilancia lo vuelve a comprobar cada 30 min y cuenta los cambios.
+  `alta` pasa a informe. Claves solo por terminal (`hseo secreto guardar`).
+
 ## Cómo se deshace cada cosa
 | Qué | Cómo |
 |---|---|
@@ -53,4 +67,5 @@
 | Datos de las webs | copia diaria en R2 (`hermes-copias`, clave en `~/.config/hermes-seo/copia.key` y en el Mac) |
 | Latido externo | `wrangler delete` del Worker `hermes-latido` y quitar la línea del crontab |
 | Salud del servidor | quitar la línea `hseo_sistema.py revisar` del crontab y el cron `hseo-sistema` |
+| Correo | quitar la regla «hermes-seo buzón» de Email Routing, el subdominio de envío y el Worker `hermes-correo`; `contacto.canal = telegram` |
 | Publicaciones | no se deshacen solas: se revierte el PR (`hseo lanzar <web> cambio-seo --param que="Revertir el PR #N"`) |

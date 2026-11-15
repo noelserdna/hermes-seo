@@ -255,6 +255,10 @@ def procesar(m: dict) -> str:
     if _contar(slug) >= TOPE_DIA:
         return "descartado: tope diario"
     persona = PU.persona_de("email", de)[0]
+    cfg = C.leer(slug)
+    if (cfg.get("contacto") or {}).get("correo") and not cfg["contacto"].get("verificado"):
+        cfg["contacto"]["verificado"] = B.ahora()   # un correo auténtico desde esa dirección prueba que es suya
+        C._guardar(slug, cfg)
     texto = _sin_cita(str(m.get("texto") or ""))
     hallado = CODIGO.search(f"{m.get('asunto', '')}\n{texto}") or CODIGO.search(texto)
     ref = m.get("message_id") or ""

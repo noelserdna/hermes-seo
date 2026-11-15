@@ -15,6 +15,6 @@
   ],
   "puerta": {
     "tipo": "alta",
-    "al_aprobar": "pipeline:linea-base"
+    "al_aprobar": "nada"
   }
 }

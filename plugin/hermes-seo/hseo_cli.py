@@ -23,6 +23,8 @@ y lo ejecuta el notario.
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
+    hseo aterrizaje empezar|comprobar|ver <cliente> · hseo aterrizaje omitir <cliente> <6|7|8>   (web nueva, paso a paso)
+    hseo secreto guardar <cliente> <CLAVE>              (solo desde tu terminal: pide el valor sin mostrarlo)
     hseo contacto <cliente> <correo> [--canal correo|ambos|telegram]   (dueño de la web por correo; único entre webs)
     hseo modelos perfil <calidad|equilibrado|rapido> · hseo modelos poner <etapa> <modelo|-> [--cliente C]
     hseo lanzar … --excepcion                            (salta la congelación o el tope: lo pidió una persona)
@@ -100,6 +102,25 @@ def _etapas_hechas(slug: str, eid: str) -> int:
     except OSError:
         pass
     return len([s for s in enc["etapas"] if s["id"] in hechas])
+
+
+def aterrizaje_al_dia(slug: str) -> list:
+    """Web en aterrizaje: cada 30 min vuelve a comprobar los pasos; si la lista cambia, se cuenta (una vez) y se ponen
+    al día las tareas programadas que ya se pueden encender."""
+    AT = _cargar("hseo_aterrizaje")
+    e = AT.estado(slug)
+    if not e or e.get("completo") or time.time() - _cargar("hseo_estado")._ts(e.get("comprobado")) < 1800:
+        return []
+    antes = AT.vista(slug)
+    AT.comprobar(slug)
+    e = AT.estado(slug); e["comprobado"] = B.ahora(); B.escribir(AT._f(slug), e)
+    despues = AT.vista(slug)
+    if despues == antes:
+        return []
+    import subprocess
+    subprocess.Popen(B.desacoplar(["bash", str(Path(__file__).resolve().parents[2] / "encargado.sh"), "crons", slug]),
+                     start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return [despues]
 
 
 TOPE_HABLAR_S = 400   # la terminal de la coordinadora corta a los 420 s
@@ -183,6 +204,9 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("aterrizaje"); x.add_argument("accion", choices=("empezar", "comprobar", "ver", "omitir"))
+    x.add_argument("cliente"); x.add_argument("n", nargs="?", type=int)
+    x = sub.add_parser("secreto"); x.add_argument("accion", choices=("guardar",)); x.add_argument("cliente"); x.add_argument("clave")
     x = sub.add_parser("contacto"); x.add_argument("cliente"); x.add_argument("correo")
     x.add_argument("--canal", default="correo", choices=("correo", "ambos", "telegram"))
     sub.add_parser("correo").add_argument("accion", choices=("ciclo",))
@@ -249,6 +273,22 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "aterrizaje":
+            AT = _cargar("hseo_aterrizaje")
+            sys.exit(AT.main([a.accion, a.cliente] + ([str(a.n)] if a.n else [])))
+        elif a.cmd == "secreto":
+            if not sys.stdin.isatty():
+                raise Rechazo("Las claves se guardan desde tu terminal (nunca por el chat ni por correo): hseo secreto guardar <web> <CLAVE>")
+            import getpass, re as _re
+            if not _re.fullmatch(r"[A-Z][A-Z0-9_]{2,60}", a.clave):
+                raise Rechazo("El nombre de la clave va en mayúsculas, p. ej. BING_API_KEY")
+            valor = getpass.getpass(f"Valor de {a.clave} (no se ve al escribir): ").strip()
+            if not valor:
+                raise Rechazo("Vacío: no se guarda nada")
+            f = C.carpeta(a.cliente) / "secretos.env"
+            lineas = [l for l in (f.read_text().splitlines() if f.exists() else []) if not l.startswith(f"{a.clave}=")]
+            f.write_text("\n".join(lineas + [f"{a.clave}={valor}"]) + "\n"); os.chmod(f, 0o600)
+            print(f"🔑 {a.clave} guardada para {a.cliente} (no se muestra)")
         elif a.cmd == "contacto":
             print(_cargar("hseo_correo").poner_contacto(a.cliente, a.correo, a.canal))
         elif a.cmd == "correo":
@@ -271,6 +311,7 @@ def main(argv=None) -> int:
             print("🧠 Memoria sembrada: " + ", ".join(_cargar("hseo_wiki").sembrar(a.cliente)))
         elif a.cmd == "vigilancia":
             avisos = _cargar("hseo_vigilancia").ciclo(a.cliente)
+            avisos += aterrizaje_al_dia(a.cliente)
             HC = _cargar("hseo_correo")
             if avisos and HC.por_correo(a.cliente):
                 HC.encolar(a.cliente, f"⚠️ {C.leer(a.cliente).get('nombre') or a.cliente}: algo necesita atención", "\n\n".join(avisos), tipo="incidencia")

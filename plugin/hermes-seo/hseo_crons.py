@@ -61,6 +61,8 @@ def plan(slug: str) -> list:
             continue
         if not _valido(horario):
             raise B.Rechazo(f"Horario no válido para {nombre}: «{horario}» (formato cron de 5 campos)")
+        if not _cargar("hseo_aterrizaje").permitido(slug, nombre):   # web nueva: su paso del aterrizaje aún no está
+            continue
         if nombre == "datos":
             out.append({"nombre": "datos", "horario": horario, "orden": ["datos", "recoger", slug]})
             continue
