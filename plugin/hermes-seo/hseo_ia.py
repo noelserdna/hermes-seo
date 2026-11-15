@@ -83,6 +83,10 @@ def resumen(slug: str, fecha: str | None = None) -> dict:
             menciona += c or any(t and t in texto for t in marca)
             for k in comp:
                 comp[k] += any(k in u.lower() for u in urls) or k in texto
+        if not n:   # todas las filas con error: se dice, no se cuenta como 0 %
+            motores[motor] = {"respuestas": 0, "cita": 0, "menciona": 0, "cita_pct": None, "intervalo_cita": None,
+                              "competidores": {}, "sin_datos": "todas las preguntas fallaron"}
+            continue
         lo, hi = wilson(cita, n)
         motores[motor] = {"respuestas": n, "cita": cita, "menciona": menciona, "cita_pct": round(cita / n * 100, 1) if n else 0,
                           "intervalo_cita": [lo, hi], "competidores": {k: v for k, v in comp.items() if v}}
@@ -92,7 +96,7 @@ def resumen(slug: str, fecha: str | None = None) -> dict:
         prev = resumen(slug, anteriores[-1]) if anteriores[-1] != fecha else {}
         for motor, v in motores.items():
             p = (prev.get("motores") or {}).get(motor)
-            if p and p["respuestas"]:
+            if p and p["respuestas"] and v["respuestas"]:   # una ronda sin respuestas (cuota, 429) no dice nada
                 a, b = p["intervalo_cita"], v["intervalo_cita"]
                 cambios[motor] = "sube" if b[0] > a[1] else ("baja" if b[1] < a[0] else "sin cambio que se pueda afirmar")
     r = {"hay_datos": True, "fecha": fecha, "motores": motores, "frente_a": anteriores[-1] if anteriores else None, "cambios": cambios}

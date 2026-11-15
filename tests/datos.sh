@@ -85,5 +85,8 @@ r = IA.guardar("web")
 m = r["motores"]["chatgpt"]
 assert r["fecha"] == "2026-11-01" and m["respuestas"] == 30 and m["cita"] == 20 and m["intervalo_cita"][0] > 0.4, r
 assert r["cambios"]["chatgpt"] == "sube" and (d / "resumen-2026-11-01.json").exists()
+(d / "chatgpt-2026-11-15.json").write_text(json.dumps({"filas": [{"error": "HTTP Error 429"}] * 30}))
+r = IA.resumen("web", "2026-11-15")
+assert r["motores"]["chatgpt"]["sin_datos"] and "chatgpt" not in r["cambios"], r   # una ronda fallida no es una bajada
 PY
 exit $fail

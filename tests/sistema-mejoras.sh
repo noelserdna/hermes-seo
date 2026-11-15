@@ -34,4 +34,10 @@ si "una mejora con las pruebas en rojo no se ofrece" "! $H mejora proponer rompe
 si "una mejora de skills con pruebas en verde llega como puerta «mejora»" "$H mejora proponer buena | grep -q 'propuesta' && python3 $P/hseo_puertas.py listar | grep -q 'Mejora del sistema: buena'"
 G=$(python3 $P/hseo_puertas.py listar | grep 'Mejora del sistema' | awk '{print $1}')
 si "aprobarla la instala (en seco) y queda apuntado" "python3 $P/hseo_puertas.py decidir-local $G acepto | grep -q 'instalaría buena@' && grep -q '\"instalada\"' $HERMES_SEO_HOME/mejoras.jsonl"
+# lo instalado es más nuevo que la rama: no se ofrece (instalarla desharía cambios)
+(cd "$T/repo" && git checkout -q main && echo n >> skills/x/SKILL.md && git commit -qam nuevo && git push -q origin main \
+  && git checkout -qb vieja main~1 && echo v > skills/x/otra.md && git add -A && git commit -qm vieja && git push -q origin vieja)
+echo "{\"carpeta\": \"$HERMES_SEO_HOME/0.1.0-$(git -C "$T/repo" rev-parse --short main)\"}" > "$HERMES_SEO_HOME/instalacion.json"
+OUTV=$($H mejora proponer vieja 2>&1); echo "$OUTV" | grep -q "no parte de lo instalado" && ok "una rama más vieja que lo instalado no se ofrece" || bad "vieja ($OUTV)"
+rm -f "$HERMES_SEO_HOME/instalacion.json"
 exit $fail

@@ -46,6 +46,19 @@ def _git(*a, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(cwd or _repo()), *a], capture_output=True, text=True, timeout=300)
 
 
+def _instalado() -> str:
+    """Commit de la instalación actual (de la carpeta <versión>-<commit>), o «» si no se sabe."""
+    inst = B.leer(B.home() / "instalacion.json") or {}
+    m = re.search(r"-([0-9a-f]{7,40})(?:-local)?$", str(inst.get("carpeta") or ""))
+    return m.group(1) if m else ""
+
+
+def _detras(sha: str) -> bool:
+    """¿Instalar sha perdería lo que ya está instalado? (lo instalado no es antecesor de la rama)."""
+    inst = _instalado()
+    return bool(inst) and _git("merge-base", "--is-ancestor", inst, sha).returncode != 0
+
+
 def proponer(rama: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9._/-]{1,80}", rama):
         raise Rechazo("Nombre de rama no válido")
@@ -57,6 +70,8 @@ def proponer(rama: str) -> str:
     sha = _git("rev-parse", ref).stdout.strip()
     if not sha:
         raise Rechazo(f"No encuentro la rama {rama}")
+    if _detras(sha):
+        raise Rechazo(f"La rama no parte de lo instalado ({_instalado()}): instalarla desharía cambios. Rebásala sobre main")
     base = _git("merge-base", ref, "origin/main").stdout.strip() or _git("merge-base", ref, "main").stdout.strip()
     ficheros = [f for f in _git("diff", "--name-only", f"{base}..{sha}").stdout.splitlines() if f]
     if not ficheros:
@@ -92,6 +107,10 @@ def instalar(ref: str, firma: str) -> str:
     if os.environ.get("HSEO_MEJORA_SECO"):
         B.anotar(B.home() / "mejoras.jsonl", {"ts": B.ahora(), "instalada": ref, "firma": firma, "seco": True})
         return f"instalaría {ref} (en seco)"
+    _git("fetch", "-q", "origin", rama)
+    if _detras(sha):
+        B.anotar(B.home() / "mejoras.jsonl", {"ts": B.ahora(), "rechazada": ref, "firma": firma, "motivo": "detrás de lo instalado"})
+        return f"no se instala {rama}: lo instalado ({_instalado()}) es más nuevo y se perdería; hay que rebasarla y proponerla otra vez"
     log = B.home() / "logs" / f"mejora-{sha}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     guion = (f"set -e; cd {_repo()}; git fetch -q origin {rama}; d=$(mktemp -d); git worktree add -q --detach $d {sha}; "
