@@ -10,7 +10,7 @@
 | F5 | Telemetría (`metricas.db`, resumen 28/28, «página 2», antes/después) y pestaña «SEO» del panel (solo lectura) | ✅ |
 | F6 | Instalación en el Hermes del VPS y migración de desarrollomcp | ✅ 14-11 |
 | v2 · Entrega 1 | Asegurar, limpiar, corregir, saber (ver abajo) | ✅ 15-11 |
-| v2 · Entrega 2 | Memoria de la web sin modelo, tandas (`exprimir`) y veredicto por tanda, autoridad y presencia | ⏳ |
+| v2 · Entrega 2 | Memoria de la web sin modelo, tandas con control y veredicto, autoridad y presencia | ✅ 15-11 |
 | v2 · Entrega 3 | Correo (buzón único en Cloudflare, botones con código) y aterrizaje guiado | ⏳ |
 | v2 · Entrega 4 | Visibilidad en IA mensual, cuaderno del método y costes, novedades y puerta `mejora` | ⏳ |
 
@@ -32,6 +32,18 @@
 - **Coordinar:** `hseo preguntar|ordenar <web>` (sesión continua «coordinador» del encargado, registrada).
 - **Guardia del encargado:** herramientas de una lista cerrada (matcher `.*`), sin aprobaciones, `--brief web otra`
   ya no engaña.
+
+## v2 · Entrega 2 (15-11-2026)
+- **Memoria de la web sin modelo** (`hseo_wiki`): páginas fijas `negocio`, `mapa-tematico`, `linea-base`,
+  `decisiones`, `correcciones` y `cambios-y-veredictos`, escritas en su momento (configuración, cierre de pipelines con
+  «memoria», firma de cada puerta, publicación) e idempotentes; cada etapa recibe «## Memoria que te toca».
+  `hseo wiki sembrar <web>`.
+- **Tandas** (`hseo_tandas`, `hseo tanda …`): candidatas por código con control, ≤4 páginas, ≤40 % de impresiones en
+  ventana, una página no se toca por otro lado; veredicto diario sin modelo (funcionó / no funcionó / no se puede saber;
+  si empeoró, puerta para volver atrás). El parte propone la tanda siguiente.
+- **Autoridad y presencia** (`hseo_autoridad`, pipeline `autoridad`, sustituye a difusión): dónde citan las IA y los
+  buscadores a otros y no a la web; ≤4 gestiones; puerta «Todas / Solo algunas / No»; las tuyas en el parte hasta
+  `hseo gestion hecha`. Cron mensual (día 2).
 
 ## Cómo se deshace cada cosa
 | Qué | Cómo |
