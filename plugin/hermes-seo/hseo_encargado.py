@@ -87,6 +87,12 @@ def vigia(slug: str, ahora: float | None = None) -> list:
             t = _tramo(ahora - fotos[-1].stat().st_mtime, ((7 * 86400, "más de 7 días"), (3 * 86400, "más de 3 días")))
             if t:
                 out.append(f"DATOS SIN ACTUALIZAR | search-console | {t}")
+    cop = B.leer(B.home() / "copia.json")   # solo si la copia está configurada (copia.sh)
+    if isinstance(cop, dict):
+        if not cop.get("ok"):
+            out.append(f"COPIA FALLIDA | r2 | {str(cop.get('motivo', ''))[:100]}")
+        elif ahora - _ts(cop.get("ts")) > 2 * 86400:
+            out.append("COPIA SIN HACER | r2 | más de 2 días")
     for x in B.disco():
         if x["aviso"]:
             out.append(f"DISCO CASI LLENO | {x['punto']} | {'más del 95 %' if x['usado_pct'] >= 95 else 'más del 85 %'}")

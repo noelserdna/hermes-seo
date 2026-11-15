@@ -68,4 +68,10 @@ PY
 si "estado empieza por el disco" "python3 $P/hseo_cli.py estado | head -1 | grep -q 'Disco: .* % usado'"
 si "el vigía avisa con el disco por encima del umbral" "HSEO_AVISO_DISCO=0 python3 $P/hseo_encargado.py vigia web | grep -q '^DISCO CASI LLENO | .* | más del'"
 no "y no avisa por debajo" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q DISCO"
+echo '{"ts": "2020-01-01T00:00:00Z", "ok": true}' > "$HERMES_SEO_HOME/copia.json"
+si "el vigía avisa si la copia lleva más de 2 días sin hacerse" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q '^COPIA SIN HACER'"
+echo '{"ts": "2099-01-01T00:00:00Z", "ok": false, "motivo": "no se pudo subir"}' > "$HERMES_SEO_HOME/copia.json"
+si "y si la última copia falló" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q '^COPIA FALLIDA | r2 | no se pudo subir'"
+rm -f "$HERMES_SEO_HOME/copia.json"
+no "sin copia configurada, nada" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q COPIA"
 exit $fail
