@@ -176,4 +176,18 @@ PY
 no "decidir-local sin --forzar tampoco aprueba" "$PU decidir-local $GJ acepto"
 si "con --forzar y motivo sí, y queda escrito" "$PU decidir-local $GJ acepto --forzar 'lo reviso yo' && grep -q 'lo reviso yo' $HERMES_SEO_HOME/clientes/web/puertas.jsonl"
 si "Jev ya no existe en las puertas" "! grep -q -i jev $ROOT/plugin/hermes-seo/hseo_puertas.py"
+# ── la verificación pide cambios: una vuelta automática a redactar; la segunda vez sigue a la puerta con aviso grave ──
+RV=$($EN lanzar web articulo --param tema='Vuelta' --excepcion); EV=$(echo "$RV" | jq -r .encargo); DV=$HERMES_SEO_HOME/clientes/web/encargos/$EV
+for e in investigar redactar; do bash "$ROOT/etapa.sh" web "$EV" "$e" >/dev/null; done
+OUT=$(FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EV" verificar | tail -1)
+si "CAMBIOS en la verificación: la tarjeta no sigue y el encargo queda en-vuelta" "echo '$OUT' | jq -e '.outcome == \"failed\" and .vuelta == \"redactar\"' && jq -e '.estado == \"en-vuelta\" and .vuelta_pendiente.desde == \"redactar\"' $DV/encargo.json && [ -f $DV/verificacion-1.md ]"
+si "etapas.jsonl lo apunta como «cambios», no como fallo" "tail -1 $HERMES_SEO_HOME/clientes/web/etapas.jsonl | jq -e '.resultado == \"cambios\"'"
+si "hseo vueltas la lanza: tarjetas nuevas desde redactar" "python3 $P/hseo_cli.py vueltas | grep -q '$EV' && jq -e '.estado == \"en-curso\" and (.vuelta_pendiente | not)' $DV/encargo.json && grep -q -- '--idempotency-key $EV-redactar-r1' $FALSO_LLAMADAS"
+si "el feedback de la verificación va aparte y llega al redactor" "[ -f $DV/.estado/feedback-verificacion-redactar.txt ] && [ ! -f $DV/.estado/feedback-redactar.txt ] && bash $ROOT/etapa.sh web $EV redactar >/dev/null && grep -q 'fact-check' $DV/.estado/ultimo-prompt.txt && grep -q 'corregir la cifra' $DV/.estado/ultimo-prompt.txt"
+OUT2=$(FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EV" verificar | tail -1)
+si "segunda vez CAMBIOS: ya no vuelve, sigue" "echo '$OUT2' | jq -e '.outcome == \"done\"' && jq -e '.estado == \"en-curso\" and .vueltas_verificacion == 1' $DV/encargo.json"
+for e in revisar-lectura; do bash "$ROOT/etapa.sh" web "$EV" "$e" >/dev/null; done
+GV=$(bash "$ROOT/etapa.sh" web "$EV" preparar | tail -1 | jq -r '.puerta // empty')
+si "y llega a la puerta con el aviso grave (no se puede aprobar)" "[ -n '$GV' ] && $PU ver $GV | jq -e '.revision.graves > 0'"
+no "una pipeline con si_cambios a una etapa posterior no valida" "python3 -c \"import importlib.util,sys;s=importlib.util.spec_from_file_location('p','$P/hseo_pipelines.py');m=importlib.util.module_from_spec(s);sys.modules['p']=m;s.loader.exec_module(m);sys.exit(1 if m.validar({'id':'x','nombre':'x','etapas':[{'id':'a','perfil':'seo-redactor','skill':'redactar','si_cambios':'b'},{'id':'b','perfil':'seo-redactor','skill':'redactar'}]}) else 0)\""
 exit $fail

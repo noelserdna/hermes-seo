@@ -238,6 +238,13 @@ async def _on_leccion(update, context) -> None:
 # ── el bucle: publicar, firmar, sincronizar ────────────────────────────────────────────────────────────────────
 async def _vuelta() -> None:
     bot = _RT["app"].bot
+    if time.time() - _RT.get("vueltas_t", 0) > 30:   # la verificación pidió cambios: vuelta automática (una vez)
+        _RT["vueltas_t"] = time.time()
+        try:
+            for slug, eid, desde in await asyncio.to_thread(_cargar("hseo_encargos").vueltas_pendientes):
+                log.info("hermes-seo: %s/%s vuelve a %s (la verificación pidió cambios)", slug, eid, desde)
+        except Exception as e:   # noqa: BLE001 — nunca para el bucle de las puertas
+            log.warning("hermes-seo: vueltas de verificación: %s", e)
     for p in PU.puertas(("abierta", "decidida", "error", "firmada")):
         if p["estado"] == "firmada" and p.get("tg_vista") == _vista(p):
             continue

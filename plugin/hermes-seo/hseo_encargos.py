@@ -124,14 +124,14 @@ def duplicado(slug: str, pid: str, params: dict) -> dict | None:
     for e in listar(slug, abiertos=True):
         if e.get("pipeline") != pid or (e.get("params") or {}) != params:
             continue
-        if e.get("estado") in ("en-curso", "parado") or (e.get("estado") == "en-puerta" and decide(e)):
+        if e.get("estado") in ("en-curso", "parado", "en-vuelta") or (e.get("estado") == "en-puerta" and decide(e)):
             return e
     return None
 
 
 def decisiones_pendientes(slug: str) -> int:
     return sum(1 for e in listar(slug, abiertos=True)
-               if decide(e) and e.get("estado") in ("en-curso", "parado", "en-puerta"))
+               if decide(e) and e.get("estado") in ("en-curso", "parado", "en-puerta", "en-vuelta"))
 
 
 def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", excepcion: bool = False,
@@ -216,9 +216,11 @@ def _tarjetas(slug: str, enc: dict, desde: int, sufijo: str) -> None:
         padre = tid
 
 
-def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", accion: str = "rehacer") -> dict:
-    """«Cambios» en una puerta (o un reintento): la etapa indicada y las siguientes se vuelven a hacer; con `texto`, con
-    lo que pidió la persona."""
+def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", accion: str = "rehacer",
+                  de: str = "persona") -> dict:
+    """«Cambios» en una puerta (o un reintento, o la vuelta de la verificación): la etapa indicada y las siguientes se
+    vuelven a hacer; con `texto`, lo que se pidió. `de` = persona | verificacion (ficheros de feedback distintos, para
+    que la vuelta automática no pise lo que pidió una persona)."""
     enc = leer(slug, eid)
     ids = [s["id"] for s in enc["etapas"]]
     if etapa not in ids:
@@ -226,7 +228,8 @@ def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", 
     d = carpeta(slug, eid)
     (d / ".estado").mkdir(parents=True, exist_ok=True)
     if texto.strip():
-        (d / ".estado" / f"feedback-{etapa}.txt").write_text(texto.strip() + "\n")
+        nombre = f"feedback-{etapa}.txt" if de == "persona" else f"feedback-{de}-{etapa}.txt"
+        (d / ".estado" / nombre).write_text(texto.strip() + "\n")
     enc["rondas"] = int(enc.get("rondas") or 0) + 1
     enc["estado"] = "en-curso"
     enc.pop("puerta_id", None)
@@ -242,6 +245,28 @@ def rehacer_desde(slug: str, eid: str, etapa: str, texto: str, quien: str = "", 
     B.anotar(d / ".estado" / "historial.jsonl", {"ts": B.ahora(), "accion": accion, "desde": etapa,
                                                 "texto": texto, "quien": quien, "ronda": enc["rondas"]})
     return enc
+
+
+def vueltas_pendientes() -> list:
+    """Encargos que la verificación devolvió (estado en-vuelta): vuelven a la etapa indicada con los cambios pedidos.
+    Lo llama el bucle del plugin (y «hseo vueltas»). Devuelve [(web, encargo, desde)]."""
+    hechas = []
+    for slug in C.listar():
+        for e in listar(slug, abiertos=True):
+            v = e.get("vuelta_pendiente")
+            if e.get("estado") != "en-vuelta" or not v:
+                continue
+            try:
+                enc = rehacer_desde(slug, e["id"], v["desde"], v.get("texto", ""), quien="verificación",
+                                    accion="vuelta-verificacion", de="verificacion")
+                enc.pop("vuelta_pendiente", None)
+                guardar(slug, enc)
+                hechas.append((slug, e["id"], v["desde"]))
+            except Rechazo as x:
+                e["estado"] = "parado"
+                e["vuelta_error"] = str(x)[:300]
+                guardar(slug, e)
+    return hechas
 
 
 def listar(slug: str, abiertos: bool = False) -> list:

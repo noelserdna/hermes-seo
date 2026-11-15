@@ -119,6 +119,10 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     feedback = d / ".estado" / f"feedback-{etapa}.txt"
     if feedback.exists():
         prompt += "\n\nWhat the person asked to change last time (apply it):\n" + feedback.read_text()[:4000]
+    fb_verif = d / ".estado" / f"feedback-verificacion-{etapa}.txt"
+    if fb_verif.exists():
+        prompt += ("\n\nThe fact-check of your previous version asked for changes. Apply EVERY mandatory change below "
+                   "(and keep what was right):\n" + fb_verif.read_text()[:4000])
     modelo = M.para(etapa, ejecutor, slug, s["perfil"])
     antes = (d / salida).stat().st_mtime if (d / salida).exists() else 0
     env = {**os.environ, "HERMES_SEO_HOME": str(B.home())}
@@ -153,6 +157,25 @@ def fin(slug: str, eid: str, etapa: str, res: dict, t0: float) -> dict:
     enc = E.leer(slug, eid)
     ultima = enc["etapas"][-1]["id"] == etapa
     res.setdefault("resumen", "")
+    s = next((x for x in PL.cargar(enc["pipeline"], slug)["etapas"] if x["id"] == etapa), {})
+    if res.get("outcome") == "done" and s.get("si_cambios") and int(enc.get("vueltas_verificacion") or 0) == 0:
+        d = E.carpeta(slug, eid)
+        f = d / (s.get("salida") or f"{etapa}.md")
+        if _cargar("hseo_revision")._veredicto(f) == "CAMBIOS":
+            # una sola vuelta automática: el texto vuelve a la etapa indicada con los cambios pedidos, sin pasar por
+            # la persona; las tarjetas siguientes no deben arrancar (la tarjeta se da por fallida y la rehace el bucle)
+            (d / f"{f.stem}-1{f.suffix}").write_text(f.read_text(errors="replace"))
+            enc.update(estado="en-vuelta", vueltas_verificacion=1,
+                       vuelta_pendiente={"desde": s["si_cambios"], "texto": f.read_text(errors="replace")[:4000]})
+            E.guardar(slug, enc)
+            res = {**res, "outcome": "failed", "reason": f"la verificación pidió cambios: vuelve a {s['si_cambios']} (una vez)",
+                   "vuelta": s["si_cambios"]}
+            B.anotar(C.carpeta(slug) / "etapas.jsonl", {
+                "ts": B.ahora(), "encargo": eid, "pipeline": enc["pipeline"], "etapa": etapa,
+                "tarjeta": (enc.get("tarjetas") or {}).get(etapa, ""), "resultado": "cambios", "motivo": res["reason"],
+                "ejecutor": res.get("ejecutor", ""), "modelo": res.get("modelo", ""),
+                "minutos": round((time.time() - t0) / 60, 1), "coste_usd": res.get("cost_usd", 0), "puerta": ""})
+            return res
     if res.get("outcome") == "done" and ultima:
         # una puerta solo existe si aprobarla ejecuta algo; si no, es un informe: se guarda y sale en el parte
         decide = bool(enc.get("puerta")) and str((enc.get("puerta") or {}).get("al_aprobar", "nada")) != "nada"

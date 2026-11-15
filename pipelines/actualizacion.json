@@ -35,7 +35,8 @@
       "skill": "verificar",
       "ejecutor": "hermes",
       "max_runtime": "60m",
-      "salida": "verificacion.md"
+      "salida": "verificacion.md",
+      "si_cambios": "redactar"
     },
     {
       "id": "revisar-lectura",

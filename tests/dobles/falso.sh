@@ -7,6 +7,10 @@ SALIDA=$(printf '%s' "$PROMPT" | sed -nE 's/^Write your result to: (.*)$/\1/p')
 case "${FALSO_MODO:-ok}" in
   ok) printf 'Resultado de %s\nVEREDICTO: APROBADO\n' "$NOMBRE" > "$DIR/$SALIDA"
       jq -nc --arg r "hecho $NOMBRE" '{outcome:"done", reason:"ok", resumen:$r, cost_usd:0.01, minutes:0}' ;;
+  cambios) printf 'Resultado de %s\n1. Cambio obligatorio: corregir la cifra\nVEREDICTO: CAMBIOS\n' "$NOMBRE" > "$DIR/$SALIDA"
+      jq -nc --arg r "hecho $NOMBRE" '{outcome:"done", reason:"ok", resumen:$r, cost_usd:0.01, minutes:0}' ;;
+  cambios) printf 'Resultado de %s\n1. Cambio obligatorio: corregir la cifra\nVEREDICTO: CAMBIOS\n' "$NOMBRE" > "$DIR/$SALIDA"
+      jq -nc --arg r "hecho $NOMBRE" '{outcome:"done", reason:"ok", resumen:$r, cost_usd:0.01, minutes:0}' ;;
   sinsalida) jq -nc '{outcome:"done", reason:"ok"}' ;;
   falla) jq -nc '{outcome:"failed", reason:"algo falló"}' ;;
 esac

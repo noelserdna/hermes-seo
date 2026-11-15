@@ -115,6 +115,8 @@ def validar(p: dict) -> list:
             e.append(f"{donde}.id no válido")
         elif s["id"] in vistos:
             e.append(f"{donde}.id «{s['id']}» repetido")
+        if s.get("si_cambios") is not None and s.get("si_cambios") not in vistos:
+            e.append(f"{donde}.si_cambios: el id de una etapa ANTERIOR (a la que vuelve si la verificación pide cambios)")
         vistos.add(s.get("id"))
         if s.get("ejecutor", "hermes") not in EJECUTORES:
             e.append(f"{donde}.ejecutor: uno de {', '.join(EJECUTORES)}")
