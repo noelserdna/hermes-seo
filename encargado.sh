@@ -50,25 +50,12 @@ wiki() {  # wiki de la web (llm-wiki) como repositorio git propio, y la global s
   fi
 }
 
-vigilante() {  # cron del vigía en el perfil: cada 5 min un script sin LLM; el modelo solo despierta si su salida cambia
-  local PD="$HH/profiles/$P" id destino
-  mkdir -p "$PD/scripts"
-  cat > "$PD/scripts/vigia.sh" <<V
-export PATH="$(dirname "$(command -v "$HERMES" 2>/dev/null || echo /usr/bin/hermes)"):/usr/local/bin:/usr/bin:/bin"
-export HERMES_SEO_HOME="$HSEO"
-exec python3 "$ARNES/plugin/hermes-seo/hseo_encargado.py" vigia "$SLUG"
-V
-  chmod +x "$PD/scripts/vigia.sh"
-  destino=$(jq -r 'if (.telegram.chat_id // "") != "" then "telegram:\(.telegram.chat_id):\(.telegram.thread_id)" else "telegram" end' "$CARPETA/cliente.json")
-  local PROMPT="Eres el encargado de $NOMBRE y te despierta el vigía: cambió la lista de asuntos que mirar (va arriba, MONITOR CHANGE). Para cada asunto NUEVO, diagnostica con hseo (estado, encargos, puertas) y los ficheros de la web, y actúa según tu carta, sección «Cuando te despierta el vigía». En esta ronda no hay nadie para aprobar: lo que necesite aprobación, recomiéndalo. Después escribe a la persona un mensaje breve en castellano: qué pasó, qué hiciste o qué recomiendas, y qué necesitas que decida. Si lo único que cambió es que algo se resolvió o desapareció de la lista, o no hay nada que contar, responde exactamente [SILENT]."
-  id=$(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name == "vigia") | .id' "$PD/cron/jobs.json" 2>/dev/null | head -1 || true)
-  if [ -n "$id" ]; then
-    "$HERMES" -p "$P" cron edit "$id" --schedule "every 5m" --prompt "$PROMPT" --monitor-script vigia.sh --workdir "$CARPETA" --deliver "$destino" >/dev/null
-  else
-    "$HERMES" -p "$P" cron create "every 5m" "$PROMPT" --name vigia --monitor-script vigia.sh --workdir "$CARPETA" \
-      --deliver "$destino" --catch-up off >/dev/null
-  fi
-  echo "  Vigía: cada 5 min (sin IA salvo si algo cambia), avisa en $destino"
+quitar_vigia() {  # el vigía antiguo (con modelo) lo sustituye la vigilancia sin modelo (cron hseo-vigilancia)
+  local PD="$HH/profiles/$P" id
+  for id in $(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name == "vigia") | .id' "$PD/cron/jobs.json" 2>/dev/null || true); do
+    "$HERMES" -p "$P" cron remove "$id" >/dev/null && echo "  Vigía antiguo (con modelo) retirado: lo sustituye la vigilancia sin modelo"
+  done
+  rm -f "$PD/scripts/vigia.sh"
 }
 
 tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan), reconciliados POR NOMBRE: se edita el que
@@ -159,7 +146,7 @@ case "$CMD" in
       '{approvals: [{event: "pre_tool_call", command: $c, approved_at: $t}]}' > "$PD/shell-hooks-allowlist.json"
     registrar "$P"
     echo "Encargado de $NOMBRE listo: perfil $P, wiki en $CARPETA/wiki"
-    vigilante
+    quitar_vigia
     tareas
     echo "  Hablar con él: /seo_tema $SLUG en Telegram · hermes -p $P chat" ;;
 
@@ -180,7 +167,7 @@ case "$CMD" in
     "$HERMES" config set platforms.telegram.extra.dm_topics "$TEMAS" >/dev/null
     $PYC config "$SLUG" telegram "{\"chat_id\":\"$CHAT\",\"thread_id\":\"$HILO\"}" --quien "encargado.sh tema" >/dev/null
     echo "Tema «🧭 ${NOMBRE}» ($CHAT/$HILO) → $P (se activa al reiniciar el gateway)"
-    vigilante
+    quitar_vigia
     tareas ;;
 
   borrar)

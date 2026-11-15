@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instalación (en un HOME de pruebas, con Hermes falso) y el encargado: perfil, carta, guardia, wiki, vigía y tema.
+# Instalación (en un HOME de pruebas, con Hermes falso) y el encargado: perfil, carta, guardia, wiki, vigilancia y tema.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -38,12 +38,12 @@ si "su carta con la web" "grep -q 'Encargado de La Web' $H/profiles/seo-p-web/SO
 si "wiki de la web y global, con git propio" "[ -d $S/clientes/web/wiki/.git ] && [ -f $S/clientes/web/wiki/SCHEMA.md ] && [ -d $S/wiki/.git ]"
 si "WIKI_PATH en su .env, sin el token del bot" "grep -q 'WIKI_PATH=$S/clientes/web/wiki' $H/profiles/seo-p-web/.env && ! grep -q TELEGRAM $H/profiles/seo-p-web/.env"
 si "guardia aprobado con ámbito de su web" "jq -e '.approvals[0].command | test(\"guardia.py web \")' $H/profiles/seo-p-web/shell-hooks-allowlist.json"
-si "vigía: cron cada 5 min con monitor" "grep -q 'seo-p-web cron create every 5m .*--monitor-script vigia.sh' $FALSO_LLAMADAS && [ -x $H/profiles/seo-p-web/scripts/vigia.sh ]"
-si "el script del vigía funciona (sin asuntos: nada)" "[ -z \"\$(HSEO_AVISO_DISCO=101 bash $H/profiles/seo-p-web/scripts/vigia.sh)\" ]"
+si "vigilancia sin modelo: cron cada 5 min, sin vigía con modelo" "grep -q 'seo-p-web cron create \*/5 \* \* \* \* --name hseo-vigilancia --no-agent' $FALSO_LLAMADAS && ! grep -q 'monitor-script vigia.sh' $FALSO_LLAMADAS && [ -x $H/profiles/seo-p-web/scripts/hseo-vigilancia.sh ]"
+si "el script de la vigilancia funciona (sin incidencias: nada)" "[ -z \"\$(bash $H/profiles/seo-p-web/scripts/hseo-vigilancia.sh)\" ]"
 si "registrado en encargados.json" "jq -e '.web == \"seo-p-web\"' $S/encargados.json"
 si "tema: ruta por chat y tema al encargado" "bash $S/actual/encargado.sh tema web 12345 77 && jq -e '.[0].profile == \"seo-p-web\" and .[0].thread_id == \"77\"' $T/rutas"
 si "tema: la web sabe dónde avisar" "$HOME/.local/bin/hseo clientes >/dev/null && jq -e '.telegram.thread_id == \"77\"' $S/clientes/web/cliente.json"
-si "tema: el vigía avisa en el tema" "grep -q -- '--deliver telegram:12345:77' $FALSO_LLAMADAS"
+si "tema: la vigilancia avisa en el tema" "grep -q -- '--deliver telegram:12345:77' $FALSO_LLAMADAS"
 si "tema dos veces no duplica la ruta" "bash $S/actual/encargado.sh tema web 12345 77 && [ \$(jq length $T/rutas) = 1 ]"
 si "la foto del encargado" "python3 $S/actual/plugin/hermes-seo/hseo_encargado.py foto web | grep -q 'Desde tu última sesión'"
 si "tareas periódicas: datos todos los días (sin búsqueda configurada no hay métricas)" "grep -q 'seo-p-web cron create 0 6 \* \* \* --name hseo-datos --no-agent' $FALSO_LLAMADAS && ! grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && grep -q 'hseo-radar' $FALSO_LLAMADAS"
