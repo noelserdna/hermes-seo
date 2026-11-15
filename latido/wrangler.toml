@@ -9,7 +9,7 @@ crons = ["*/5 * * * *"]
 [vars]
 TELEGRAM_CHAT_ID = "888584395"
 NOMBRE = "El servidor de Hermes (Oracle)"
-MINUTOS = "15"
+MINUTOS = "20"
 
 # El id es el del KV de esta instalación; en otra cuenta: «wrangler kv namespace create LATIDO» y pon el suyo.
 [[kv_namespaces]]

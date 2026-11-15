@@ -30,7 +30,11 @@ command -v claude >/dev/null || [ -x "$HOME/.npm-global/bin/claude" ] || echo "A
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' || { echo "Hace falta python3 >= 3.9" >&2; exit 1; }
 
 VERSION=$(sed -nE 's/^version: *//p' "$ROOT/plugin/hermes-seo/plugin.yaml")
-DEST="$HSEO/$VERSION"
+# una carpeta por versión Y commit: la instalación anterior queda intacta para volver (volver.sh)
+REV=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || date -u +%Y%m%d%H%M%S)
+[ -z "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ] || REV="$REV-local"
+DEST="$HSEO/$VERSION-$REV"
+ANTERIOR=$(readlink "$HSEO/actual" 2>/dev/null || true)
 echo "hermes-seo $VERSION → $DEST"
 $SECO && { echo "(en seco: no se cambia nada)"; exit 0; }
 
@@ -43,7 +47,8 @@ for d in "$HH/hermes-agent/optional-skills/research/llm-wiki" "$HH/skills/resear
   if [ -f "$d/SKILL.md" ]; then mkdir -p "$DEST/encargado/skills"; rsync -a --delete "$d/" "$DEST/encargado/skills/llm-wiki/"; break; fi
 done
 [ -f "$DEST/encargado/skills/llm-wiki/SKILL.md" ] || echo "AVISO: no encuentro la skill llm-wiki de Hermes: los encargados no tendrán memoria en wiki"
-jq -n --arg r "$ARNES" --arg v "$VERSION" '{root: $r, version: $v}' > "$HSEO/instalacion.json"
+jq -n --arg r "$ARNES" --arg v "$VERSION" --arg c "$DEST" --arg a "$ANTERIOR" \
+  '{root: $r, version: $v, carpeta: $c, anterior: $a}' > "$HSEO/instalacion.json"
 
 # ── 2. quién decide ─────────────────────────────────────────────────────────────────────────────────────────────────
 if [ ! -f "$HSEO/aprobadores.json" ]; then

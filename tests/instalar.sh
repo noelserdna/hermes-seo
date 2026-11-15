@@ -15,6 +15,7 @@ H="$HOME/.hermes"; S="$H/hermes-seo"
 
 si "instalar sin la coordinadora" "bash $ROOT/instalar.sh"
 si "copia versionada y enlace actual" "[ -L $S/actual ] && [ -f $S/actual/pipelines/articulo.json ] && [ ! -d $S/actual/tests ]"
+si "la carpeta lleva versión y commit, e instalacion.json la apunta" "jq -e '.carpeta | test(\"/[0-9]+\\\\.[0-9]+\\\\.[0-9]+-\")' $S/instalacion.json"
 si "llm-wiki copiada para los encargados" "[ -f $S/actual/encargado/skills/llm-wiki/SKILL.md ]"
 si "aprobadores con el id de Telegram" "jq -e '.yo.canales.telegram == \"12345\"' $S/aprobadores.json"
 si "plugin copiado y activado" "[ -f $H/plugins/hermes-seo/__init__.py ] && grep -q 'plugins enable hermes-seo' $FALSO_LLAMADAS"
@@ -55,4 +56,9 @@ $HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1
 si "crons: con Bing hay métricas; radar desactivado; visibilidad solo si se activa (y sin preguntas no hay pipeline… pero sí la tarea)" "bash $S/actual/encargado.sh crons web && grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && ! grep -q 'hseo-radar' $FALSO_LLAMADAS && grep -q 'hseo-visibilidad-ia' $FALSO_LLAMADAS && [ ! -f $H/profiles/seo-p-web/scripts/hseo-radar.sh ]"
 si "en la zona horaria de la web" "grep -q -- '--timezone Europe/Madrid' $FALSO_LLAMADAS"
 si "reinstalar pone al día los encargados" "bash $ROOT/instalar.sh > $T/salida; grep -q 'Encargado de web al día' $T/salida"
+# volver a la instalación anterior sin tocar datos
+ANT=$(readlink $S/actual); cp -a "$ANT" "$S/0.0.9-viejo"; echo "# viejo" >> "$S/0.0.9-viejo/plugin/hermes-seo/plugin.yaml"
+si "volver.sh reapunta actual y recopia el plugin al principal y al encargado" "bash $ROOT/volver.sh 0.0.9-viejo --sin-reinicio && [ \"\$(readlink $S/actual)\" = $S/0.0.9-viejo ] && grep -q '# viejo' $H/plugins/hermes-seo/plugin.yaml && grep -q '# viejo' $H/profiles/seo-p-web/plugins/hermes-seo/plugin.yaml"
+si "y sin argumento vuelve a la de antes" "bash $ROOT/volver.sh --sin-reinicio && [ \"\$(readlink $S/actual)\" = $ANT ] && ! grep -q '# viejo' $H/plugins/hermes-seo/plugin.yaml"
+si "rechaza una carpeta que no es una instalación" "! bash $ROOT/volver.sh /tmp --sin-reinicio"
 exit $fail
