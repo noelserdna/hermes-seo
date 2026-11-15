@@ -63,7 +63,7 @@ cd "$HOME"
   for p in "${HH#$HOME/}"/profiles/*/; do
     for f in config.yaml SOUL.md .env cron mcp-tokens scripts; do [ -e "$p$f" ] && echo "$p$f"; done
   done
-  for d in .config/*/; do [ "$d" = ".config/hermes-seo/" ] || { [ -n "$(ls -A "$d" 2>/dev/null | grep -E '\.(env|pem|json)$')" ] && echo "${d%/}"; }; done
+  for d in .config/*/; do [ "$d" = ".config/hermes-seo/" ] || { [ -n "$(ls -A "$d" 2>/dev/null | grep -E '\.(env|pem|json|ya?ml)$')" ] && echo "${d%/}"; }; done
 } > "$T/lista" 2>/dev/null || true
 grep -q . "$T/lista" || falla "no hay nada que copiar"
 tar czf "$T/c.tgz" --ignore-failed-read --exclude='*.lock' --exclude='node_modules' --exclude='.git/objects' \
