@@ -60,6 +60,13 @@ rm -rf "$HH/plugins/hermes-seo"
 cp -R "$DEST/plugin/hermes-seo" "$HH/plugins/hermes-seo"
 "$HERMES" plugins enable hermes-seo >/dev/null 2>&1 || echo "AVISO: no pude activar el plugin (hermes plugins enable hermes-seo)"
 ln -sfn "$ARNES/hseo" "$HOME/.local/bin/hseo"
+# Hermes carga los plugins por perfil: sin esta copia el encargado no recibe la foto de su web en el prompt
+for PD in "$HH"/profiles/seo-p-*; do
+  [ -d "$PD" ] || continue
+  mkdir -p "$PD/plugins"; rm -rf "$PD/plugins/hermes-seo"; cp -R "$DEST/plugin/hermes-seo" "$PD/plugins/hermes-seo"
+  "$HERMES" -p "$(basename "$PD")" plugins enable hermes-seo >/dev/null 2>&1 \
+    || echo "AVISO: no pude activar el plugin en $(basename "$PD")"
+done
 
 # ── 4. perfiles ─────────────────────────────────────────────────────────────────────────────────────────────────────
 existe() { "$HERMES" profile list 2>/dev/null | grep -qw "$1"; }

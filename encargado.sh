@@ -132,6 +132,9 @@ case "$CMD" in
       "$HERMES" -p "$P" config set $kv >/dev/null
     done
     "$HERMES" -p "$P" config set skills.external_dirs "[\"$ARNES/encargado/skills\"]" >/dev/null
+    # el plugin también en el perfil del encargado (Hermes los carga por perfil): ahí solo registra la foto
+    mkdir -p "$PD/plugins"; rm -rf "$PD/plugins/hermes-seo"; cp -R "$ARNES/plugin/hermes-seo" "$PD/plugins/hermes-seo"
+    "$HERMES" -p "$P" plugins enable hermes-seo >/dev/null 2>&1 || echo "AVISO: no pude activar el plugin en $P"
     "$HERMES" -p "$P" config set approvals.deny \
       '["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*etapa.sh*","*decidir-local*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes kanban*","*hermes config*","*hermes cron*","*sqlite3*","*git push*"]' >/dev/null
     GUARDIA="python3 -I $ARNES/encargado/guardia.py $SLUG $ARNES"

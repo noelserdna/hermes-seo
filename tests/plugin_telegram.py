@@ -97,6 +97,19 @@ async def main():
     f = foto({"profile_name": "seo-p-web"})
     ok("Cliente: web" in f and "Desde tu última sesión" in f, "el encargado ve la foto de su web")
     ok(foto({"profile_name": "otro"}) == "", "otros perfiles, nada")
+    # en el perfil de un encargado el plugin solo registra la foto (ni bucle, ni botones, ni comandos)
+    cmds2, secc2, tg2 = {}, {}, []
+    m.register(NS(profile_name="seo-p-web", register_telegram_handler=lambda f: tg2.append(f),
+                  register_command=lambda n, f, **k: cmds2.__setitem__(n, f),
+                  register_system_prompt_section=lambda i, f, **k: secc2.__setitem__(i, f)))
+    ok(not cmds2 and not tg2 and set(secc2) == {"hermes-seo.foto"}, "en el perfil del encargado solo va la foto")
+    from pathlib import Path
+    visto = Path(os.environ["HERMES_SEO_HOME"]) / "encargados" / "web.visto"
+    visto.unlink(missing_ok=True)
+    foto({"profile_name": "seo-p-web", "platform": "cron"})
+    ok(not visto.exists(), "una sesión de cron no gasta las novedades")
+    foto({"profile_name": "seo-p-web", "platform": "telegram"})
+    ok(visto.exists(), "la conversación con la persona sí las marca como vistas")
 
 asyncio.run(main())
 sys.exit(1 if fallos else 0)

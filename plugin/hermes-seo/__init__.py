@@ -336,13 +336,26 @@ def _foto(info) -> str:
         if perfil == "default":
             return "## hermes-seo: tus webs\n" + _cargar("hseo_cli").estado()[:3500]
         if perfil.startswith("seo-p-"):
-            return _cargar("hseo_encargado").foto(perfil[len("seo-p-"):])[:3900]
+            # una sesión de cron (el vigía) no «gasta» las novedades: las ve la conversación con la persona
+            marcar = str((info or {}).get("platform") or "") != "cron"
+            return _cargar("hseo_encargado").foto(perfil[len("seo-p-"):], marcar=marcar)[:3900]
     except Exception as e:
         log.warning("hermes-seo: foto de %s: %s", perfil, e)
     return ""
 
 
 def register(ctx):
+    # Hermes carga los plugins por perfil. En el perfil de un encargado (seo-p-<web>) solo va la foto del prompt:
+    # el bucle de puertas, los botones y los comandos viven en el perfil principal (un solo dueño del bot).
+    try:
+        perfil = str(getattr(ctx, "profile_name", "") or "")
+    except Exception:
+        perfil = ""
+    if perfil.startswith("seo-p-"):
+        if hasattr(ctx, "register_system_prompt_section"):
+            ctx.register_system_prompt_section("hermes-seo.foto", _foto, max_chars=4000)
+        return
+
     def _wire(application, adapter):
         from telegram.ext import CallbackQueryHandler, MessageHandler, filters
 
