@@ -3,7 +3,11 @@
 respuestas tal cual. Es la mitad ChatGPT de la prueba de visibilidad en IA.
 
 Uso: chatgpt-busca --cliente <slug> [<salida.json> | --salida <salida.json>] [--repeticiones 2]
-                   [--preguntas <archivo.md>] [--modelo gpt-5.5]
+                   [--preguntas <archivo.md>] [--modelo gpt-5.5] [--pausa 2] [--reanudar]
+
+Errores de la API: sin saldo («insufficient_quota») corta en la primera llamada (código 3, CHATGPT_ERROR sin saldo);
+demasiado rápido (429) espera lo que diga Retry-After (o 20/60/120 s) y reintenta; tras 3 fallos seguidos, para.
+--reanudar completa la salida que ya exista (solo pregunta lo que falte o falló): no se paga dos veces.
 
 De cliente.json lee mercados[0].pais (ubicación aproximada del buscador).
 Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
@@ -23,19 +27,34 @@ _s = importlib.util.spec_from_file_location("hseo_herramientas", Path(__file__).
 H = importlib.util.module_from_spec(_s); sys.modules["hseo_herramientas"] = H; _s.loader.exec_module(H)
 
 
+class SinSaldo(Exception):
+    pass
+
+
 def preguntar(api, k, modelo, pais, pregunta):
     cuerpo = {"model": modelo, "input": pregunta,
               "tools": [{"type": "web_search", "user_location": {"type": "approximate", "country": pais}}]}
     req = urllib.request.Request(f"{api}/responses", json.dumps(cuerpo).encode(),
                                  {"Authorization": f"Bearer {k}", "Content-Type": "application/json", "User-Agent": H.UA})
     r = {}
-    for intento in range(3):
+    for intento in range(4):
         try:
             r = json.load(urllib.request.urlopen(req, timeout=240))
             break
         except urllib.error.HTTPError as e:
-            if e.code in (429, 500, 502, 503) and intento < 2:
-                H.pausa(20 * (intento + 1))
+            cuerpo = ""
+            try:
+                cuerpo = e.read().decode("utf-8", "replace")[:500]
+            except Exception:  # noqa: BLE001
+                pass
+            if e.code == 429 and "insufficient_quota" in cuerpo:
+                raise SinSaldo("sin saldo en la cuenta de OpenAI (insufficient_quota)")
+            if e.code in (429, 500, 502, 503) and intento < 3:
+                try:
+                    espera = min(int(float(e.headers.get("Retry-After") or 0)), 120)
+                except (TypeError, ValueError):
+                    espera = 0
+                H.pausa(espera if espera or e.headers.get("Retry-After") else (20, 60, 120)[intento])
                 continue
             raise
     mensajes = [c for o in r["output"] if o["type"] == "message" for c in o["content"]]
@@ -52,6 +71,8 @@ def main():
     ap.add_argument("--repeticiones", type=int, default=2)
     ap.add_argument("--preguntas")
     ap.add_argument("--modelo", default="gpt-5.5")
+    ap.add_argument("--pausa", type=float, default=2.0)
+    ap.add_argument("--reanudar", action="store_true")
     x = ap.parse_args()
     cfg = H.cliente(x.cliente)
     pais, _ = H.mercado_principal(cfg)
@@ -60,18 +81,41 @@ def main():
     preguntas = H.leer_preguntas(archivo)
     k = H.clave(x.cliente, "OPENAI_API_KEY", "CHATGPT_ERROR ")
     api = H.url_base("HSEO_URL_OPENAI", "https://api.openai.com/v1")
-    filas = []
+    previas = {}
+    if x.reanudar and salida.exists():
+        for f in json.loads(salida.read_text()).get("filas", []):
+            if "error" not in f and str(f.get("respuesta", "")).strip():
+                previas[(f["n"], f["repeticion"])] = f
+    filas, seguidos, motivo = [], 0, ""
     for i, p in enumerate(preguntas, 1):
         for rep in range(1, x.repeticiones + 1):
+            if (i, rep) in previas:
+                filas.append(previas[(i, rep)])
+                continue
+            if motivo:   # se paró: lo que falta queda apuntado para --reanudar
+                filas.append({"n": i, "pregunta": p, "repeticion": rep, "error": f"no se preguntó ({motivo})"})
+                continue
             try:
                 filas.append({"n": i, "pregunta": p, "repeticion": rep, **preguntar(api, k, x.modelo, pais, p)})
+                seguidos = 0
+            except SinSaldo as e:
+                motivo = str(e)
+                filas.append({"n": i, "pregunta": p, "repeticion": rep, "error": motivo})
             except Exception as e:  # noqa: BLE001 — se apunta y se sigue
+                seguidos += 1
                 filas.append({"n": i, "pregunta": p, "repeticion": rep,
                               "error": H.tapar(f"{type(e).__name__}: {str(e)[:200]}")})
+                if seguidos >= 3:
+                    motivo = "3 fallos seguidos"
+            if x.pausa and not motivo:
+                time.sleep(x.pausa)
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(json.dumps({"modelo": x.modelo, "cliente": x.cliente, "pais": pais,
                                   "fecha": time.strftime("%Y-%m-%d"), "filas": filas}, ensure_ascii=False, indent=1))
     ok = sum("error" not in f and bool(f.get("respuesta", "").strip()) for f in filas)
+    if motivo.startswith("sin saldo"):
+        print(f"CHATGPT_ERROR sin saldo: {ok} respuestas de {len(filas)} en {salida} (recarga la cuenta y usa --reanudar)")
+        sys.exit(3)
     if ok < len(filas):
         print(f"CHATGPT_ERROR incompleto: {ok} respuestas de {len(filas)} en {salida}")
         sys.exit(1)

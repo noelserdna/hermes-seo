@@ -23,6 +23,7 @@ y lo ejecuta el notario.
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
+    hseo ia resumen <cliente>                            (visibilidad en IA: cita y mención por motor, sin modelo)
     hseo aterrizaje empezar|comprobar|ver <cliente> · hseo aterrizaje omitir <cliente> <6|7|8>   (web nueva, paso a paso)
     hseo secreto guardar <cliente> <CLAVE>              (solo desde tu terminal: pide el valor sin mostrarlo)
     hseo contacto <cliente> <correo> [--canal correo|ambos|telegram]   (dueño de la web por correo; único entre webs)
@@ -204,6 +205,7 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("ia"); x.add_argument("accion", choices=("resumen",)); x.add_argument("cliente")
     x = sub.add_parser("aterrizaje"); x.add_argument("accion", choices=("empezar", "comprobar", "ver", "omitir"))
     x.add_argument("cliente"); x.add_argument("n", nargs="?", type=int)
     x = sub.add_parser("secreto"); x.add_argument("accion", choices=("guardar",)); x.add_argument("cliente"); x.add_argument("clave")
@@ -273,6 +275,8 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "ia":
+            print(json.dumps(_cargar("hseo_ia").guardar(a.cliente), ensure_ascii=False, indent=1))
         elif a.cmd == "aterrizaje":
             AT = _cargar("hseo_aterrizaje")
             sys.exit(AT.main([a.accion, a.cliente] + ([str(a.n)] if a.n else [])))

@@ -30,7 +30,10 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-analista`).
    lánzalo con un timeout de terminal amplio).
 3. Por pregunta y motor: ¿cita la web (enlace)?, ¿la menciona?, ¿a quién cita en su lugar? Separa cita y mención.
 4. Tabla de huecos: por qué citan a otros (formato, autoridad, frescura, la web no tiene esa página…).
-5. Escribe `visibilidad.md`: resultado por motor (x de N), la tabla de huecos, **como mucho 3 acciones** y «Lo que no
+5. Las cifras: `hseo ia resumen <nombre corto>` (sin modelo): por motor, respuestas, cita (enlace) y mención, con su
+   intervalo, competidores y si algo cambió frente a la ronda anterior (solo «sube/baja» si los intervalos no se
+   solapan). Usa esas cifras tal cual; tu trabajo es explicar los huecos, no contar.
+6. Escribe `visibilidad.md`: resultado por motor (x de N), la tabla de huecos, **como mucho 3 acciones** y «Lo que no
    sabemos». Si una herramienta falló o faltan filas, dilo: un informe incompleto no se presenta como completo.
 
 ## Al terminar

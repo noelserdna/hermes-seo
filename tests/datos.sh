@@ -72,4 +72,18 @@ assert r["hay_datos"] and r["paises"] and "bajo_ctr" in r
 PL = sys.modules["hseo_pipelines"]
 assert not PL.validar(PL.cargar("metricas-semanales")) and PL.validar({"id": "x", "nombre": "x", "etapas": [{"id": "a", "perfil": "seo-analista", "skill": "metricas", "prepara": ["inventado"]}]})
 PY
+python3 - "$ROOT/plugin/hermes-seo" "$HERMES_SEO_HOME/clientes/web" <<'PY' && ok "ia: cita y mención por motor con intervalo; «sube» solo si los intervalos no se solapan" || bad "ia"
+import importlib.util, json, sys
+from pathlib import Path
+P, W = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+s = importlib.util.spec_from_file_location("hseo_ia", P / "hseo_ia.py"); IA = importlib.util.module_from_spec(s); sys.modules["hseo_ia"] = IA; s.loader.exec_module(IA)
+d = W / "datos" / "ia"; d.mkdir(parents=True, exist_ok=True)
+fila = lambda c: {"respuesta": "texto", "citas": ["https://web.com/a"] if c else ["https://otro.com"]}
+(d / "chatgpt-2026-10-01.json").write_text(json.dumps({"filas": [fila(False)] * 30}))
+(d / "chatgpt-2026-11-01.json").write_text(json.dumps({"filas": [fila(True)] * 20 + [fila(False)] * 10 + [{"error": "x"}]}))
+r = IA.guardar("web")
+m = r["motores"]["chatgpt"]
+assert r["fecha"] == "2026-11-01" and m["respuestas"] == 30 and m["cita"] == 20 and m["intervalo_cita"][0] > 0.4, r
+assert r["cambios"]["chatgpt"] == "sube" and (d / "resumen-2026-11-01.json").exists()
+PY
 exit $fail

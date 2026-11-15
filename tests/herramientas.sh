@@ -98,6 +98,14 @@ class Falso(BaseHTTPRequestHandler):
         cuerpo = self.rfile.read(n).decode()
         self.anotar(cuerpo)
         auth = self.headers.get("Authorization", "")
+        if self.path == "/openai-sinsaldo/responses":
+            return self.enviar(429, {"error": {"code": "insufficient_quota", "message": "You exceeded your current quota"}})
+        if self.path == "/openai-ritmo/responses":
+            Falso.ritmo = getattr(Falso, "ritmo", 0) + 1
+            if Falso.ritmo == 1:
+                self.send_response(429); self.send_header("Retry-After", "0"); self.send_header("Content-Type", "application/json")
+                self.end_headers(); self.wfile.write(b'{"error": {"code": "rate_limit_exceeded"}}'); return
+            self.path = "/openai/responses"
         if self.path == "/openai/responses":
             if auth != f"Bearer {CLAVES['openai']}":
                 return self.enviar(401, {"error": "clave"})
@@ -211,6 +219,14 @@ if [ $rc -eq 0 ] && echo "$out" | tail -1 | grep -q '^CHATGPT_OK 2 respuestas de
 sin_clave && ok "chatgpt-busca no imprime la clave" || bad "chatgpt-busca imprime la clave"
 si "chatgpt-busca usa el país del primer mercado" "grep -q '\"country\": \"MX\"' $LOG"
 si "chatgpt-busca deja su salida en datos/ia/" "grep -q 'Respuesta de prueba' $D/datos/ia/chatgpt-$HOY.json"
+HSEO_URL_OPENAI="$B/openai-sinsaldo" corre "$HT/chatgpt-busca" --cliente prueba "$T/sinsaldo.json" --repeticiones 1 --pausa 0
+[ $rc -eq 3 ] && echo "$out" | tail -1 | grep -q 'CHATGPT_ERROR sin saldo' && [ "$(grep -c 'openai-sinsaldo' $LOG)" = 1 ] && ok "chatgpt-busca sin saldo: para en la primera llamada (código 3)" || bad "chatgpt-busca sin saldo ($rc: $out)"
+HSEO_URL_OPENAI="$B/openai-ritmo" corre "$HT/chatgpt-busca" --cliente prueba "$T/ritmo.json" --repeticiones 1 --pausa 0
+[ $rc -eq 0 ] && ok "chatgpt-busca con 429 de ritmo: espera (Retry-After) y sigue" || bad "chatgpt-busca ritmo ($rc: $out)"
+python3 -c "import json,sys;f=sys.argv[1];d=json.load(open(f));d['filas'][1]={'n':2,'pregunta':'x','repeticion':1,'error':'antes'};json.dump(d,open(f,'w'))" "$T/ritmo.json"
+ANTES=$(grep -c '/openai' $LOG)
+corre "$HT/chatgpt-busca" --cliente prueba "$T/ritmo.json" --repeticiones 1 --pausa 0 --reanudar
+[ $rc -eq 0 ] && [ "$(( $(grep -c '/openai' $LOG) - ANTES ))" = 1 ] && ok "chatgpt-busca --reanudar: solo pregunta lo que falló" || bad "chatgpt-busca reanudar ($rc)"
 corre "$HT/chatgpt-busca" --cliente prueba "$T/otra/salida.json" --repeticiones 1
 [ $rc -eq 0 ] && [ -f "$T/otra/salida.json" ] && ok "chatgpt-busca admite otra salida" || bad "chatgpt-busca otra salida"
 
