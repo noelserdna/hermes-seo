@@ -137,6 +137,10 @@ def avisos(ahora: float | None = None) -> list:
         for p in s.get("problemas", []):
             rep = [r for r in s.get("reparaciones", []) if p["firma"].startswith(r["que"])]
             actuales[p["firma"]] = p["texto"] + (f". Ya probé: {rep[-1]['resultado'][:200]}" if rep else "")
+    sal = sorted((B.home() / "correo" / "salida").glob("*.json")) if (B.home() / "correo" / "salida").is_dir() else []
+    if sal and ahora - sal[0].stat().st_mtime > 10 * 60:
+        err = (B.leer(sal[0]) or {}).get("error", "")
+        actuales["correo"] = f"hay {len(sal)} correo(s) sin salir desde hace más de 10 min{(': ' + err) if err else ''}"
     for slug in C.listar():
         v = B.leer(C.carpeta(slug) / "vigilancia.json")
         if isinstance(v, dict) and ahora - _ts(v.get("ts")) > 15 * 60:

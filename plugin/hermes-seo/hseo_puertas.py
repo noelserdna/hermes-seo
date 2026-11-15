@@ -267,8 +267,9 @@ def decidir(gid: str, verbo: str, texto: str, persona: str, canal: str, ident, p
         texto = (texto or "").strip()
         if opcion.get("texto") and not texto:
             raise Rechazo(f"«{opcion['etiqueta']}» necesita un motivo")
+        ventana = _segundos("deshacer_email_s", 1800) if canal == "email" else deshacer_s()   # el correo se lee más tarde
         return _registrar(puerta, verbo, texto, {"persona": persona, "canal": canal, "id": str(ident)},
-                          prueba or {}, deshacer_s())
+                          prueba or {}, ventana)
 
 
 def deshacer(gid: str, persona: str) -> dict:

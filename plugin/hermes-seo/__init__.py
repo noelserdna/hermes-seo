@@ -146,6 +146,12 @@ async def _resultado_despliegue(bot, puerta: dict) -> None:
     else:
         texto = f"⚠️ El despliegue falló:\n{r['texto'][:1500]}"
     PU.marcar(puerta["id"], despliegue={**r, "at": B.ahora()})
+    try:
+        HC = _cargar("hseo_correo")
+        if HC.por_correo(puerta["cliente"]):
+            HC.encolar(puerta["cliente"], f"{'✅ Publicado' if r['ok'] else '⚠️ Sin publicar'}: {puerta['titulo']}", texto, tipo="resultado")
+    except Exception:   # noqa: BLE001
+        pass
     for t in puerta.get("telegram") or []:
         try:
             await bot.send_message(chat_id=t["chat"], text=texto, reply_to_message_id=t["msg"])
@@ -295,7 +301,19 @@ async def _vuelta() -> None:
             if p.get("telegram"):
                 await asyncio.wait_for(_sincronizar(bot, p), 60)
             continue
-        if p["estado"] in ("abierta", "decidida") and not p.get("telegram"):
+        HC = _cargar("hseo_correo")
+        if p["estado"] == "abierta" and not p.get("correo") and HC.por_correo(p["cliente"]):
+            try:
+                PU.marcar(p["id"], correo=await asyncio.to_thread(HC.enviar_puerta, p))
+                p = PU.leer(p["id"])
+            except Exception as e:   # noqa: BLE001
+                log.warning("hermes-seo: no pude preparar el correo de %s: %s", p["id"], e)
+        if p["estado"] == "firmada" and p.get("correo") and not p.get("correo_resultado"):
+            HC.encolar(p["cliente"], f"{'✅' if p.get('resultado') else '⚠️'} {p['titulo']}",
+                       f"{p.get('firma')}: {p.get('resultado')}\n\nSi hay que deshacer algo ya publicado, responde a este correo.",
+                       tipo="resultado")
+            PU.marcar(p["id"], correo_resultado=B.ahora())
+        if p["estado"] in ("abierta", "decidida") and not p.get("telegram") and HC.por_telegram(p["cliente"]):
             await asyncio.wait_for(_publicar(bot, p), 60)
             continue
         if p["estado"] == "decidida" and time.time() >= float(p.get("firmar_en") or 0) \
@@ -328,10 +346,25 @@ async def _bucle() -> None:
             pass
 
 
+async def _bucle_correo() -> None:
+    """El correo va en su propia tarea (cada minuto, en un hilo): nunca frena la firma de las puertas."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            await asyncio.to_thread(_cargar("hseo_correo").ciclo)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("hermes-seo: error en el ciclo del correo (sigue)")
+
+
 def _asegurar_bucle() -> None:
     t = _RT.get("bucle")
     if t is None or t.done():
         _RT["bucle"] = asyncio.get_running_loop().create_task(_bucle())
+    t = _RT.get("bucle_correo")
+    if t is None or t.done():
+        _RT["bucle_correo"] = asyncio.get_running_loop().create_task(_bucle_correo())
 
 
 # ── comandos ────────────────────────────────────────────────────────────────────────────────────────────────────────

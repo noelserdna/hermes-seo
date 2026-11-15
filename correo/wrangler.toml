@@ -1,0 +1,17 @@
+name = "hermes-correo"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[send_email]]
+name = "EMAIL"
+
+[vars]
+BUZON = "hermes_seo@leonbohorquez.dev"
+REMITENTE = "hermes@seo.leonbohorquez.dev"
+NOMBRE = "hermes-seo"
+
+# El id es el del KV de esta instalación; en otra cuenta: «wrangler kv namespace create CORREO» y pon el suyo.
+[[kv_namespaces]]
+binding = "CORREO"
+id = "PENDIENTE"

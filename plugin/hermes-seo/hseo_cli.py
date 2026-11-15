@@ -23,6 +23,7 @@ y lo ejecuta el notario.
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
+    hseo contacto <cliente> <correo> [--canal correo|ambos|telegram]   (dueño de la web por correo; único entre webs)
     hseo modelos perfil <calidad|equilibrado|rapido> · hseo modelos poner <etapa> <modelo|-> [--cliente C]
     hseo lanzar … --excepcion                            (salta la congelación o el tope: lo pidió una persona)
 """
@@ -182,6 +183,9 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("contacto"); x.add_argument("cliente"); x.add_argument("correo")
+    x.add_argument("--canal", default="correo", choices=("correo", "ambos", "telegram"))
+    sub.add_parser("correo").add_argument("accion", choices=("ciclo",))
     x = sub.add_parser("gestion"); x.add_argument("accion", choices=("hecha", "pendientes")); x.add_argument("cliente")
     x.add_argument("n", nargs="?", type=int); x.add_argument("url", nargs="?", default="")
     x = sub.add_parser("tanda"); x.add_argument("accion", choices=("proponer", "crear", "lanzar", "lista", "veredicto"))
@@ -245,6 +249,10 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "contacto":
+            print(_cargar("hseo_correo").poner_contacto(a.cliente, a.correo, a.canal))
+        elif a.cmd == "correo":
+            print("recogidos %d · enviados %d" % _cargar("hseo_correo").ciclo())
         elif a.cmd == "gestion":
             AU = _cargar("hseo_autoridad")
             if a.accion == "hecha":
@@ -262,14 +270,25 @@ def main(argv=None) -> int:
         elif a.cmd == "wiki":
             print("🧠 Memoria sembrada: " + ", ".join(_cargar("hseo_wiki").sembrar(a.cliente)))
         elif a.cmd == "vigilancia":
-            for l in _cargar("hseo_vigilancia").ciclo(a.cliente):
-                print(l)
+            avisos = _cargar("hseo_vigilancia").ciclo(a.cliente)
+            HC = _cargar("hseo_correo")
+            if avisos and HC.por_correo(a.cliente):
+                HC.encolar(a.cliente, f"⚠️ {C.leer(a.cliente).get('nombre') or a.cliente}: algo necesita atención", "\n\n".join(avisos), tipo="incidencia")
+            if HC.por_telegram(a.cliente):
+                for l in avisos:
+                    print(l)
         elif a.cmd == "parte":
-            PA = _cargar("hseo_parte")
+            PA, HC = _cargar("hseo_parte"), _cargar("hseo_correo")
             parte = PA.generar(a.cliente)
             if not a.no_guardar:
                 PA.guardar(a.cliente, parte)
-            print(PA.texto(parte))
+                if HC.por_correo(a.cliente):
+                    bot = [HC._boton("PROPUESTA", p["codigo"], f"Haz la {i}") for i, p in enumerate(parte.get("propuestas") or [], 1)]
+                    HC.encolar(a.cliente, f"📊 Parte de la semana · {parte['nombre']}", PA.texto(parte) + "".join(
+                        f"\n  Para la {i}: PROPUESTA {p['codigo']}" for i, p in enumerate(parte.get("propuestas") or [], 1)),
+                        HC._html(f"Parte de la semana · {parte['nombre']}", PA.texto(parte), bot), tipo="parte")
+            if a.no_guardar or HC.por_telegram(a.cliente):
+                print(PA.texto(parte))
         elif a.cmd == "propuesta":
             print(_cargar("hseo_parte").ejecutar_propuesta(a.cliente, a.n, quien()))
         elif a.cmd == "vueltas":

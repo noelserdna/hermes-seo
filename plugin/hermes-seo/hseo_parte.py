@@ -136,7 +136,7 @@ def propuestas(slug: str, r: dict) -> list:
         if o["tipo"] == "lanzar" and not _valida(slug, o["pipeline"], o["params"]):
             continue
         titulo = titulo or c["titulo"]
-        out.append({k: c[k] for k in ("id", "texto", "orden")})
+        out.append({**{k: c[k] for k in ("id", "texto", "orden")}, "codigo": __import__("secrets").token_urlsafe(12)})
         if len(out) == MAX_PROPUESTAS:
             break
     return out
