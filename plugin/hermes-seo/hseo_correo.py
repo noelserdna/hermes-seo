@@ -45,7 +45,7 @@ def _cargar(nombre: str):
 B = _cargar("hseo_base")
 C = _cargar("hseo_clientes")
 Rechazo = B.Rechazo
-TOPE_DIA = 10            # correos que se atienden por web y día
+TOPE_DIA = 10            # textos libres (sin código) que se atienden por web y día
 DESHACER_CORREO_S = 1800
 VERBOS = {"PUBLICAR": "aprobar", "APROBAR": "aprobar", "CAMBIOS": "cambios", "DESCARTAR": "descartar", "DESHACER": "deshacer",
           "PROPUESTA": "propuesta", "CONFIRMAR": "confirmar"}
@@ -216,7 +216,12 @@ def enviar_puerta(p: dict) -> dict:
              + "\n".join(f"  {('PUBLICAR' if v == 'acepto' and p['tipo'] in ('publicar', 'cambio-tecnico') else {'acepto': 'APROBAR', 'cambios': 'CAMBIOS', 'algunas': 'APROBAR'}.get(v, 'DESCARTAR'))} {c}"
                          for v, c in cod.items() if v != "deshacer"))
     # asunto único por puerta: con el mismo asunto Gmail junta la puerta nueva con las viejas y se pulsa un botón que ya no vale
-    cuando = time.strftime("%d-%m %H:%M", time.localtime())
+    try:   # en la hora de la web, no la del servidor (UTC)
+        from zoneinfo import ZoneInfo
+        from datetime import datetime
+        cuando = datetime.now(ZoneInfo(C.leer(p["cliente"]).get("zona_horaria") or "Europe/Madrid")).strftime("%d-%m %H:%M")
+    except Exception:
+        cuando = time.strftime("%d-%m %H:%M", time.localtime())
     encolar(p["cliente"], f"🚪 {p['titulo']} · {cuando}", texto, _html(p["titulo"], p["texto"] + aviso, botones), tipo="puerta")
     return {"codigos": cod, "hash": _hash(p), "enviado": B.ahora()}
 
@@ -244,7 +249,9 @@ def _contar(slug: str) -> int:
     hoy = time.strftime("%Y-%m-%d")
     f = _dir() / "recibidos.jsonl"
     try:
-        return sum(1 for l in f.read_text().splitlines() if f'"web": "{slug}"' in l and hoy in l)
+        # solo cuentan los textos libres (cada uno despierta a un modelo); un código válido siempre se atiende
+        return sum(1 for l in f.read_text().splitlines()
+                   if f'"web": "{slug}"' in l and hoy in l and '"resultado": "petición al encargado"' in l)
     except OSError:
         return 0
 
@@ -256,8 +263,6 @@ def procesar(m: dict) -> str:
     slug = _web_de(de)
     if not slug:
         return "descartado: remitente desconocido"
-    if _contar(slug) >= TOPE_DIA:
-        return "descartado: tope diario"
     persona = PU.persona_de("email", de)[0]
     cfg = C.leer(slug)
     if (cfg.get("contacto") or {}).get("correo") and not cfg["contacto"].get("verificado"):
@@ -269,6 +274,8 @@ def procesar(m: dict) -> str:
     if not hallado:   # texto libre: una petición para el encargado, que contesta en el hilo (desacoplado)
         if not texto:
             return "vacío"
+        if _contar(slug) >= TOPE_DIA:
+            return "descartado: tope diario"
         f = _dir() / "peticiones" / f"{m.get('id')}.json"
         f.parent.mkdir(parents=True, exist_ok=True)
         B.escribir(f, {"web": slug, "texto": texto[:4000], "ref": ref, "asunto": m.get("asunto", "")})

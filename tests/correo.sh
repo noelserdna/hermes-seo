@@ -103,6 +103,27 @@ r = env[-1]; assert r["in_reply_to"] == "<v@g>" and "ya no vale" in r["text"] an
 asuntos = [e["subject"] for e in env if e["subject"].startswith("🚪 📊 Lección")]
 assert len(asuntos) == 2 and all(" · " in a for a in asuntos), asuntos
 PY
+python3 - "$P" "$T" <<'PY' && ok "tope diario: solo frena textos libres; un código válido decide igual" || bad "tope diario"
+import importlib.util, json, sys, time
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, PU, HC = m("hseo_base"), m("hseo_puertas"), m("hseo_correo")
+HC.despachar()
+f = B.home() / "correo/recibidos.jsonl"; antes = f.read_text() if f.exists() else ""
+hoy = time.strftime("%Y-%m-%d")
+f.write_text(antes + "".join(json.dumps({"ts": f"{hoy}T01:00:00Z", "web": "web", "resultado": r}, ensure_ascii=False) + "\n"
+                             for r in ["descartado: código desconocido"] * 12))
+g = PU.abrir("web", tipo="decision", titulo="📊 Tope", texto="t")["id"]
+PU.marcar(g, correo=HC.enviar_puerta(PU.leer(g))); c = PU.leer(g)["correo"]["codigos"]["rechazo"]
+(T / "buzon/pendientes.json").write_text(json.dumps([{"id": "t1", "de": "ana@gmail.com", "asunto": f"DESCARTAR {c}", "texto": f"DESCARTAR {c}", "message_id": "<t@g>"}]))
+HC.recoger(); HC.despachar()
+assert PU.leer(g)["estado"] == "decidida", PU.leer(g)["estado"]
+f.write_text(antes + "".join(json.dumps({"ts": f"{hoy}T01:00:00Z", "web": "web", "resultado": "petición al encargado"}, ensure_ascii=False) + "\n" for _ in range(10)))
+assert HC.procesar({"id": "t2", "de": "ana@gmail.com", "asunto": "hola", "texto": "una duda"}) == "descartado: tope diario"
+f.write_text(antes)
+PY
 python3 - "$P" "$T" <<'PY' && ok "texto libre: el encargado contesta en el mismo hilo (sesión «correo»)" || bad "texto libre"
 import importlib.util, json, sys, time
 from pathlib import Path
