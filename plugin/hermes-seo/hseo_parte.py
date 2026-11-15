@@ -84,6 +84,9 @@ def propuestas(slug: str, r: dict) -> list:
     hace = time.time() - 28 * 86400
     recientes = [str(x.get("url") or "").rstrip("/") for x in ES._jsonl(C.carpeta(slug) / "cambios.jsonl") if ES._ts(x.get("ts")) >= hace]
     en_marcha += " " + " ".join(recientes + [_ruta(u) for u in recientes if u])
+    # lo que la persona descartó hace poco no se le vuelve a proponer (lo acaba de decir que no)
+    en_marcha += " " + json.dumps([e.get("params") for e in E.listar(slug)
+                                   if e.get("estado") == "descartado" and ES._ts(e.get("creado")) >= hace], ensure_ascii=False)
     if r.get("hay_datos"):
         for p in r.get("bajo_ctr") or []:   # muchas impresiones y pocos clics para su posición
             url = p["pagina"]

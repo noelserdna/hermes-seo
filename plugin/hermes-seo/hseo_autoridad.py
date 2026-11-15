@@ -96,7 +96,7 @@ def aplicar(slug: str, eid: str, seleccion: list | None, firma: str) -> str:
     gs = _gestiones(slug, eid)
     elegidas = [g for i, g in enumerate(gs, 1) if seleccion is None or i in seleccion]
     E = _cargar("hseo_encargos")
-    lanzadas, tuyas = [], []
+    lanzadas, tuyas, fallidas = [], [], []
     for g in elegidas:
         reg = {"ts": B.ahora(), "encargo": eid, "n": g.get("n"), "destino": g.get("destino"), "url": g.get("url"),
                "tipo": g.get("tipo"), "quien": g.get("quien"), "texto": str(g.get("texto", ""))[:3000],
@@ -104,14 +104,15 @@ def aplicar(slug: str, eid: str, seleccion: list | None, firma: str) -> str:
         if g.get("quien") == "sistema":
             try:
                 e = E.lanzar(slug, "cambio-seo", {"que": f"Gestión de autoridad: {g.get('destino')}. {g.get('texto', '')}"[:1500]},
-                             quien=f"autoridad ({firma})")
+                             quien=f"autoridad ({firma})", en_lugar_de=eid)
                 reg.update(estado="lanzada", lanzado=e["id"]); lanzadas.append(e["id"])
             except Rechazo as x:
-                reg.update(estado="no-lanzada", motivo=str(x)[:200])
+                reg.update(estado="no-lanzada", motivo=str(x)[:200]); fallidas.append(f"{g.get('destino')} ({str(x)[:120]})")
         else:
             tuyas.append(str(g.get("destino")))
         B.anotar(C.carpeta(slug) / "gestiones.jsonl", reg)
-    return (f"{len(elegidas)} gestión(es): " + (f"lanzadas {', '.join(lanzadas)}" if lanzadas else "ninguna del sistema")
+    return (f"{len(elegidas)} gestión(es): " + (f"lanzadas {', '.join(lanzadas)}" if lanzadas else "ninguna del sistema lanzada")
+            + (f"; ⚠️ sin lanzar: {'; '.join(fallidas)}" if fallidas else "")
             + (f"; tuyas: {', '.join(tuyas)} (salen en el parte)" if tuyas else ""))
 
 

@@ -129,13 +129,13 @@ def duplicado(slug: str, pid: str, params: dict) -> dict | None:
     return None
 
 
-def decisiones_pendientes(slug: str) -> int:
+def decisiones_pendientes(slug: str, excluir: str = "") -> int:
     return sum(1 for e in listar(slug, abiertos=True)
-               if decide(e) and e.get("estado") in ("en-curso", "parado", "en-puerta", "en-vuelta"))
+               if decide(e) and e.get("id") != excluir and e.get("estado") in ("en-curso", "parado", "en-puerta", "en-vuelta"))
 
 
 def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", excepcion: bool = False,
-           quien: str = "", seco: bool = False, origen: str | None = None) -> dict:
+           quien: str = "", seco: bool = False, origen: str | None = None, en_lugar_de: str = "") -> dict:
     """Valida (parámetros, capacidades, políticas), crea la carpeta del encargo y sus tarjetas encadenadas."""
     params = {k: str(v).strip() for k, v in (params or {}).items() if str(v).strip()}
     r = PL.plan(pid, slug)
@@ -166,7 +166,7 @@ def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", exc
         if igual:   # el mismo trabajo ya está en marcha: no se lanza otro (ni otra puerta igual)
             return {**igual, "duplicado": True}
         if decide(p) and not excepcion and not seco:
-            n = decisiones_pendientes(slug)
+            n = decisiones_pendientes(slug, excluir=en_lugar_de)   # la puerta que se está firmando deja su hueco
             if n >= MAX_DECISIONES:
                 raise Rechazo(f"{C.leer(slug).get('nombre') or slug} ya tiene {n} decisiones pendientes: "
                               f"decide alguna antes de lanzar «{p['nombre']}».")

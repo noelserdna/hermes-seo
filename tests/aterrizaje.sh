@@ -23,6 +23,9 @@ $CL config nueva negocio '{"publico":"pymes","objetivo":"100 clics","conversion"
 $CL config nueva capacidades.publicacion "{\"adaptador\":\"repo-pr\",\"repo\":\"$T/repo\"}" >/dev/null
 $CL config nueva capacidades.busqueda '{"gsc":"sc-domain:nueva.com"}' >/dev/null
 $H aterrizaje comprobar nueva >/dev/null
+si "con la plantilla sin confirmar, el paso 2 (idiomas) no cuenta y no hay línea base" "jq -e '(.pasos[\"2\"].ok | not) and (.lanzados[\"linea-base\"] == null)' $HERMES_SEO_HOME/clientes/nueva/aterrizaje.json"
+$CL config nueva mercados '[{"pais":"ES","bing":"es-ES"}]' >/dev/null
+$H aterrizaje comprobar nueva >/dev/null
 si "con los mínimos (1, 2, 3, 5) se lanza la línea base" "jq -e '.lanzados[\"linea-base\"] | startswith(\"linea-base-\")' $HERMES_SEO_HOME/clientes/nueva/aterrizaje.json"
 $H aterrizaje comprobar nueva >/dev/null
 si "y solo una vez" "[ \$(ls $HERMES_SEO_HOME/clientes/nueva/encargos | grep -c '^linea-base-') = 1 ]"

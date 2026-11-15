@@ -37,6 +37,10 @@ si "se guarda ultimo.json" "[ -f $HERMES_SEO_HOME/clientes/web/informes/partes/u
 si "haz la 1: lanza" "$H propuesta web 1 | grep -q '✅ Propuesta 1'"
 si "haz la 1 otra vez: ya se lanzó" "$H propuesta web 1 | grep -q 'ya se lanzó'"
 si "el siguiente parte ya no la propone (está en marcha)" "! $H parte web --no-guardar | grep -q \"\$(jq -r '.propuestas[0].texto' $HERMES_SEO_HOME/clientes/web/informes/partes/ultimo.json | cut -c1-40)\""
+si "antes de descartar, propone llevar «que es x» a la primera página" "$H parte web --no-guardar | grep -q 'que es x'"
+mkdir -p "$HERMES_SEO_HOME/clientes/web/encargos/actualizacion-x-1"
+echo "{\"id\":\"actualizacion-x-1\",\"pipeline\":\"actualizacion\",\"estado\":\"descartado\",\"creado\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"params\":{\"url\":\"https://web.com/x\"},\"etapas\":[]}" > "$HERMES_SEO_HOME/clientes/web/encargos/actualizacion-x-1/encargo.json"
+si "descartada por la persona: el parte no la vuelve a proponer" "! $H parte web --no-guardar | grep -q 'que es x'"
 si "una propuesta que no existe se rechaza" "! $H propuesta web 9"
 si "el plan de crons incluye el parte del lunes a las 10:30" "python3 $P/hseo_crons.py plan web | jq -e 'any(.[]; .nombre == \"parte\" and .horario == \"30 10 * * 1\" and .orden == [\"parte\", \"web\"])'"
 python3 - "$HERMES_SEO_HOME/clientes/web" <<'PY'

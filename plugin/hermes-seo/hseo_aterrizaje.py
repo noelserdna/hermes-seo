@@ -13,6 +13,7 @@ Las claves nunca se escriben en el chat ni en el correo: van en secretos.env (hs
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -56,9 +57,33 @@ def _p1(slug, cfg):
     return (not falta, "falta: " + ", ".join(falta) if falta else "público, objetivo y conversión")
 
 
+def _confirmado(slug: str, claves: tuple) -> bool:
+    """¿Alguien ha puesto (o confirmado) estas claves? Lo que trae la plantilla no cuenta como dicho."""
+    for r in _jsonl(C.carpeta(slug) / "config.jsonl"):
+        if r.get("accion") == "config" and str(r.get("clave") or "").split(".")[0] in claves:
+            return True
+    return False
+
+
+def _jsonl(f: Path) -> list:
+    out = []
+    try:
+        for l in f.read_text().splitlines():
+            try:
+                out.append(json.loads(l))
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    return out
+
+
 def _p2(slug, cfg):
-    ok = bool(cfg.get("idioma")) and bool(cfg.get("mercados"))
-    return ok, "idioma y mercados" if ok else "faltan el idioma o los mercados"
+    if not (cfg.get("idioma") and cfg.get("mercados")):
+        return False, "faltan el idioma o los mercados"
+    if not _confirmado(slug, ("idioma", "mercados")):
+        return False, "idioma y mercados son los de la plantilla: confírmalos (hseo config <web> mercados …)"
+    return True, "idioma y mercados"
 
 
 def _p3(slug, cfg):
@@ -107,8 +132,11 @@ def _p8(slug, cfg):
 def _p9(slug, cfg):
     PU = _cargar("hseo_puertas")
     quien = [k for k in (B.leer(B.home() / "aprobadores.json", {}) or {}) if PU.puede_decidir(k, slug)]
-    ok = bool(quien) and isinstance(cfg.get("politicas"), dict)
-    return ok, f"deciden: {', '.join(quien)}" if ok else "falta quién decide las puertas de esta web"
+    if not (quien and isinstance(cfg.get("politicas"), dict)):
+        return False, "falta quién decide las puertas de esta web"
+    if not _confirmado(slug, ("politicas",)):
+        return False, "el ritmo (políticas) es el de la plantilla: confírmalo (hseo config <web> politicas …)"
+    return True, f"deciden: {', '.join(quien)}"
 
 
 def _p10(slug, cfg):
