@@ -2,4 +2,4 @@ name: hermes-seo
 version: 0.1.0
 description: "SEO de varias webs con agentes: pipelines del ciclo de vida, un encargado por web, puertas en Telegram y notario. La persona decide; lo irreversible pasa por una puerta."
 author: "Andres Leon"
-provides_hooks: []
+provides_hooks: [pre_llm_call]

@@ -375,13 +375,33 @@ def _foto(info) -> str:
     return ""
 
 
+PLATAFORMAS_TURNO = ("telegram", "cli", "email", "")   # conversación con una persona (o el coordinador); no cron
+
+
+def _hook_turno(perfil: str):
+    """pre_llm_call: el estado real de la web (encargado) o de la cartera (coordinadora) en cada turno, recalculado."""
+    def hook(**kw):
+        if str(kw.get("platform") or "") not in PLATAFORMAS_TURNO:
+            return None
+        try:
+            ES = _cargar("hseo_estado")
+            texto = ES.turno(perfil[len("seo-p-"):]) if perfil.startswith("seo-p-") else ES.cartera()
+            return {"context": texto} if texto else None
+        except Exception as e:   # noqa: BLE001 — nunca bloquea un turno
+            log.warning("hermes-seo: estado por turno de %s: %s", perfil, e)
+            return None
+    return hook
+
+
 def register(ctx):
-    # Hermes carga los plugins por perfil. En el perfil de un encargado (seo-p-<web>) solo va la foto del prompt:
-    # el bucle de puertas, los botones y los comandos viven en el perfil principal (un solo dueño del bot).
+    # Hermes carga los plugins por perfil. En el perfil de un encargado (seo-p-<web>) solo van la foto del prompt y el
+    # estado por turno: el bucle de puertas, los botones y los comandos viven en el perfil principal (un solo dueño del bot).
     try:
         perfil = str(getattr(ctx, "profile_name", "") or "")
     except Exception:
         perfil = ""
+    if hasattr(ctx, "register_hook") and (perfil.startswith("seo-p-") or perfil == "default"):
+        ctx.register_hook("pre_llm_call", _hook_turno(perfil))
     if perfil.startswith("seo-p-"):
         if hasattr(ctx, "register_system_prompt_section"):
             ctx.register_system_prompt_section("hermes-seo.foto", _foto, max_chars=4000)
