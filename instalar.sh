@@ -170,6 +170,16 @@ PY
   fi
   "$HERMES" config set cron.wrap_response false >/dev/null || true
   echo "Sistema: avisos sin IA en $DEST (solo lo que no se arregla solo)"
+  # cuaderno del método: lunes 07:00, sin IA y sin mensaje (escribe en la wiki global)
+  printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\npython3 %q apuntar >/dev/null\n' \
+    "$HSEO" "$HSEO/actual/plugin/hermes-seo/hseo_cuaderno.py" > "$HH/scripts/hseo-cuaderno.sh"; chmod +x "$HH/scripts/hseo-cuaderno.sh"
+  ID=$(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name == "hseo-cuaderno") | .id' "$HH/cron/jobs.json" 2>/dev/null | head -1 || true)
+  if [ -n "$ID" ]; then
+    "$HERMES" cron edit "$ID" --schedule "0 7 * * 1" --no-agent --script hseo-cuaderno.sh --deliver "$DEST" --catch-up off >/dev/null || true
+  else
+    "$HERMES" cron create "0 7 * * 1" --name hseo-cuaderno --no-agent --script hseo-cuaderno.sh --deliver "$DEST" --catch-up off >/dev/null \
+      || echo "AVISO: no pude crear el cron hseo-cuaderno"
+  fi
 fi
 if $ESTRICTA; then
   GUARDIA="python3 -I $ARNES/encargado/guardia.py cartera $ARNES"

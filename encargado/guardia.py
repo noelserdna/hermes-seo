@@ -46,7 +46,7 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "file", "stat", "date", "echo", "printf", "pwd", "basename", "dirname", "realpath", "column", "nl", "true",
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
-HSEO_SOLA = {"ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
+HSEO_SOLA = {"cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos", "contacto", "correo"}
 # El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
