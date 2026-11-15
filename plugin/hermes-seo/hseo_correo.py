@@ -215,7 +215,9 @@ def enviar_puerta(p: dict) -> dict:
     texto = (f"{p['titulo']}\n\n{p['texto']}{aviso}\n\nPara decidir, responde con UNA de estas líneas (o usa los botones):\n"
              + "\n".join(f"  {('PUBLICAR' if v == 'acepto' and p['tipo'] in ('publicar', 'cambio-tecnico') else {'acepto': 'APROBAR', 'cambios': 'CAMBIOS', 'algunas': 'APROBAR'}.get(v, 'DESCARTAR'))} {c}"
                          for v, c in cod.items() if v != "deshacer"))
-    encolar(p["cliente"], f"🚪 {p['titulo']}", texto, _html(p["titulo"], p["texto"] + aviso, botones), tipo="puerta")
+    # asunto único por puerta: con el mismo asunto Gmail junta la puerta nueva con las viejas y se pulsa un botón que ya no vale
+    cuando = time.strftime("%d-%m %H:%M", time.localtime())
+    encolar(p["cliente"], f"🚪 {p['titulo']} · {cuando}", texto, _html(p["titulo"], p["texto"] + aviso, botones), tipo="puerta")
     return {"codigos": cod, "hash": _hash(p), "enviado": B.ahora()}
 
 
@@ -318,7 +320,35 @@ def procesar(m: dict) -> str:
         t = f"Recibido: «{(opcion or {}).get('etiqueta', verbo)}». Se ejecuta a las {hora} si no lo deshaces.\n\nPara deshacerlo: DESHACER {cod['deshacer']}"
         encolar(slug, f"✅ Recibido: {p['titulo']}", t, _html(f"Recibido: {p['titulo']}", t, botones), en_respuesta_a=ref, tipo="confirmacion")
         return f"decidida {p['id']} ({verbo})"
-    return "descartado: código desconocido"
+    return _codigo_viejo(slug, codigo, ref)
+
+
+def _codigo_viejo(slug: str, codigo: str, ref: str) -> str:
+    """Un código que no es de ninguna puerta pendiente: se le dice a la persona por qué no ha valido y cuál vale."""
+    PU = _cargar("hseo_puertas")
+    todas = [x for x in (B.leer(f) for f in sorted(PU._dir().glob("g*.json"))) if x] if PU._dir().is_dir() else []
+    vieja = next((p for p in todas if p.get("cliente") == slug and any(
+        secrets.compare_digest(str(c), codigo) for c in ((p.get("correo") or {}).get("codigos") or {}).values())), None)
+    vigentes = [p for p in PU.puertas(("abierta",)) if p.get("cliente") == slug and (p.get("correo") or {}).get("enviado")]
+    if vieja:
+        misma = next((p for p in vigentes if p.get("encargo") and p.get("encargo") == vieja.get("encargo")), None)
+        if misma:
+            hora = time.strftime("%d-%m %H:%M", time.localtime(_epoch(misma["correo"]["enviado"])))
+            t = (f"Ese botón es de un correo anterior de «{vieja['titulo']}» y ya no vale: no he hecho nada.\n\n"
+                 f"La versión vigente te la envié el {hora}: usa los botones de ese correo.")
+        else:
+            t = f"Ese botón es de un correo anterior de «{vieja['titulo']}», que ya está cerrada: no he hecho nada."
+    else:
+        t = "No reconozco ese código: no he hecho nada. Usa los botones del correo más reciente."
+    encolar(slug, "Ese botón ya no vale", t, en_respuesta_a=ref, tipo="confirmacion")
+    return "código viejo: avisado" if vieja else "descartado: código desconocido (avisado)"
+
+
+def _epoch(ts: str) -> float:
+    try:
+        return time.mktime(time.strptime(str(ts)[:19], "%Y-%m-%dT%H:%M:%S")) - time.timezone
+    except ValueError:
+        return time.time()
 
 
 def _propuesta(slug: str, codigo: str, persona: str | None, ref: str) -> str:

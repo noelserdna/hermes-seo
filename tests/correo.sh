@@ -81,6 +81,28 @@ r = [json.loads(l) for l in (B.home() / "correo/recibidos.jsonl").read_text().sp
 pend({"id": "8", "de": "ana@gmail.com", "asunto": "x", "texto": f"CAMBIOS {cod['cambios']}: menos tecnicismos", "message_id": "<h@g>"})
 HC.recoger(); p = PU.leer(g); assert p["estado"] == "decidida" and p["decision"]["texto"] == "menos tecnicismos", p.get("decision")
 PY
+python3 - "$P" "$T" <<'PY' && ok "botón de un correo viejo: no decide, y se contesta cuál vale; cada puerta con su asunto" || bad "código viejo"
+import importlib.util, json, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, PU, HC = m("hseo_base"), m("hseo_puertas"), m("hseo_correo")
+HC.despachar()
+g1 = PU.abrir("web", tipo="decision", titulo="📊 Lección", texto="v1")["id"]
+PU.marcar(g1, correo=HC.enviar_puerta(PU.leer(g1))); viejo = PU.leer(g1)["correo"]["codigos"]["rechazo"]
+p = PU.leer(g1); p["encargo"] = "enc-1"; p["estado"] = "firmada"; B.escribir(PU.indice(g1), p)   # se pidieron cambios
+g2 = PU.abrir("web", tipo="decision", titulo="📊 Lección", texto="v2")["id"]
+p = PU.leer(g2); p["encargo"] = "enc-1"; B.escribir(PU.indice(g2), p)
+PU.marcar(g2, correo=HC.enviar_puerta(PU.leer(g2))); HC.despachar()
+(T / "buzon/pendientes.json").write_text(json.dumps([{"id": "v1", "de": "ana@gmail.com", "asunto": f"DESCARTAR {viejo}", "texto": f"DESCARTAR {viejo}", "message_id": "<v@g>"}]))
+HC.recoger(); HC.despachar()
+assert PU.leer(g2)["estado"] == "abierta"
+env = [json.loads(l) for l in (T / "buzon/enviados.jsonl").read_text().splitlines()]
+r = env[-1]; assert r["in_reply_to"] == "<v@g>" and "ya no vale" in r["text"] and "versión vigente" in r["text"], r
+asuntos = [e["subject"] for e in env if e["subject"].startswith("🚪 📊 Lección")]
+assert len(asuntos) == 2 and all(" · " in a for a in asuntos), asuntos
+PY
 python3 - "$P" "$T" <<'PY' && ok "texto libre: el encargado contesta en el mismo hilo (sesión «correo»)" || bad "texto libre"
 import importlib.util, json, sys, time
 from pathlib import Path
