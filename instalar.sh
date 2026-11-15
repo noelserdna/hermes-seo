@@ -151,6 +151,25 @@ PY
   ACTUAL=$("$HERMES" config get approvals.deny --json 2>/dev/null || echo '[]'); jq -e 'type == "array"' <<< "$ACTUAL" >/dev/null 2>&1 || ACTUAL='[]'
   "$HERMES" config set approvals.deny "$(jq -c '. + ["*hseo_puertas.py*","*decidir-local*","*/puertas/g*","*aprobadores.json*","*hermes-seo/secretos.env*"] | unique' <<< "$ACTUAL")" >/dev/null
   echo "Coordinadora: carta añadida a $S; lo irreversible (decidir puertas, aprobadores, secretos) prohibido"
+  # salud del servidor: revisar FUERA de Hermes (crontab del usuario) y avisar desde un cron sin IA de la coordinadora
+  LINEA="*/10 * * * * HERMES_SEO_HOME=$HSEO python3 $HSEO/actual/plugin/hermes-seo/hseo_sistema.py revisar >> $HSEO/sistema.log 2>&1"
+  if [ -z "${HSEO_SIN_CRONTAB:-}" ] && command -v crontab >/dev/null && ! crontab -l 2>/dev/null | grep -q "hseo_sistema.py revisar"; then
+    { crontab -l 2>/dev/null; echo "$LINEA"; } | crontab - && echo "Sistema: revisión cada 10 min en el crontab"
+  fi
+  mkdir -p "$HH/scripts"
+  printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q avisos\n' \
+    "$HSEO" "$HSEO/actual/plugin/hermes-seo/hseo_sistema.py" > "$HH/scripts/hseo-sistema.sh"; chmod +x "$HH/scripts/hseo-sistema.sh"
+  TEMAS=$("$HERMES" config get platforms.telegram.extra.dm_topics --json 2>/dev/null || echo '[]')
+  DEST=$(jq -r 'first(.[]? | .chat_id as $c | .topics[]? | select(.name | test("Sistema|Cartera")) | "telegram:\($c):\(.thread_id)") // "telegram"' <<< "$TEMAS" 2>/dev/null || echo telegram)
+  ID=$(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name == "hseo-sistema") | .id' "$HH/cron/jobs.json" 2>/dev/null | head -1 || true)
+  if [ -n "$ID" ]; then
+    "$HERMES" cron edit "$ID" --schedule "*/10 * * * *" --no-agent --script hseo-sistema.sh --deliver "$DEST" --catch-up off >/dev/null || echo "AVISO: no pude actualizar hseo-sistema"
+  else
+    "$HERMES" cron create "*/10 * * * *" --name hseo-sistema --no-agent --script hseo-sistema.sh --deliver "$DEST" --catch-up off >/dev/null \
+      || echo "AVISO: no pude crear el cron hseo-sistema"
+  fi
+  "$HERMES" config set cron.wrap_response false >/dev/null || true
+  echo "Sistema: avisos sin IA en $DEST (solo lo que no se arregla solo)"
 fi
 if $ESTRICTA; then
   GUARDIA="python3 -I $ARNES/encargado/guardia.py cartera $ARNES"
