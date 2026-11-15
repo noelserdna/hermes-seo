@@ -1,9 +1,9 @@
-"""hermes-seo — plugin de Hermes: puertas en Telegram, Jev, notario, comandos y el contexto de cada web en el prompt.
+"""hermes-seo — plugin de Hermes: puertas en Telegram, notario, comandos y el contexto de cada web en el prompt.
 
 El canal no decide ni firma: (1) publica cada puerta abierta con sus botones en el tema de su web (o en el chat
 principal), (2) convierte el toque de una persona autorizada en una decisión (hseo_puertas.decidir), (3) deja una
 ventana para deshacer y (4) llama al notario (hseo_puertas.firmar), que valida y ejecuta. La identidad sale del update
-de Telegram (from.id), nunca de un texto. Si una web tiene a Jev activo, el bucle le pregunta antes de publicar.
+de Telegram (from.id), nunca de un texto.
 
 Los botones usan el prefijo «hs:» para convivir con otros plugins de puertas (hermes-sdd usa «g:»).
 """
@@ -78,19 +78,18 @@ def _teclado(puerta: dict):
         return Mk([[Bt("↩ Deshacer", callback_data=f"{PREFIJO}:deshacer:{puerta['id']}")]])
     if puerta.get("estado") != "abierta":
         return None
-    bs = [Bt(o["etiqueta"], callback_data=f"{PREFIJO}:{o['verbo']}:{puerta['id']}") for o in puerta["opciones"]]
+    bs = [Bt(o["etiqueta"], callback_data=f"{PREFIJO}:{o['verbo']}:{puerta['id']}") for o in PU.opciones_vigentes(puerta)]
     return Mk([bs[i:i + 2] for i in range(0, len(bs), 2)])
 
 
 def _render(puerta: dict) -> str:
     partes = [puerta["titulo"], "", puerta["texto"]]
-    jev = PU.describir_jev(puerta)
-    if jev:
-        partes += ["", jev]
+    if PU.graves(puerta) and puerta.get("estado") == "abierta":
+        partes += ["", "⛔ Tiene un aviso grave: solo se puede pedir cambios o descartar."]
     est = puerta.get("estado")
     dec = puerta.get("decision") or {}
     if est == "decidida":
-        quien = "Jev" if (dec.get("actor") or {}).get("canal") == PU.JEV else (dec.get("actor") or {}).get("persona")
+        quien = (dec.get("actor") or {}).get("persona")
         falta = max(0, int(float(puerta.get("firmar_en") or 0) - time.time()))
         partes += ["", f"🕒 Decidido por {quien}: «{dec.get('verbo')}». Se ejecuta en {falta // 60} min {falta % 60} s si nadie lo deshace."]
     elif est == "firmada":
@@ -101,7 +100,7 @@ def _render(puerta: dict) -> str:
 
 
 def _vista(puerta: dict) -> str:
-    return "|".join([puerta.get("estado", ""), str((puerta.get("decision") or {}).get("at", "")), str(bool(puerta.get("jev")))])
+    return "|".join([puerta.get("estado", ""), str((puerta.get("decision") or {}).get("at", ""))])
 
 
 async def _publicar(bot, puerta: dict) -> None:
@@ -236,17 +235,12 @@ async def _on_leccion(update, context) -> None:
         pass
 
 
-# ── el bucle: Jev, publicar, firmar, sincronizar ────────────────────────────────────────────────────────────────────
+# ── el bucle: publicar, firmar, sincronizar ────────────────────────────────────────────────────────────────────
 async def _vuelta() -> None:
     bot = _RT["app"].bot
     for p in PU.puertas(("abierta", "decidida", "error", "firmada")):
         if p["estado"] == "firmada" and p.get("tg_vista") == _vista(p):
             continue
-        if p["estado"] == "abierta" and "jev" not in p and PU.modo_jev(p["cliente"]) != "humano":
-            juicio = await asyncio.to_thread(PU.consultar_jev, p)
-            p = await asyncio.to_thread(PU.aplicar_jev, p["id"], juicio)
-            log.info("hermes-seo: Jev en %s → %s (decide %s: %s)", p["id"], juicio.get("choice") or juicio.get("error"),
-                     p["jev"].get("decide"), p["jev"].get("motivo"))
         if p["estado"] in ("abierta", "decidida") and not p.get("telegram"):
             await asyncio.wait_for(_publicar(bot, p), 60)
             continue
@@ -379,14 +373,6 @@ def register(ctx):
             PU.marcar(p["id"], telegram=None, tg_vista=None)
         return f"Te reenvío {len(abiertas)} decisión(es) pendiente(s)." if abiertas else "No hay nada pendiente de decidir."
 
-    def _cmd_jev(raw: str = "") -> str:
-        a = raw.split()
-        if not a:
-            return _cli("jev", "ver")
-        if _persona_sesion()[0] is None:
-            return "Solo una persona autorizada cambia el modo de Jev."
-        return _cli("jev", "modo", a[-1], *a[:-1][:1])   # /seo_jev [web] <modo>
-
     async def _cmd_tema(raw: str = "") -> str:
         persona, uid = _persona_sesion()
         if not persona or not raw.strip():
@@ -403,7 +389,6 @@ def register(ctx):
     # args_hint siempre entre [ ]: Hermes deja fuera del menú las órdenes cuya ayuda empieza por «<»
     ctx.register_command("seo", _cmd_seo, description="Estado del SEO de tus webs", args_hint="[web]")
     ctx.register_command("seo_puertas", _cmd_puertas, description="Decisiones SEO pendientes")
-    ctx.register_command("seo_jev", _cmd_jev, description="Modo de Jev en una web", args_hint="[web] [modo]")
     ctx.register_command("seo_tema", _cmd_tema, description="Tema para hablar con el encargado de una web", args_hint="[web]")
     ctx.register_command("seo_pausar", _cmd_pausar, description="Pausa una web (o todo)", args_hint="[web|todo]")
     ctx.register_command("seo_reanudar", _cmd_reanudar, description="Reanuda una web (o todo)", args_hint="[web|todo]")

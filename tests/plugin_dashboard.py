@@ -1,4 +1,4 @@
-"""API de la pestaña SEO con un panel falso (sesión inyectada): identidad, webs, decidir y deshacer, métricas, cambios."""
+"""API de la pestaña SEO con un panel falso (sesión inyectada): identidad, webs, puertas (solo lectura), métricas, cambios."""
 import importlib.util, json, os, sys, tempfile
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -32,17 +32,12 @@ SESION["email"] = None
 ok(cli.get(A + "/webs").status_code == 403, "sin sesión (y sin modo local) no entra")
 SESION["email"] = "ana@ejemplo.com"
 w = cli.get(A + "/webs").json()
-ok(w[0]["nombre"] == "La Web" and w[0]["puertas"] == 1 and w[0]["jev"] == "humano", "la cartera con sus puertas y el modo de Jev")
+ok(w[0]["nombre"] == "La Web" and w[0]["puertas"] == 1 and "jev" not in w[0], "la cartera con sus puertas")
 ps = cli.get(A + "/puertas").json()
 ok(len(ps) == 1 and ps[0]["opciones"][0]["verbo"] == "acepto", "las puertas pendientes con sus opciones")
-r = cli.post(A + f"/decidir/{g}", json={"verbo": "rechazo", "texto": ""})
-ok(r.status_code == 409 and "motivo" in r.json()["detail"], "rechazar sin motivo: 409 con el motivo")
-r = cli.post(A + f"/decidir/{g}", json={"verbo": "acepto"}).json()
-ok(r["estado"] == "decidida" and r["decidio"] == "ana", "decidir registra la decisión de la persona del panel")
-p = m.PU.leer(g)
-ok(p["decision"]["actor"]["canal"] == "dashboard" and p["decision"]["prueba"]["proveedor"] == "test", "canal dashboard con su prueba de sesión")
-r = cli.post(A + f"/deshacer/{g}").json()
-ok(r["estado"] == "abierta", "deshacer la reabre")
+ok(cli.post(A + f"/decidir/{g}", json={"verbo": "acepto"}).status_code in (404, 405), "el panel no decide (no hay /decidir)")
+ok(cli.post(A + f"/deshacer/{g}").status_code in (404, 405), "ni deshace")
+ok(m.PU.leer(g)["estado"] == "abierta", "la puerta sigue abierta")
 ok(cli.get(A + "/metricas/web").json() == {"hay_datos": False}, "métricas sin datos: lo dice")
 ok(cli.get(A + "/metricas/no-existe").status_code == 409, "métricas de una web que no existe: 409")
 (T / "home/clientes/web/cambios.jsonl").write_text(json.dumps({"id": "c-1", "ts": "2026-11-01T00:00:00Z", "clase": "articulo", "hipotesis": "h", "firma": "Ana"}) + "\n")

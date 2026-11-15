@@ -141,8 +141,6 @@ def validar(cfg: dict) -> list:
         e.append("politicas.congelado_hasta: fecha AAAA-MM-DD o vacío")
     if not isinstance(pol.get("tope_semanal", 0), int) or pol.get("tope_semanal", 0) < 0:
         e.append("politicas.tope_semanal: un número entero (0 = sin tope)")
-    if not isinstance((cfg.get("jev") or {}).get("permitido", True), bool):
-        e.append("jev.permitido: true o false")
     for k in ("modelos", "ejecutores", "crons"):
         if not isinstance(cfg.get(k, {}), dict):
             e.append(f"{k}: un objeto")
@@ -170,8 +168,6 @@ def capacidades(cfg: dict) -> set:
         c.add(f"difusion:{d}")
     if cfg.get("competidores"):
         c.add("competidores")
-    if (cfg.get("jev") or {}).get("permitido", True):
-        c.add("jev")
     return c
 
 

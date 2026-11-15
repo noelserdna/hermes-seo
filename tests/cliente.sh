@@ -32,7 +32,7 @@ si "acepta varios mercados" "$C config conrepo mercados '[{\"pais\":\"ES\",\"bin
 no "no deja cambiar el slug" "$C config conrepo slug otro"
 si "un cambio de config queda en el historial" "grep -q '\"clave\": \"mercados\"' $HERMES_SEO_HOME/clientes/conrepo/config.jsonl"
 si "un cambio rechazado no se escribe" "$C ver conrepo | grep -q 'Europe/Madrid'"
-si "Jev se puede prohibir por cliente" "$C config conrepo jev.permitido false && ! $C capacidades conrepo | grep -qw jev"
+si "un cliente.json viejo con la clave jev sigue valiendo" "$C config conrepo jev.permitido false && ! $C capacidades conrepo | grep -qw jev"
 si "listar enseña todos" "[ \$($C listar --json | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))') = 5 ]"
 si "validar un cliente sano" "$C validar conrepo"
 

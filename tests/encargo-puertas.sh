@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # De punta a punta sin IA: lanzar un encargo (tarjetas encadenadas en el tablero del cliente), ejecutar sus etapas con
-# un ejecutor falso, abrir la puerta al acabar, decidir (persona y Jev), deshacer, firmar y lo que hace el notario
+# un ejecutor falso, abrir la puerta al acabar, decidir, deshacer, firmar y lo que hace el notario
 # (aprobar, rehacer con cambios, lanzar la pipeline siguiente, descartar).
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -98,10 +98,11 @@ si "el feedback llega al prompt de redactar" "bash $ROOT/etapa.sh web $EID redac
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
 GID2=$(bash "$ROOT/etapa.sh" web "$EID" preparar | tail -1 | jq -r '.puerta // empty')
 si "segunda ronda: nueva puerta" "[ -n '$GID2' ] && [ '$GID2' != '$GID' ]"
-python3 - "$GID2" <<PY && ok "aprobar sin una publicación válida: error visible, no se pierde la decisión" || bad "publicar sin adaptador"
+python3 - "$GID2" <<PY && ok "sin una publicación válida (aviso grave) no se aprueba; forzada, el notario da error visible" || bad "publicar sin adaptador"
 exec(open("$T/py").read())
 g = sys.argv[1]
-PU.decidir(g, "acepto", "", "ana", "telegram", "111")
+assert PU.graves(PU.leer(g)) and rechaza(lambda: PU.decidir(g, "acepto", "", "ana", "telegram", "111"))
+PU.decidir(g, "acepto", "", "ana", "local", PU.getpass.getuser(), {"forzado": "prueba"})
 assert rechaza(lambda: PU.firmar(g))
 p = PU.leer(g)
 assert p["estado"] == "error" and "publicacion.json" in p["error"], p
@@ -161,43 +162,18 @@ si "la etapa ve lo heredado como previo" "grep -q 'uno.md (from $P1)' $HERMES_SE
 si "script: lanza el script de la web con el encargo y la firma" "$PU decidir-local $G2 acepto && sleep 1 && grep -q '^$P2 extra' $HERMES_SEO_HOME/script-hecho"
 $C config web politicas.congelado_hasta "" >/dev/null
 
-# ── Jev ──
+# ── aviso grave: no se aprueba (solo cambios o descartar); --forzar desde local, con motivo y registrado ──
 R=$($EN lanzar web plan --param n=2 --excepcion); J1=$(echo "$R" | jq -r .encargo)
 GJ=$(bash "$ROOT/etapa.sh" web "$J1" radar | tail -1 | jq -r '.puerta // empty')
-python3 - "$GJ" <<PY && ok "Jev: modos, umbrales, reservadas, avisos graves, veto al deshacer y firma como Jev" || bad "Jev"
+python3 - "$GJ" <<PY && ok "con un aviso grave no se aprueba, y la opción de aprobar no se ofrece" || bad "aviso grave"
 exec(open("$T/py").read())
 g = sys.argv[1]
-alto = {"choice": "acepto", "p": 0.95, "modelo": "jev-latest"}
-p = PU.aplicar_jev(g, alto); assert not p["jev"]["decide"] and p["estado"] == "abierta"       # humano por defecto
-PU.poner_modo("consejo", "web"); p = PU.aplicar_jev(g, alto); assert not p["jev"]["decide"]
-assert "aprobaría" in PU.describir_jev(p)
-PU.poner_modo("piloto", "web"); p = PU.aplicar_jev(g, alto); assert p["jev"]["decide"]       # plan-editorial está en piloto
-PU.deshacer(g, "ana"); p = PU.leer(g); assert p["jev_vetado"]
-p = PU.aplicar_jev(g, alto); assert not p["jev"]["decide"] and "deshizo" in p["jev"]["motivo"]  # vetado
+p = PU.leer(g); p["revision"] = {"avisos": [{"grave": True, "codigo": "x", "texto": "x"}], "graves": 1}; PU.B.escribir(PU.indice(g), p)
+assert rechaza(lambda: PU.decidir(g, "acepto", "", "ana", "telegram", "111"))
+assert [o["verbo"] for o in PU.opciones_vigentes(PU.leer(g))] == ["cambios", "rechazo"]
+assert PU.leer(g)["estado"] == "abierta"
 PY
-R=$($EN lanzar web plan --param n=3 --excepcion); J2=$(echo "$R" | jq -r .encargo)
-GJ2=$(bash "$ROOT/etapa.sh" web "$J2" radar | tail -1 | jq -r '.puerta // empty')
-GALTA=$(bash "$ROOT/etapa.sh" web "$($EN lanzar web alta --excepcion | jq -r .encargo)" alta | tail -1 | jq -r '.puerta // empty')
-python3 - "$GJ2" "$GALTA" <<PY && ok "Jev en auto: umbral propio, nunca reservadas ni rechazos, el notario lo vuelve a comprobar" || bad "Jev auto"
-exec(open("$T/py").read())
-g, galta = sys.argv[1], sys.argv[2]
-PU.poner_modo("auto", "web")
-p = PU.aplicar_jev(g, {"choice": "acepto", "p": 0.75}); assert not p["jev"]["decide"]          # < 0.8
-p = PU.leer(g); p.pop("jev"); PU.B.escribir(PU.indice(g), p)
-p = PU.aplicar_jev(g, {"choice": "persona", "p": 0.99}); assert not p["jev"]["decide"]
-p = PU.leer(g); p.pop("jev"); PU.B.escribir(PU.indice(g), p)
-p = PU.aplicar_jev(galta, {"choice": "acepto", "p": 0.99}); assert not p["jev"]["decide"]       # alta: reservada
-p = PU.aplicar_jev(g, {"choice": "acepto", "p": 0.85}); assert p["jev"]["decide"]
-PU.poner_modo("consejo", "web")                                                                # cambia antes de firmar
-assert rechaza(lambda: PU.firmar(g)) and PU.leer(g)["estado"] == "error"
-PU.poner_modo("auto", "web")
-PU.C.config("web", "jev.permitido", False)
-assert PU.modo_jev("web") == "humano"                                                          # el cliente lo prohíbe
-PY
-python3 - <<PY && ok "umbrales: entre 0.5 y 1; piloto no admite reservadas" || bad "umbrales"
-exec(open("$T/py").read())
-assert rechaza(lambda: PU.ajustar_jev(umbral=0.3))
-assert rechaza(lambda: PU.ajustar_jev(piloto=["alta"]))
-assert PU.ajustar_jev(umbral_auto=0.85)["umbral_auto"] == 0.85
-PY
+no "decidir-local sin --forzar tampoco aprueba" "$PU decidir-local $GJ acepto"
+si "con --forzar y motivo sí, y queda escrito" "$PU decidir-local $GJ acepto --forzar 'lo reviso yo' && grep -q 'lo reviso yo' $HERMES_SEO_HOME/clientes/web/puertas.jsonl"
+si "Jev ya no existe en las puertas" "! grep -q -i jev $ROOT/plugin/hermes-seo/hseo_puertas.py"
 exit $fail

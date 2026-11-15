@@ -5,12 +5,12 @@
 #
 #   --coordinadora            el perfil principal (default) pasa a ser también la coordinadora: su carta en SOUL.md y
 #                             prohibiciones duras (approvals.deny) solo para lo irreversible: decidir o firmar puertas,
-#                             secretos, aprobadores y ajustes de Jev. Conserva su terminal: «ojos y manos en todo».
+#                             secretos y aprobadores. Conserva su terminal: «ojos y manos en todo».
 #   --coordinadora-estricta   además, el guardia (fail-closed) que la limita a la CLI hseo y a leer.
 #
 # Qué deja:
 #   ~/.hermes/hermes-seo/<versión> + enlace «actual», instalacion.json, aprobadores.json (si no existe)
-#   el plugin hermes-seo activado (Telegram, Jev, notario, sección de prompt) y la CLI hseo en ~/.local/bin
+#   el plugin hermes-seo activado (Telegram, notario, sección de prompt) y la CLI hseo en ~/.local/bin
 #   perfiles: seo-estacion (mueve tarjetas) y los de rol (seo-investigador, seo-redactor, seo-verificador,
 #   seo-editor, seo-analista), con sus cartas y las skills del arnés
 #   los encargados que ya existían, al día (encargado.sh crear)
@@ -95,7 +95,7 @@ carta() {  # SOUL.md = carta del perfil + reglas comunes (con copia de la anteri
 skills_dirs() {  # las skills del arnés y las propias de cada web (clientes/<web>/extensiones/skills)
   { echo "$ARNES/skills"; for d in "$HSEO"/clientes/*/extensiones/skills; do [ -d "$d" ] && echo "$d"; done; } | jq -Rnc '[inputs]'
 }
-DENY='["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*decidir-local*","*aprobadores.json*","*jev.json*","*secretos.env*","*hermes config*","*hermes cron*","*hermes kanban*","*sqlite3*","*git push*","*wrangler deploy*"]'
+DENY='["*hseo_puertas.py*","*hseo_encargos.py*","*hseo_clientes.py*","*decidir-local*","*aprobadores.json*","*secretos.env*","*hermes config*","*hermes cron*","*hermes kanban*","*sqlite3*","*git push*","*wrangler deploy*"]'
 
 if ! existe seo-estacion; then
   "$HERMES" profile create seo-estacion --no-alias --no-skills \
@@ -149,8 +149,8 @@ open(sys.argv[1], "w").write(s)
 PY
   # lo irreversible nunca, ni siquiera con la terminal libre (se suma a lo que ya hubiera en approvals.deny)
   ACTUAL=$("$HERMES" config get approvals.deny --json 2>/dev/null || echo '[]'); jq -e 'type == "array"' <<< "$ACTUAL" >/dev/null 2>&1 || ACTUAL='[]'
-  "$HERMES" config set approvals.deny "$(jq -c '. + ["*hseo_puertas.py*","*decidir-local*","*/puertas/g*","*aprobadores.json*","*jev.json*","*hermes-seo/secretos.env*"] | unique' <<< "$ACTUAL")" >/dev/null
-  echo "Coordinadora: carta añadida a $S; lo irreversible (decidir puertas, aprobadores, Jev, secretos) prohibido"
+  "$HERMES" config set approvals.deny "$(jq -c '. + ["*hseo_puertas.py*","*decidir-local*","*/puertas/g*","*aprobadores.json*","*hermes-seo/secretos.env*"] | unique' <<< "$ACTUAL")" >/dev/null
+  echo "Coordinadora: carta añadida a $S; lo irreversible (decidir puertas, aprobadores, secretos) prohibido"
 fi
 if $ESTRICTA; then
   GUARDIA="python3 -I $ARNES/encargado/guardia.py cartera $ARNES"

@@ -1,5 +1,5 @@
 """Plugin de Telegram con bot y updates falsos (sin red): publicar en el tema de la web, autorización, motivo por
-respuesta, deshacer, firma al acabar la ventana, Jev en el bucle, comandos y la foto en el prompt."""
+respuesta, deshacer, firma al acabar la ventana, avisos graves, comandos y la foto en el prompt."""
 import asyncio, importlib.util, json, os, sys, tempfile
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -65,23 +65,12 @@ async def main():
     n = len(bot.editados); await m._vuelta()
     ok(len(bot.editados) == n, "una puerta firmada y al día no se vuelve a tocar")
 
-    # Jev en el bucle (respuesta simulada)
-    PU.poner_modo("auto", "web")
-    PU.consultar_jev = lambda p: {"choice": "acepto", "p": 0.93, "modelo": "jev-latest"}
-    g2 = PU.abrir("web", tipo="decision", titulo="📊 Otra", texto="x")["id"]
-    os.environ["HERMES_SEO_DESHACER_S"] = "60"
+    # con un aviso grave, la puerta no ofrece el botón de aprobar y lo dice
+    g2 = PU.abrir("web", tipo="decision", titulo="📊 Con aviso", texto="x")["id"]
+    p = PU.leer(g2); p["revision"] = {"avisos": [], "graves": 1}; PU.B.escribir(PU.indice(g2), p)
     await m._vuelta()
-    p = PU.leer(g2)
-    ok(p["estado"] == "decidida" and p["decision"]["actor"]["canal"] == "jev", "Jev decide en auto si está seguro")
-    ok("Ha decidido Jev" in bot.enviados[-1].text and botones(bot.enviados[-1].kb) == [f"hs:deshacer:{g2}"],
-       "se publica ya decidida, con ↩ Deshacer")
-    q = Query(f"hs:deshacer:{g2}", 111); await m._on_boton(NS(callback_query=q), ctx)
-    p = PU.leer(g2); ok(p["estado"] == "abierta" and p.get("jev_vetado"), "deshacer a Jev le veta en esa puerta")
-    PU.consultar_jev = lambda p: {"choice": "acepto", "p": 0.5}
-    g3 = PU.abrir("web", tipo="decision", titulo="📊 Dudosa", texto="x")["id"]
-    await m._vuelta()
-    p = PU.leer(g3); ok(p["estado"] == "abierta" and "no está seguro" in p["jev"]["motivo"], "si Jev duda, decide la persona")
-    ok("Jev aprobaría" in bot.enviados[-1].text, "y la puerta lleva su consejo")
+    ok("aviso grave" in bot.enviados[-1].text and f"hs:acepto:{g2}" not in botones(bot.enviados[-1].kb),
+       "con un aviso grave no hay botón de aprobar")
 
     # comandos y foto
     cmds, secciones = {}, {}
@@ -89,7 +78,7 @@ async def main():
                register_command=lambda n, f, **k: cmds.__setitem__(n, (f, k)),
                register_system_prompt_section=lambda i, f, **k: secciones.__setitem__(i, f))
     m.register(ctx_h)
-    ok(set(cmds) == {"seo", "seo_puertas", "seo_jev", "seo_tema", "seo_pausar", "seo_reanudar"}, f"comandos ({sorted(cmds)})")
+    ok(set(cmds) == {"seo", "seo_puertas", "seo_tema", "seo_pausar", "seo_reanudar"}, f"comandos ({sorted(cmds)})")
     ok(all(not k.get("args_hint", "").startswith("<") for _, k in cmds.values()), "ninguna ayuda empieza por «<» (saldría del menú)")
     ok("web.com" in cmds["seo"][0](""), "/seo da el estado")
     foto = secciones["hermes-seo.foto"]

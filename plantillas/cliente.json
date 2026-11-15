@@ -43,9 +43,6 @@
   },
   "modelos": {},
   "ejecutores": {},
-  "jev": {
-    "permitido": true
-  },
   "telegram": {
     "chat_id": "",
     "thread_id": ""

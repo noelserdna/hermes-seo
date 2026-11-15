@@ -7,7 +7,7 @@ Copiado y adaptado de hermes-sdd (encargado/guardia.py).
 
 Tres niveles para mover el sistema, todos por la CLI `hseo` (nunca por otra vía):
   · sola            consultar, lanzar pipelines, reintentar una vez       → se permite
-  · con aprobación  alta, config, pausar, Jev, modelos, excepciones y      → {"action":"approve"}: Hermes pregunta a
+  · con aprobación  alta, config, pausar, modelos, excepciones y      → {"action":"approve"}: Hermes pregunta a
                     pipelines con coste externo                              la persona; en un cron no hay nadie y se deniega
   · nunca           decidir o firmar puertas, publicar, secretos,          → bloqueado (y la CLI ni siquiera lo ofrece)
                     aprobadores, código del arnés, configuración de Hermes
@@ -39,7 +39,7 @@ if CARTERA:
                                                for d in ("wiki", "briefs")] if os.path.isdir(CLIENTES) else [os.path.join(HSEO, "wiki")]
 else:
     ESCRIBE = [os.path.join(CLIENTES, AMBITO, "wiki"), os.path.join(CLIENTES, AMBITO, "briefs")]
-SECRETOS = re.compile(r"(secretos\.env|aprobadores\.json|jev\.json|seo\.json|auth\.json|mcp-tokens|\.env\b|"
+SECRETOS = re.compile(r"(secretos\.env|aprobadores\.json|seo\.json|auth\.json|mcp-tokens|\.env\b|"
                       r"\.ssh|id_(rsa|ed25519)|\.pem\b|cuota\.json)")
 
 LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort", "uniq", "cut", "tr", "diff", "tree",
@@ -48,13 +48,13 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
 HSEO_SOLA = {"clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos"}
-HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "jev", "modelos"}
+HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos"}
 
 
 def bloquear(motivo: str) -> None:
     quien = "la coordinadora" if CARTERA else f"el encargado de {AMBITO}"
     print(json.dumps({"decision": "block", "reason": f"hermes-seo ({quien}): {motivo}. Para mover el sistema usa la CLI "
-                      "hseo; decidir puertas y publicar es de la persona (o de Jev si se lo delegó): explícale qué harías."},
+                      "hseo; decidir puertas y publicar es de la persona: explícale qué harías."},
                      ensure_ascii=False))
     sys.exit(2)
 
@@ -105,8 +105,6 @@ def cliente_de(args: list) -> str | None:
         return pos[1] if len(pos) > 1 else None
     if sub == "plan":
         return pos[1] if len(pos) > 1 else None
-    if sub == "jev" and pos[:1] == ["modo"]:
-        return pos[2] if len(pos) > 2 else None
     return None
 
 
@@ -122,7 +120,7 @@ def orden_hseo(args: list) -> str | None:
     if not CARTERA:
         if sub == "alta":
             return "dar de alta otra web lo hace la coordinadora"
-        ver = sub in ("jev", "modelos") and args[1:2] in (["ver"], [])
+        ver = sub == "modelos" and args[1:2] in (["ver"], [])
         lectura_global = sub in ("clientes", "puerta", "lecciones") or (sub == "pipelines" and cli is None) or (ver and cli is None)
         if not lectura_global and cli != AMBITO:
             return f"solo puede actuar sobre {AMBITO}"
@@ -135,7 +133,7 @@ def orden_hseo(args: list) -> str | None:
             elif len(pos) > 1 and con_coste(pos[1], cli or ""):
                 APROBAR.append(f"Lanzar «{pos[1]}» para {cli}: tiene coste externo (APIs de pago)")
         return None
-    if sub in ("jev", "modelos") and args[1:2] in (["ver"], []):
+    if sub == "modelos" and args[1:2] in (["ver"], []):
         return None
     APROBAR.append(f"hseo {texto[:300]}")
     return None
@@ -155,7 +153,7 @@ def segmento(seg: list, cwd: str) -> str | None:
             continue
         r = ruta(a, cwd)
         if SECRETOS.search(r):
-            return "los secretos, aprobadores y ajustes de Jev no se leen"
+            return "los secretos y los aprobadores no se leen"
         if dentro(r, os.path.join(HOME, ".hermes")) and not (dentro(r, HSEO) or any(dentro(r, x) for x in ARNES_RUTAS)):
             return "el resto de Hermes no se lee desde aquí"
         if not CARTERA and dentro(r, CLIENTES) and not dentro(r, os.path.join(CLIENTES, AMBITO)):

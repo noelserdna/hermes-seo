@@ -1,7 +1,7 @@
 """hermes-seo — canal DASHBOARD: la pestaña «SEO» del panel web de Hermes (/api/plugins/hermes-seo/).
 
-Como Telegram, este canal no firma: registra la decisión y el gateway la firma al acabar la ventana para deshacer.
-La identidad sale de la sesión del panel (con login: el email o el id de la cuenta; en modo local, 127.0.0.1 y sin
+Solo lectura: enseña la cartera, las puertas, las métricas y los cambios, pero NO decide (las puertas se deciden en
+Telegram o por correo). La identidad sale de la sesión del panel (con login: el email o el id de la cuenta; en modo local, 127.0.0.1 y sin
 login: el usuario del sistema). Debe figurar en aprobadores.json con canal "dashboard". Copiado y adaptado de
 hermes-sdd (dashboard/plugin_api.py).
 """
@@ -63,7 +63,6 @@ def _accion(f):
 
 def _vista(p: dict) -> dict:
     v = {k: p.get(k) for k in CAMPOS}
-    v["jev"] = PU.describir_jev(p)
     v["decision"] = {k: (p.get("decision") or {}).get(k) for k in ("verbo", "texto", "at")}
     v["decidio"] = ((p.get("decision") or {}).get("actor") or {}).get("persona")
     return v
@@ -81,7 +80,7 @@ async def webs(request: Request):
             out.append({"slug": s, "nombre": cfg["nombre"], "url": cfg["url"], "estado_web": cfg["estado_web"],
                         "publica": cfg["capacidades"]["publicacion"].get("adaptador"),
                         "capacidades": sorted(C.capacidades(cfg)), "pausada": bool((cfg.get("politicas") or {}).get("pausado")),
-                        "jev": PU.modo_jev(s), "encargos": [{"id": e["id"], "nombre": e["nombre"], "estado": e.get("estado")} for e in abiertos],
+                        "encargos": [{"id": e["id"], "nombre": e["nombre"], "estado": e.get("estado")} for e in abiertos],
                         "puertas": len(pend)})
         return out
     return await run_in_threadpool(hacer)
@@ -97,21 +96,6 @@ async def sistema(request: Request):
 async def puertas(request: Request):
     _actor(request)
     return [_vista(p) for p in PU.puertas(("abierta", "decidida", "error"))]
-
-
-@router.post("/decidir/{gid}")
-async def decidir(gid: str, request: Request):
-    persona, ident, prueba = _actor(request)
-    body = await request.json()
-    prueba = {**prueba, "ua": (request.headers.get("user-agent") or "")[:60]}
-    return _vista(_accion(lambda: PU.decidir(gid, str(body.get("verbo", "")), str(body.get("texto", "")), persona,
-                                            "dashboard", ident, prueba)))
-
-
-@router.post("/deshacer/{gid}")
-async def deshacer(gid: str, request: Request):
-    persona, _, _ = _actor(request)
-    return _vista(_accion(lambda: PU.deshacer(gid, persona)))
 
 
 @router.get("/metricas/{slug}")

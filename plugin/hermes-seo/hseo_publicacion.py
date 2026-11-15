@@ -242,7 +242,7 @@ def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict |
     if env is None:
         s = C.secretos(slug)
         env = {**os.environ, **({"GH_TOKEN": s["GH_TOKEN"]} if s.get("GH_TOKEN") else {})}
-    env = {**env, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid}   # quién aprobó (una persona o Jev): el script decide
+    env = {**env, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid}   # quién aprobó: el script decide
     (C.carpeta(slug) / "logs").mkdir(parents=True, exist_ok=True)
     subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(repo), env=env,
                      stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)

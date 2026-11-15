@@ -1,13 +1,13 @@
 """hseo: las acciones de la coordinadora y de los encargados sobre hermes-seo. Es su ÚNICA vía para mover el sistema
 (el guardia, encargado/guardia.py, bloquea todo lo demás y decide qué acciones necesitan la aprobación de la persona).
 
-No hay ninguna orden para decidir o firmar puertas, ni para publicar: eso solo pasa en una puerta (una persona, o Jev
-si se lo delegaron), y lo ejecuta el notario.
+No hay ninguna orden para decidir o firmar puertas, ni para publicar: eso solo pasa en una puerta (decide una persona),
+y lo ejecuta el notario.
 
   Consultar (sola)
     hseo clientes · hseo estado [cliente] · hseo encargos <cliente> [--todos] · hseo encargo <cliente> <id>
     hseo puertas [cliente] · hseo puerta <id> · hseo pipelines [--cliente C] · hseo plan <pipeline> <cliente>
-    hseo modelos ver [--cliente C] · hseo jev ver
+    hseo modelos ver [--cliente C]
     hseo datos resumen <cliente> [--dias 28] · hseo datos comparar <cliente> <cambio> · hseo datos recoger <cliente>
   Trabajar (sola, y lo cuenta)
     hseo leccion <cliente> <etapa> "<regla general>" <encargo|puerta>…   (la confirma una persona) · hseo lecciones
@@ -17,7 +17,6 @@ si se lo delegaron), y lo ejecuta el notario.
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
-    hseo jev modo <humano|consejo|piloto|auto> [cliente] · hseo jev umbral|umbral-auto <p> · hseo jev piloto <tipos>
     hseo modelos perfil <calidad|equilibrado|rapido> · hseo modelos poner <etapa> <modelo|-> [--cliente C]
     hseo lanzar … --excepcion                            (salta la congelación o el tope: lo pidió una persona)
 """
@@ -152,7 +151,6 @@ def main(argv=None) -> int:
     x = sub.add_parser("config"); x.add_argument("cliente"); x.add_argument("clave"); x.add_argument("valor")
     sub.add_parser("pausar").add_argument("objetivo")
     sub.add_parser("reanudar").add_argument("objetivo")
-    x = sub.add_parser("jev"); x.add_argument("args", nargs="*")
     x = sub.add_parser("modelos"); x.add_argument("args", nargs="*"); x.add_argument("--cliente")
     a = ap.parse_args(argv)
     try:
@@ -171,7 +169,7 @@ def main(argv=None) -> int:
                     print(f"{p['id']}  {p['estado']:9} {p['titulo']}")
         elif a.cmd == "puerta":
             p = PU.leer(a.id)
-            print(f"{p['titulo']}\n\n{p['texto']}\n\n{PU.describir_jev(p)}".strip())
+            print(f"{p['titulo']}\n\n{p['texto']}".strip())
         elif a.cmd == "pipelines":
             for pid, p in PL.listar(a.cliente).items():
                 print(f"{pid:22} {p.get('nombre', '')}: {p.get('descripcion', '')}")
@@ -223,19 +221,6 @@ def main(argv=None) -> int:
             print(C.resumen(C.config(a.cliente, a.clave, a.valor, quien())))
         elif a.cmd in ("pausar", "reanudar"):
             print(pausar(a.objetivo, a.cmd == "pausar"))
-        elif a.cmd == "jev":
-            x = a.args or ["ver"]
-            if x[0] == "ver":
-                print(json.dumps(PU.config_jev(), ensure_ascii=False, indent=2))
-            elif x[0] == "modo" and len(x) in (2, 3):
-                PU.poner_modo(x[1], x[2] if len(x) == 3 else None)
-                print(f"🤖 Jev en modo {x[1]}" + (f" para {x[2]}" if len(x) == 3 else " por defecto"))
-            elif x[0] in ("umbral", "umbral-auto") and len(x) == 2:
-                PU.ajustar_jev(**{x[0].replace("-", "_"): x[1]}); print("ok")
-            elif x[0] == "piloto" and len(x) == 2:
-                PU.ajustar_jev(piloto=x[1].split(",")); print("ok")
-            else:
-                raise Rechazo("uso: hseo jev ver | modo <modo> [cliente] | umbral <p> | umbral-auto <p> | piloto <tipos>")
         elif a.cmd == "modelos":
             x = a.args or ["ver"]
             if x[0] == "ver":

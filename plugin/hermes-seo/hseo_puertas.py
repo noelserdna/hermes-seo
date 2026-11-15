@@ -1,4 +1,4 @@
-"""Puertas de hermes-seo: el núcleo común a todos los canales (Telegram, panel, local), Jev y el notario.
+"""Puertas de hermes-seo: el núcleo común a todos los canales (Telegram, correo, local) y el notario.
 Copiado y adaptado de hermes-sdd (hsdd_nucleo.py, firmar.sh).
 
   «El ejecutor nunca firma; el notario nunca decide; el orquestador nunca interpreta.»
@@ -9,19 +9,16 @@ el gesto de una persona en decidir(); queda una ventana para deshacer; después 
 decidió y ejecuta lo aprobado: publicar con el adaptador del cliente, lanzar otra pipeline, rehacer desde una etapa
 con lo que se pidió, o cerrar el encargo.
 
-Jev (TypeSafe), si el cliente lo permite y su modo lo deja, juzga la puerta: solo puede aprobar (nunca rechazar ni
-pedir cambios), solo si está seguro (umbral), nunca con avisos graves ni en las puertas reservadas a una persona; si
-duda, la puerta llega a la persona con su consejo. Su decisión queda registrada como suya, con su ventana para
-deshacer, y deshacerla le veta en esa puerta.
+Siempre decide una persona. Con un aviso grave de la revisión (p. ej. la verificación pidió cambios) no se puede
+aprobar: solo pedir cambios o descartar; la salida de emergencia es «decidir-local --forzar <motivo>», que queda escrita.
 
 CLI:
   hseo_puertas.py listar [--todas]
   hseo_puertas.py ver <puerta>
   hseo_puertas.py abrir <cliente> <encargo>
-  hseo_puertas.py decidir-local <puerta> <verbo> [texto]     (canal local: decide y firma al momento)
+  hseo_puertas.py decidir-local <puerta> <verbo> [texto] [--forzar MOTIVO]   (canal local: decide y firma al momento)
   hseo_puertas.py deshacer <puerta> <persona>
   hseo_puertas.py firmar <puerta>  ·  vencidas               (lo hace el gateway al acabar la ventana)
-  hseo_puertas.py jev [modo [<modo> [<cliente>]] | umbral <p> | umbral-auto <p> | piloto <tipos> | probar <puerta>]
 """
 from __future__ import annotations
 
@@ -34,7 +31,6 @@ import re
 import secrets
 import sys
 import time
-import urllib.request
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
@@ -56,12 +52,8 @@ PL = _cargar("hseo_pipelines")
 E = _cargar("hseo_encargos")
 Rechazo = B.Rechazo
 
-JEV = "jev"
-MODOS = ("humano", "consejo", "piloto", "auto")
-JEV_DEFECTO = {"defecto": "humano", "clientes": {}, "piloto": ["plan-editorial", "veredicto"], "umbral": 0.9,
-               "umbral_auto": 0.8}
-RESERVADAS = ("alta", "difusion")   # accesos y hablar en nombre de alguien: siempre una persona
-DESHACER_DEFECTO_S, DESHACER_JEV_DEFECTO_S = 180, 60
+APRUEBA = ("acepto",)   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
+DESHACER_DEFECTO_S = 180
 EMOJI = {"alta": "🧭", "plan-tecnico": "🛠", "plan-editorial": "🗺", "publicar": "🚀", "cambio-tecnico": "🔧",
          "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣"}
 _APROBAR = {"verbo": "acepto", "etiqueta": "✅ De acuerdo"}
@@ -82,6 +74,20 @@ OPCIONES = {
     "mantenimiento": [{"verbo": "cambio", "etiqueta": "🛠 Lanzar arreglo"},
                       {"verbo": "ignoro", "etiqueta": "🔕 Ignorar", "texto": True}],
 }
+
+
+def graves(puerta: dict) -> int:
+    """Avisos graves de la revisión mecánica (hseo_revision) guardados en la puerta."""
+    try:
+        return int((puerta.get("revision") or {}).get("graves") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def opciones_vigentes(puerta: dict) -> list:
+    """Las opciones que se ofrecen: sin la de aprobar si hay un aviso grave."""
+    ops = puerta.get("opciones") or []
+    return [o for o in ops if o.get("verbo") not in APRUEBA] if graves(puerta) else ops
 
 
 # ── utilidades ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -122,8 +128,6 @@ def deshacer_s() -> int:
     return _segundos("deshacer_s", DESHACER_DEFECTO_S)
 
 
-def deshacer_jev_s() -> int:
-    return _segundos("deshacer_jev_s", DESHACER_JEV_DEFECTO_S)
 
 
 def persona_de(canal: str, ident) -> tuple:
@@ -245,9 +249,9 @@ def _registrar(puerta: dict, verbo: str, texto: str, actor: dict, prueba: dict, 
 
 
 def decidir(gid: str, verbo: str, texto: str, persona: str, canal: str, ident, prueba: dict | None = None) -> dict:
-    """Registra la decisión de `persona` (identificada por el canal) y abre la ventana para deshacer."""
-    if canal == JEV:
-        raise Rechazo("Jev decide solo con aplicar_jev")
+    """Registra la decisión de `persona` (identificada por el canal) y abre la ventana para deshacer. Con un aviso
+    grave de la revisión no se aprueba (salvo `forzar`, solo desde el canal local, con su motivo por escrito)."""
+    forzar = (prueba or {}).get("forzado", "")
     with B.cerrojo("puertas"):
         puerta = leer(gid)
         if puerta.get("estado") != "abierta":
@@ -257,6 +261,8 @@ def decidir(gid: str, verbo: str, texto: str, persona: str, canal: str, ident, p
         opcion = next((o for o in puerta["opciones"] if o["verbo"] == verbo), None)
         if not opcion:
             raise Rechazo("Opción no válida")
+        if verbo in APRUEBA and graves(puerta) and not (forzar and canal == "local"):
+            raise Rechazo("Tiene un aviso grave de la revisión (🧭 ⛔): solo se puede pedir cambios o descartar")
         texto = (texto or "").strip()
         if opcion.get("texto") and not texto:
             raise Rechazo(f"«{opcion['etiqueta']}» necesita un motivo")
@@ -265,17 +271,13 @@ def decidir(gid: str, verbo: str, texto: str, persona: str, canal: str, ident, p
 
 
 def deshacer(gid: str, persona: str) -> dict:
-    """Quien decidió, o cualquier persona autorizada si decidió Jev; solo antes de la firma. Deshacer a Jev le veta."""
+    """Quien decidió; solo antes de la firma."""
     with B.cerrojo("puertas"):
         puerta = leer(gid)
         dec = puerta.get("decision") or {}
-        de_jev = (dec.get("actor") or {}).get("canal") == JEV
-        if puerta.get("estado") != "decidida" or not persona or \
-                ((dec.get("actor") or {}).get("persona") != persona and not (de_jev and puede_decidir(persona, puerta["cliente"]))):
+        if puerta.get("estado") != "decidida" or not persona or (dec.get("actor") or {}).get("persona") != persona:
             raise Rechazo("Ya no se puede deshacer")
         puerta["estado"] = "abierta"
-        if de_jev:
-            puerta["jev_vetado"] = {"por": persona, "at": B.ahora()}
         puerta.pop("decision", None)
         puerta.pop("firmar_en", None)
         B.escribir(indice(gid), puerta)
@@ -287,7 +289,7 @@ def marcar(gid: str, **campos) -> dict:
     with B.cerrojo("puertas"):
         puerta = leer(gid)
         for k, v in campos.items():
-            if k in ("estado", "decision", "firmar_en", "jev", "jev_vetado", "opciones", "cliente", "encargo"):
+            if k in ("estado", "decision", "firmar_en", "opciones", "cliente", "encargo", "revision"):
                 raise Rechazo(f"«{k}» no lo marca un canal")
             if v is None:
                 puerta.pop(k, None)
@@ -297,203 +299,11 @@ def marcar(gid: str, **campos) -> dict:
         return puerta
 
 
-# ── Jev ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
-def config_jev() -> dict:
-    return {**JEV_DEFECTO, **(B.leer(B.home() / "jev.json", {}) or {})}
-
-
-def modo_jev(slug: str, cfg: dict | None = None) -> str:
-    cfg = cfg or config_jev()
-    try:
-        if not (C.leer(slug).get("jev") or {}).get("permitido", True):
-            return "humano"
-    except Rechazo:
-        return "humano"
-    modo = (cfg.get("clientes") or {}).get(slug, cfg.get("defecto", "humano"))
-    return modo if modo in MODOS else "humano"
-
-
-def poner_modo(modo: str, slug: str | None = None) -> dict:
-    if modo not in MODOS:
-        raise Rechazo(f"Modo desconocido: {modo}. Modos: {', '.join(MODOS)}")
-    with B.cerrojo("jev"):
-        cfg = config_jev()
-        if slug:
-            C.leer(slug)
-            cfg["clientes"] = {**(cfg.get("clientes") or {}), slug: modo}
-        else:
-            cfg["defecto"] = modo
-        B.escribir(B.home() / "jev.json", cfg)
-    return cfg
-
-
-def ajustar_jev(umbral=None, umbral_auto=None, piloto: list | None = None) -> dict:
-    with B.cerrojo("jev"):
-        cfg = config_jev()
-        for clave, valor in (("umbral", umbral), ("umbral_auto", umbral_auto)):
-            if valor is None:
-                continue
-            try:
-                u = float(valor)
-            except (TypeError, ValueError):
-                raise Rechazo("El umbral es un número entre 0.5 y 1")
-            if not 0.5 <= u <= 1:
-                raise Rechazo("El umbral va de 0.5 a 1: por debajo, Jev decidiría casi a cara o cruz")
-            cfg[clave] = u
-        if piloto is not None:
-            if any(t not in OPCIONES or t in RESERVADAS for t in piloto):
-                raise Rechazo(f"Tipos de puerta para piloto: {', '.join(t for t in OPCIONES if t not in RESERVADAS)}")
-            cfg["piloto"] = list(piloto)
-        B.escribir(B.home() / "jev.json", cfg)
-    return cfg
-
-
-def umbral_jev(modo: str, cfg: dict | None = None) -> float:
-    cfg = cfg if cfg is not None else config_jev()
-    return float(cfg.get("umbral_auto") or cfg.get("umbral", 0.9)) if modo == "auto" else float(cfg.get("umbral", 0.9))
-
-
-def verbos_jev(puerta: dict) -> dict:
-    """Lo que Jev puede elegir: las opciones que no piden un motivo escrito."""
-    return {o["verbo"]: o["etiqueta"] for o in puerta.get("opciones", []) if not o.get("texto")}
-
-
-def puede_jev(puerta: dict, cfg: dict | None = None) -> tuple:
-    """¿Puede Jev decidir esta puerta (si está seguro)? → (sí/no, motivo). Lo usan el gateway y el notario."""
-    cfg = cfg or config_jev()
-    modo = modo_jev(puerta.get("cliente", ""), cfg)
-    tipo = puerta.get("tipo", "")
-    if modo in ("humano", "consejo"):
-        return False, f"modo {modo}"
-    if tipo in RESERVADAS:
-        return False, f"las puertas de {tipo} las decide siempre una persona"
-    if modo == "piloto" and tipo not in (cfg.get("piloto") or []):
-        return False, f"en modo piloto las puertas de {tipo} las decide una persona"
-    if puerta.get("jev_vetado"):
-        return False, "una persona deshizo la decisión de Jev"
-    if (puerta.get("revision") or {}).get("graves"):
-        return False, "el encargado marcó un aviso grave (lo decide una persona)"
-    if not verbos_jev(puerta):
-        return False, "ninguna opción de esta puerta se puede elegir sin escribir un motivo"
-    return True, f"modo {modo}"
-
-
-def _preguntas_jev() -> dict:
-    return B.leer(AQUI / "jev_puertas.json", {}) or {}
-
-
-def pregunta_jev(puerta: dict) -> dict:
-    q = _preguntas_jev()
-    tipo = (q.get("tipos") or {}).get(puerta.get("tipo", ""), {})
-    auto = modo_jev(puerta.get("cliente", "")) == "auto"
-    criterios = {v: (tipo.get("verbos") or {}).get(v) or f"Choose «{e}»" for v, e in verbos_jev(puerta).items()}
-    criterios["persona"] = (q.get("persona_auto") if auto else None) or q.get("persona", "A person must decide")
-    base = (q.get("instructions_auto") if auto else None) or q.get("instructions", "")
-    return {"decision": {"type": "choice", "criteria": criterios,
-                         "instructions": f"{base} {tipo.get('contexto', '')}".strip()}}
-
-
-def estado_jev(puerta: dict, max_chars: int = 90000) -> dict:
-    """Lo que Jev lee: la puerta tal como la vería la persona y los documentos del encargo."""
-    contexto, resto = {}, max_chars
-    if puerta.get("encargo"):
-        d = E.carpeta(puerta["cliente"], puerta["encargo"])
-        for f in sorted(d.glob("*")):
-            if f.is_file() and f.suffix in (".md", ".json", ".txt") and f.name != "encargo.json" and resto > 0:
-                t = f.read_text(errors="replace")[:resto]
-                contexto[f.name] = t
-                resto -= len(t)
-    if puerta.get("hallazgos"):
-        contexto["hallazgos"] = json.dumps(puerta["hallazgos"], ensure_ascii=False)[:20000]
-    return {"puerta": {k: puerta.get(k) for k in ("tipo", "titulo", "texto")},
-            "opciones": {**verbos_jev(puerta), "persona": "Que lo decida una persona"}, "contexto": contexto}
-
-
-def consultar_jev(puerta: dict) -> dict:
-    """Pregunta a Jev (API de TypeSafe). Nunca lanza: un fallo vuelve como {"error"} y decide una persona."""
-    clave = os.environ.get("TYPESAFE_API_KEY") or C.secretos(puerta["cliente"]).get("TYPESAFE_API_KEY")
-    if not clave:
-        return {"error": "Jev apagado: falta TYPESAFE_API_KEY"}
-    url = os.environ.get("HSEO_JEV_URL", "https://api.typesafe.ai/v1/systemone")
-    cuerpo = json.dumps({"state": estado_jev(puerta), "model": os.environ.get("HSEO_JEV_MODEL", "jev-latest"),
-                         "questions": pregunta_jev(puerta)}).encode()
-    try:
-        req = urllib.request.Request(url, data=cuerpo, method="POST", headers={
-            "Authorization": f"Bearer {clave}", "Content-Type": "application/json", "User-Agent": "hermes-seo"})
-        with urllib.request.urlopen(req, timeout=90) as r:
-            res = json.loads(r.read())
-        a = res["answers"]["decision"]
-        p = a.get("probabilities") or a.get("p") or {}
-        return {"choice": a.get("choice"), "p": float(p.get(a.get("choice"), 0)), "confidence": a.get("confidence"),
-                "modelo": res.get("model") or "jev"}
-    except Exception as e:
-        return {"error": str(e)[:300]}
-
-
-def aplicar_jev(gid: str, juicio: dict) -> dict:
-    """Guarda el juicio de Jev y, si el modo lo permite y está seguro, registra su decisión (con su ventana)."""
-    with B.cerrojo("puertas"):
-        puerta = leer(gid)
-        cfg = config_jev()
-        modo = modo_jev(puerta.get("cliente", ""), cfg)
-        umbral = umbral_jev(modo, cfg)
-        jev = {**juicio, "modo": modo, "umbral": umbral, "at": B.ahora()}
-        puede, motivo = puede_jev(puerta, cfg)
-        eleccion, p = juicio.get("choice"), float(juicio.get("p") or 0)
-        if puerta.get("estado") != "abierta":
-            jev.update(decide=False, motivo="la puerta ya estaba resuelta")
-        elif juicio.get("error"):
-            jev.update(decide=False, motivo="Jev no respondió")
-        elif not puede:
-            jev.update(decide=False, motivo=motivo)
-        elif eleccion not in verbos_jev(puerta):
-            jev.update(decide=False, motivo="Jev pide que lo decida una persona")
-        elif p < umbral:
-            jev.update(decide=False, motivo=f"Jev no está seguro (p {p:.2f} < {umbral:.2f})")
-        else:
-            jev.update(decide=True, motivo=motivo)
-        puerta["jev"] = jev
-        if not jev["decide"]:
-            B.escribir(indice(gid), puerta)
-            return puerta
-        return _registrar(puerta, eleccion, "", {"persona": JEV, "canal": JEV, "id": juicio.get("modelo") or "jev"},
-                          {"modelo": juicio.get("modelo", ""), "p": f"{p:.3f}", "modo": modo}, deshacer_jev_s())
-
-
-def describir_jev(puerta: dict) -> str:
-    j = puerta.get("jev") or {}
-    if not j:
-        return ""
-    if j.get("error"):
-        return ("🤖 Jev está apagado (falta su clave): decides tú." if "apagado" in j["error"].lower()
-                else "🤖 Jev no ha podido responder: decides tú.")
-    seguro = f"{round(float(j.get('p') or 0) * 100)} %"
-    eleccion = j.get("choice")
-    if j.get("decide"):
-        return f"🤖 Ha decidido Jev ({verbos_jev(puerta).get(eleccion, eleccion)}, modo {j.get('modo')}, seguro al {seguro})."
-    if eleccion in verbos_jev(puerta):
-        linea = f"🤖 Jev aprobaría esto ({verbos_jev(puerta)[eleccion]}), seguro al {seguro}."
-        if j.get("modo") in ("piloto", "auto"):
-            linea += f" No lo decide él: {j.get('motivo')}."
-        return linea
-    regla = j.get("motivo") or ""
-    if regla and not regla.startswith(("modo ", "Jev ")):
-        return f"🤖 Jev no puede decidirla: {regla}."
-    return f"🤖 Jev prefiere que lo mires tú (seguro al {seguro})."
-
-
 # ── notario ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 def _valida_actor(puerta: dict) -> str:
-    """Comprueba de nuevo quién decidió. Devuelve el texto de firma («Ana (telegram)», «Jev (auto, p 0.93)»)."""
+    """Comprueba de nuevo quién decidió. Devuelve el texto de firma («Ana (telegram)»)."""
     dec = puerta.get("decision") or {}
     actor = dec.get("actor") or {}
-    if actor.get("canal") == JEV:
-        puede, motivo = puede_jev(puerta)
-        p = float((dec.get("prueba") or {}).get("p") or 0)
-        modo = modo_jev(puerta["cliente"])
-        if not puede or dec.get("verbo") not in verbos_jev(puerta) or p < umbral_jev(modo):
-            raise Rechazo(f"La decisión de Jev ya no vale ({motivo if not puede else 'umbral o modo cambiaron'})")
-        return f"Jev ({modo}, p {p:.2f})"
     clave, datos = persona_de(actor.get("canal", ""), actor.get("id", ""))
     if not clave or clave != actor.get("persona") or not puede_decidir(clave, puerta["cliente"]):
         raise Rechazo("Quien decidió no está autorizado en ese canal")
@@ -592,7 +402,7 @@ def firmar(gid: str, ahora: float | None = None) -> dict:
         B.anotar(C.carpeta(p["cliente"]) / "puertas.jsonl", {
             "ts": p["firmada"], "puerta": gid, "tipo": p["tipo"], "encargo": p.get("encargo"), "verbo": dec["verbo"],
             "texto": dec.get("texto", ""), "persona": dec["actor"].get("persona"), "canal": dec["actor"].get("canal"),
-            "firma": firma, "resultado": resultado, "jev_vetado": bool(p.get("jev_vetado")),
+            "firma": firma, "resultado": resultado, "forzado": (dec.get("prueba") or {}).get("forzado", ""),
             "segundos_hasta_decidir": _segundos_entre(p.get("creada"), dec.get("at"))})
         return p
 
@@ -619,13 +429,16 @@ def vencidas() -> list:
     return out
 
 
-def decidir_local(gid: str, verbo: str, texto: str = "") -> dict:
-    """Canal local (plan B sin Telegram): la persona en esta máquina decide y se firma al momento."""
+def decidir_local(gid: str, verbo: str, texto: str = "", forzar: str = "") -> dict:
+    """Canal local (plan B sin Telegram): la persona en esta máquina decide y se firma al momento. `forzar` (un motivo)
+    permite aprobar una puerta con aviso grave; queda en puertas.jsonl."""
     usuario = getpass.getuser()
     clave, _ = persona_de("local", usuario)
     if not clave:
         raise Rechazo(f"El usuario {usuario} no está en aprobadores.json (canales.local)")
-    decidir(gid, verbo, texto, clave, "local", usuario)
+    if forzar is not None and forzar != "" and not forzar.strip():
+        raise Rechazo("--forzar necesita un motivo")
+    decidir(gid, verbo, texto, clave, "local", usuario, {"forzado": forzar.strip()} if forzar else None)
     with B.cerrojo("puertas"):
         p = leer(gid)
         p["firmar_en"] = 0
@@ -640,10 +453,10 @@ def main(argv=None) -> int:
     sub.add_parser("ver").add_argument("puerta")
     a = sub.add_parser("abrir"); a.add_argument("cliente"); a.add_argument("encargo")
     dl = sub.add_parser("decidir-local"); dl.add_argument("puerta"); dl.add_argument("verbo"); dl.add_argument("texto", nargs="?", default="")
+    dl.add_argument("--forzar", default="")
     dh = sub.add_parser("deshacer"); dh.add_argument("puerta"); dh.add_argument("persona")
     sub.add_parser("firmar").add_argument("puerta")
     sub.add_parser("vencidas")
-    j = sub.add_parser("jev"); j.add_argument("args", nargs="*")
     x = ap.parse_args(argv)
     try:
         if x.cmd == "listar":
@@ -654,7 +467,7 @@ def main(argv=None) -> int:
         elif x.cmd == "abrir":
             print(abrir(x.cliente, x.encargo)["id"])
         elif x.cmd == "decidir-local":
-            p = decidir_local(x.puerta, x.verbo, x.texto)
+            p = decidir_local(x.puerta, x.verbo, x.texto, x.forzar)
             print(f"Firmada por {p['firma']}: {p['resultado']}")
         elif x.cmd == "deshacer":
             deshacer(x.puerta, x.persona); print("deshecha")
@@ -663,26 +476,6 @@ def main(argv=None) -> int:
         elif x.cmd == "vencidas":
             for gid, ok, msg in vencidas():
                 print(f"{gid} {'ok' if ok else 'ERROR'} {msg}")
-        elif x.cmd == "jev":
-            a = x.args
-            if not a or a[0] == "modo":
-                if len(a) > 1:
-                    poner_modo(a[1], a[2] if len(a) > 2 else None)
-                print(json.dumps(config_jev(), ensure_ascii=False, indent=2))
-            elif a[0] == "umbral":
-                print(json.dumps(ajustar_jev(umbral=a[1]), ensure_ascii=False))
-            elif a[0] == "umbral-auto":
-                print(json.dumps(ajustar_jev(umbral_auto=a[1]), ensure_ascii=False))
-            elif a[0] == "piloto":
-                print(json.dumps(ajustar_jev(piloto=a[1].split(",")), ensure_ascii=False))
-            elif a[0] == "probar":
-                p = leer(a[1])
-                ok, motivo = puede_jev(p)
-                j = consultar_jev(p)
-                print(f"Modo {modo_jev(p['cliente'])}: {'Jev podría decidirla' if ok else 'no la decidiría: ' + motivo}")
-                print(json.dumps(j, ensure_ascii=False))
-            else:
-                raise Rechazo("uso: jev [modo [<modo> [<cliente>]] | umbral <p> | umbral-auto <p> | piloto <tipos> | probar <puerta>]")
     except Rechazo as e:
         print(str(e), file=sys.stderr)
         return 2

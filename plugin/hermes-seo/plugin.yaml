@@ -1,5 +1,5 @@
 name: hermes-seo
 version: 0.1.0
-description: "SEO de varias webs con agentes: pipelines del ciclo de vida, un encargado por web, puertas en Telegram con Jev opcional (consejo, piloto o auto) y notario. La persona decide; lo irreversible pasa por una puerta."
+description: "SEO de varias webs con agentes: pipelines del ciclo de vida, un encargado por web, puertas en Telegram y notario. La persona decide; lo irreversible pasa por una puerta."
 author: "Andres Leon"
 provides_hooks: []

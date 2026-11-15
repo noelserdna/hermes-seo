@@ -41,7 +41,6 @@
       h("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
         h("strong", null, w.nombre), h("a", { href: w.url, target: "_blank", rel: "noreferrer", style: tenue }, w.url),
         h(Badge, { variant: "outline" }, "web " + w.estado_web), h(Badge, { variant: "outline" }, "publica: " + w.publica),
-        h(Badge, { variant: w.jev === "humano" ? "secondary" : "default" }, "Jev: " + w.jev),
         w.pausada ? h(Badge, { variant: "destructive" }, "en pausa") : null,
         w.puertas ? h(Badge, null, "🚪 " + w.puertas) : null),
       h("div", { style: { ...tenue, marginTop: 6 } }, "Puede: " + (w.capacidades.join(", ") || "nada configurado aún")),
@@ -50,24 +49,14 @@
         : h("div", { style: { ...tenue, marginTop: 6 } }, "Nada en marcha."))));
   }
 
-  function Puerta({ p, recargar }) {
-    const [texto, setTexto] = useState("");
-    const [msg, setMsg] = useState("");
-    const hacer = (ruta, cuerpo) => post(ruta, cuerpo).then(() => { setMsg(""); recargar(); }).catch((e) => setMsg(String(e.message || e)));
+  function Puerta({ p }) {
+    // Solo lectura: las puertas se deciden en Telegram o por correo (el panel no decide).
     return h("div", { style: caja },
       h("strong", null, p.titulo),
       h("pre", { style: { whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "8px 0", maxHeight: 320, overflow: "auto" } }, p.texto),
-      p.jev ? h("p", { style: tenue }, p.jev) : null,
-      p.estado === "abierta" ? h("div", null,
-        h(Input, { placeholder: "Motivo (para pedir cambios, rechazar o descartar)", value: texto, onChange: (e) => setTexto(e.target.value), style: { marginBottom: 8 } }),
-        h("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } }, p.opciones.map((o) => h(Button, {
-          key: o.verbo, size: "sm", variant: o.texto ? "outline" : "default", disabled: o.texto && !texto.trim(),
-          onClick: () => hacer("/decidir/" + p.id, { verbo: o.verbo, texto }) }, o.etiqueta))))
-      : p.estado === "decidida" ? h("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-        h("span", null, "🕒 Decidido por " + p.decidio + ": «" + p.decision.verbo + "». Se ejecuta al acabar la ventana."),
-        h(Button, { size: "sm", variant: "outline", onClick: () => hacer("/deshacer/" + p.id) }, "↩ Deshacer"))
-      : h("p", { style: { color: "var(--color-destructive)" } }, "⚠️ " + (p.error || p.estado)),
-      msg ? h("p", { style: { color: "var(--color-destructive)" } }, msg) : null);
+      p.estado === "abierta" ? h("p", { style: tenue }, "Se decide en Telegram o por correo.")
+      : p.estado === "decidida" ? h("span", null, "🕒 Decidido por " + p.decidio + ": «" + p.decision.verbo + "». Se ejecuta al acabar la ventana.")
+      : h("p", { style: { color: "var(--color-destructive)" } }, "⚠️ " + (p.error || p.estado)));
   }
 
   function Decisiones() {
@@ -75,7 +64,7 @@
     if (error) return h("p", { style: tenue }, error);
     if (!ps) return h("p", { style: tenue }, "Cargando…");
     if (!ps.length) return h("p", null, "No hay nada pendiente de decidir.");
-    return h("div", null, ps.map((p) => h(Puerta, { key: p.id, p, recargar })));
+    return h("div", null, ps.map((p) => h(Puerta, { key: p.id, p })));
   }
 
   function Grafico({ serie }) {

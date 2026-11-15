@@ -1,12 +1,12 @@
 """Revisión mecánica del encargado en cada puerta (sin IA). Copiado y adaptado de hermes-sdd (hsdd_revision.py).
 
 Sale arriba del texto de la puerta como «🧭 Encargado: N aviso(s)». No bloquea a la persona, pero **un aviso grave
-impide que Jev apruebe solo** (y el notario lo vuelve a comprobar).
+impide aprobar la puerta**: solo se puede pedir cambios o descartar.
 
   hseo_revision.py revisar <web> <encargo> <tipo>
 
 Cada aviso: {grave: bool, codigo, texto}. Cada regla nueva se calibra antes contra encargos reales: un aviso grave
-falso le quita a Jev decisiones que podría tomar.
+falso bloquea una publicación buena.
 """
 from __future__ import annotations
 
