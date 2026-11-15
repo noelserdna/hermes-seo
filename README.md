@@ -3,11 +3,11 @@
 **El SEO de tus webs, de la puesta en marcha a la decisión, con agentes de IA y sin perder el control.** Hablas con
 una coordinadora (en Telegram o en el panel de Hermes): le pides cosas y ella mueve el sistema. Los agentes investigan,
 escriben, verifican, miden y proponen; lo irreversible (publicar, cambios técnicos, decisiones de estrategia) pasa por
-una **puerta** que decides tú con un botón, o Jev si se lo delegas y está seguro.
+una **puerta** que decides tú con un botón.
 
 Es un plugin para [Hermes Agent](https://github.com/NousResearch/hermes-agent), hermano de
 [hermes-sdd](https://github.com/noelserdna/hermes-sdd) (el mismo esqueleto: puertas, notario, encargado por proyecto,
-vigía sin IA, memoria con llm-wiki), aplicado al SEO.
+vigilancia sin IA, memoria con llm-wiki), aplicado al SEO.
 
 > **Estado:** núcleo completo y probado sin IA (`bash tests/todo.sh`); falta la primera instalación en un Hermes de
 > producción. Diseño en [docs/diseno.md](docs/diseno.md); fases y pendientes en [docs/estado.md](docs/estado.md).
@@ -19,7 +19,7 @@ vigía sin IA, memoria con llm-wiki), aplicado al SEO.
 | **Conversa y opera** | la coordinadora (perfil `default`) y un encargado por web (`seo-p-<web>`) | entiende lo que pides, lanza el trabajo con la CLI `hseo`, vigila, recuerda y te avisa |
 | **Hace el trabajo** | perfiles de rol (`seo-investigador`, `seo-redactor`, `seo-verificador`, `seo-editor`, `seo-analista`) y Claude Code | cada etapa de una pipeline, con el modelo que le toca |
 | **Pregunta** | la puerta | te enseña el resultado y te pide una decisión con botones |
-| **Decide** | tú, o Jev (TypeSafe) en el modo que elijas por web | Jev solo aprueba, y solo si está seguro; si duda, te la pasa a ti |
+| **Decide** | tú, con los botones de la puerta | con un aviso grave de la revisión no se puede aprobar |
 | **Firma** | el notario (sin IA) | registra quién decidió qué y ejecuta lo aprobado (publicar, desplegar…) |
 | **Orquesta** | el kanban de Hermes (sin IA) | un tablero por web |
 
@@ -62,7 +62,6 @@ pide tu aprobación y lanza la comprobación inicial. Para hablar con el encarga
 |---|---|
 | `/seo [web]` | cómo va todo |
 | `/seo_puertas` | decisiones pendientes, con sus botones |
-| `/seo_jev [web] [modo]` | modo de Jev: humano, consejo, piloto, auto |
 | `/seo_tema <web>` | un tema para hablar con el encargado de esa web |
 | `/seo_pausar` · `/seo_reanudar` `[web\|todo]` | parar y seguir |
 
@@ -70,7 +69,7 @@ pide tu aprobación y lanza la comprobación inicial. Para hablar con el encarga
 
 | Ruta | Qué es |
 |---|---|
-| `plugin/hermes-seo/` | el plugin: clientes, pipelines, encargos, etapas, puertas y Jev, publicación, datos, lecciones, revisión, CLI, Telegram y la pestaña del panel (`dashboard/`) |
+| `plugin/hermes-seo/` | el plugin: clientes, pipelines, encargos, etapas, puertas, publicación, datos, lecciones, revisión, CLI, Telegram y la pestaña del panel (`dashboard/`) |
 | `pipelines/` | el ciclo de vida como datos (JSON) |
 | `skills/` | lo que hace cada etapa |
 | `herramientas/` | datos de solo lectura por web (Search Console, Bing, Brave, ChatGPT, auditoría…) |
