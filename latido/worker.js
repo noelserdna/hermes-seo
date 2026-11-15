@@ -23,11 +23,14 @@ export function problemas(ultimo, ahora, minutos) {
 }
 
 async function avisar(env, texto) {
-  const r = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+  const token = String(env.TELEGRAM_BOT_TOKEN || "").trim();   // un salto de línea al guardar el secreto rompe la URL
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: texto, disable_web_page_preview: true }),
   });
-  if (!r.ok) console.log("telegram", r.status, (await r.text()).slice(0, 200));
+  const cuerpo = r.ok ? "" : (await r.text()).slice(0, 200);
+  if (!r.ok) console.log("telegram", r.status, cuerpo);
+  return { ok: r.ok, status: r.status, error: cuerpo };
 }
 
 export async function revisar(env, ahora = Date.now()) {
@@ -56,6 +59,11 @@ export default {
                        disco: Number(d.disco) || 0, reiniciado: Boolean(d.reiniciado) };
       await env.LATIDO.put("ultimo", JSON.stringify(ultimo));
       return json({ ok: true });
+    }
+    if (url.pathname === "/prueba" && req.method === "POST") {   // diagnóstico: manda un aviso de prueba y dice qué respondió Telegram
+      const auth = req.headers.get("authorization") || "";
+      if (!env.LATIDO_SECRETO || !igual(auth, `Bearer ${env.LATIDO_SECRETO}`)) return json({ error: "no autorizado" }, 401);
+      return json(await avisar(env, `🧪 ${env.NOMBRE || "hermes-latido"}: prueba del aviso externo (todo bien, no hagas nada).`));
     }
     return new Response("hermes-latido", { status: 404 });
   },
