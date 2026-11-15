@@ -53,8 +53,8 @@ Rechazo = B.Rechazo
 PERFILES_ROL = ("seo-investigador", "seo-redactor", "seo-verificador", "seo-editor", "seo-analista")
 EJECUTORES = ("hermes", "claude", "replay")
 TIPOS_PUERTA = ("alta", "plan-tecnico", "plan-editorial", "publicar", "cambio-tecnico", "decision", "veredicto",
-                "mantenimiento", "difusion")
-AL_APROBAR = re.compile(r"^(nada|publicar|gestiones|pipeline:[a-z0-9-]+|script:[A-Za-z0-9._-]+( [^;&|`$<>]*)?)$")
+                "mantenimiento", "difusion", "adoptar", "mejora")
+AL_APROBAR = re.compile(r"^(nada|publicar|gestiones|apuntar|instalar:[A-Za-z0-9._/-]+@[0-9a-f]{7,40}|pipeline:[a-z0-9-]+|script:[A-Za-z0-9._-]+( [^;&|`$<>]*)?)$")
 ID = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 DURACION = re.compile(r"^\d{1,3}[mh]$")
 

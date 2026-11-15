@@ -23,6 +23,8 @@ y lo ejecuta el notario.
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
+    hseo novedad recoger · hseo novedad proponer|descartar …   (estar al día: versiones y novedades filtradas)
+    hseo mejora proponer <rama>                          (mejora del plugin: pruebas, límites y puerta)
     hseo cuaderno apuntar                                (cuaderno del método: cifras de la semana, sin modelo)
     hseo ia resumen <cliente>                            (visibilidad en IA: cita y mención por motor, sin modelo)
     hseo aterrizaje empezar|comprobar|ver <cliente> · hseo aterrizaje omitir <cliente> <6|7|8>   (web nueva, paso a paso)
@@ -207,6 +209,8 @@ def main(argv=None) -> int:
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
     sub.add_parser("cuaderno").add_argument("accion", choices=("apuntar",))
+    x = sub.add_parser("novedad"); x.add_argument("accion", choices=("recoger", "proponer", "descartar")); x.add_argument("args", nargs="*")
+    x = sub.add_parser("mejora"); x.add_argument("accion", choices=("proponer",)); x.add_argument("rama")
     x = sub.add_parser("ia"); x.add_argument("accion", choices=("resumen",)); x.add_argument("cliente")
     x = sub.add_parser("aterrizaje"); x.add_argument("accion", choices=("empezar", "comprobar", "ver", "omitir"))
     x.add_argument("cliente"); x.add_argument("n", nargs="?", type=int)
@@ -277,6 +281,18 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "novedad":
+            N = _cargar("hseo_novedades")
+            if a.accion == "recoger":
+                print(json.dumps(N.recoger(), ensure_ascii=False, indent=1))
+            elif a.accion == "proponer" and len(a.args) == 3:
+                print(N.proponer(*a.args))
+            elif a.accion == "descartar" and len(a.args) == 2:
+                print(N.descartar(*a.args))
+            else:
+                raise Rechazo('uso: hseo novedad proponer "<título>" "<qué aporta>" "<riesgo>" · hseo novedad descartar "<título>" "<por qué>"')
+        elif a.cmd == "mejora":
+            print(_cargar("hseo_mejoras").proponer(a.rama))
         elif a.cmd == "cuaderno":
             print(f"📓 Cuaderno del método: {_cargar('hseo_cuaderno').apuntar()}")
         elif a.cmd == "ia":

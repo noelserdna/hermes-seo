@@ -46,7 +46,7 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "file", "stat", "date", "echo", "printf", "pwd", "basename", "dirname", "realpath", "column", "nl", "true",
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
-HSEO_SOLA = {"cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
+HSEO_SOLA = {"novedad", "mejora", "cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos", "contacto", "correo"}
 # El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
@@ -131,8 +131,8 @@ def orden_hseo(args: list) -> str | None:
         return f"hseo {sub} no es una orden conocida"
     cli = cliente_de(args)
     if not CARTERA:
-        if sub in ("preguntar", "ordenar"):
-            return "hablar con los encargados lo hace la coordinadora"
+        if sub in ("preguntar", "ordenar", "novedad", "mejora", "cuaderno"):
+            return "eso lo hace la coordinadora (hablar con los encargados, novedades, mejoras del sistema)"
         if sub == "alta":
             return "dar de alta otra web lo hace la coordinadora"
         ver = sub == "modelos" and args[1:2] in (["ver"], [])

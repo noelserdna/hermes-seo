@@ -106,6 +106,8 @@ def _dir() -> Path:
 
 # ── contacto de cada web ────────────────────────────────────────────────────────────────────────────────────────────
 def contacto(slug: str) -> dict:
+    if slug == "__cartera__":   # las puertas del sistema van al coordinador (Telegram)
+        return {"correo": "", "canal": "telegram"}
     c = C.leer(slug).get("contacto") or {}
     return {"correo": str(c.get("correo") or "").lower(), "canal": c.get("canal") or "telegram"}
 

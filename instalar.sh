@@ -170,6 +170,15 @@ PY
   fi
   "$HERMES" config set cron.wrap_response false >/dev/null || true
   echo "Sistema: avisos sin IA en $DEST (solo lo que no se arregla solo)"
+  # novedades: día 3, 09:00, con modelo (la coordinadora): versiones (sin IA) + repaso filtrado por clics y citas
+  PROMPT_NOV="Repaso mensual de novedades para hermes-seo. 1) Ejecuta: hseo novedad recoger (versiones de Hermes y del plugin, sin fetch). 2) Lee $HSEO/wiki/concepts/metodo-cifras.md (cómo va el sistema) y busca en la web las notas de la versión nueva de Hermes si la hay, y novedades del último mes de MCP, plugins o skills de Hermes y SEO/GEO (buscadores y citas en IA). 3) Para cada novedad, una sola pregunta: ¿sube los clics de Google o las citas en IA de las webs? Si sí (con un porqué concreto): hseo novedad proponer \"<título>\" \"<qué aporta y a qué número>\" \"<riesgo>\" (como mucho 3). Si no o no se sabe: hseo novedad descartar \"<título>\" \"<por qué>\". Nunca actualices ni instales nada. Nunca uses git log -S, git log -p ni fetch en ~/.hermes/hermes-agent. 4) Responde en 3-6 líneas para la persona: versión de Hermes, lo propuesto y lo descartado."
+  ID=$(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name == "hseo-novedades") | .id' "$HH/cron/jobs.json" 2>/dev/null | head -1 || true)
+  if [ -n "$ID" ]; then
+    "$HERMES" cron edit "$ID" --schedule "0 9 3 * *" --prompt "$PROMPT_NOV" --deliver "$DEST" --catch-up off >/dev/null || true
+  else
+    "$HERMES" cron create "0 9 3 * *" "$PROMPT_NOV" --name hseo-novedades --deliver "$DEST" --catch-up off >/dev/null \
+      || echo "AVISO: no pude crear el cron hseo-novedades"
+  fi
   # cuaderno del método: lunes 07:00, sin IA y sin mensaje (escribe en la wiki global)
   printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\npython3 %q apuntar >/dev/null\n' \
     "$HSEO" "$HSEO/actual/plugin/hermes-seo/hseo_cuaderno.py" > "$HH/scripts/hseo-cuaderno.sh"; chmod +x "$HH/scripts/hseo-cuaderno.sh"

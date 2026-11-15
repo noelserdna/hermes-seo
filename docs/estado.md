@@ -12,7 +12,7 @@
 | v2 · Entrega 1 | Asegurar, limpiar, corregir, saber (ver abajo) | ✅ 15-11 |
 | v2 · Entrega 2 | Memoria de la web sin modelo, tandas con control y veredicto, autoridad y presencia | ✅ 15-11 |
 | v2 · Entrega 3 | Correo (buzón único en Cloudflare, botones con código) y aterrizaje guiado | ✅ 15-11 |
-| v2 · Entrega 4 | Visibilidad en IA mensual, cuaderno del método y costes, novedades y puerta `mejora` | ⏳ |
+| v2 · Entrega 4 | Visibilidad en IA mensual, cuaderno del método y costes, novedades y puerta `mejora` | ✅ 15-11 |
 
 ## v2 · Entrega 1 (15-11-2026)
 - **Asegurar:** `copia.sh` (copia diaria cifrada a R2, comprobada al subir), `latido/` (Worker de Cloudflare que avisa
@@ -58,6 +58,20 @@
   sin su acceso comprobado (las webs anteriores, «legado», no cambian); con los mínimos (1, 2, 3, 5) se lanza la línea
   base una vez y al cerrarla la estrategia; la vigilancia lo vuelve a comprobar cada 30 min y cuenta los cambios.
   `alta` pasa a informe. Claves solo por terminal (`hseo secreto guardar`).
+
+## v2 · Entrega 4 (15-11-2026)
+- **Visibilidad en IA:** `chatgpt-busca` distingue sin saldo (para, código 3) de ritmo (espera Retry-After) y
+  `--reanudar` solo pregunta lo que falta; `hseo ia resumen` (sin modelo): cita y mención por motor con intervalo de
+  Wilson y «sube/baja» solo si no se solapan. Mensual por defecto.
+- **Cuaderno del método** (`hseo cuaderno apuntar`, cron de la coordinadora lunes 07:00, sin mensaje): fallos por etapa,
+  «la verificación pidió cambios», puertas y horas hasta decidir, incidencias, correos, coste por web y por perfil;
+  solo método, en la wiki global (`concepts/metodo-cifras.md`).
+- **Estar al día** (`hseo novedad …`, cron de la coordinadora día 3 09:00, con modelo): versiones sin fetch ni canary;
+  lo que sube clics o citas llega como puerta «🆕 adoptar» del sistema (≤3 al mes; aprobar solo lo apunta); lo demás,
+  a `novedades-descartadas.md`. Nunca actualiza ni instala.
+- **Mejoras del plugin** (`hseo mejora proponer <rama>`): pruebas en verde, nada que toque lo que vigila al sistema ni
+  pida reinicio, ≤3 al mes → puerta «⬆️ mejora»; aprobarla instala esa versión a una carpeta nueva (vuelta: volver.sh).
+- Las puertas del sistema van al coordinador (cliente `__cartera__`, tema 📊 Cartera).
 
 ## Cómo se deshace cada cosa
 | Qué | Cómo |

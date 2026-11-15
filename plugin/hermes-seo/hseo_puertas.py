@@ -52,10 +52,11 @@ PL = _cargar("hseo_pipelines")
 E = _cargar("hseo_encargos")
 Rechazo = B.Rechazo
 
-APRUEBA = ("acepto", "algunas")   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
+APRUEBA = ("acepto", "algunas")
+CARTERA = "__cartera__"   # puertas del sistema (novedades, mejoras del plugin), no de una web   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
 DESHACER_DEFECTO_S = 180
 EMOJI = {"alta": "🧭", "plan-tecnico": "🛠", "plan-editorial": "🗺", "publicar": "🚀", "cambio-tecnico": "🔧",
-         "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣"}
+         "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣", "adoptar": "🆕", "mejora": "⬆️"}
 _APROBAR = {"verbo": "acepto", "etiqueta": "✅ De acuerdo"}
 _CAMBIOS = {"verbo": "cambios", "etiqueta": "✏️ Cambios", "texto": True}
 _NO = {"verbo": "rechazo", "etiqueta": "❌ No", "texto": True}
@@ -72,6 +73,9 @@ OPCIONES = {
                        {"verbo": "descarto", "etiqueta": "🗑 Descartar", "texto": True}],
     "difusion": [{"verbo": "acepto", "etiqueta": "📣 Todas"}, {"verbo": "algunas", "etiqueta": "☑️ Solo algunas", "texto": True},
                  _NO],
+    "adoptar": [{"verbo": "acepto", "etiqueta": "📌 Apuntarla para una sesión"},
+                {"verbo": "descarto", "etiqueta": "🗑 No interesa", "texto": True}],
+    "mejora": [{"verbo": "acepto", "etiqueta": "⬆️ Instalar"}, {"verbo": "descarto", "etiqueta": "🗑 Descartar", "texto": True}],
     "mantenimiento": [{"verbo": "cambio", "etiqueta": "🛠 Lanzar arreglo"},
                       {"verbo": "ignoro", "etiqueta": "🔕 Ignorar", "texto": True}],
 }
@@ -196,9 +200,9 @@ def _revision(slug: str, eid: str | None, tipo: str) -> dict:
 
 
 def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: str = "", texto: str = "",
-          hallazgos: list | None = None) -> dict:
+          hallazgos: list | None = None, al_aprobar: str = "nada") -> dict:
     """Abre la puerta de un encargo (la de su pipeline) o una suelta (mantenimiento: tipo + texto + hallazgos)."""
-    cfg = C.leer(slug)
+    cfg = C.leer(slug) if slug != CARTERA else {"nombre": "Sistema"}
     enc, p = None, None
     if eid:
         enc = E.leer(slug, eid)
@@ -218,14 +222,14 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
                           f"\n\n📁 {d}" + (f"\n📄 {', '.join(s for s in salidas if (d / s).exists())}" if salidas else ""))
     if tipo not in OPCIONES:
         raise Rechazo(f"Tipo de puerta desconocido: {tipo}")
-    rev = _revision(slug, eid, tipo)
+    rev = _revision(slug, eid, tipo) if slug != CARTERA else {"avisos": [], "graves": 0}
     if rev.get("avisos"):
         lineas = [f"{'⛔' if a.get('grave') else '⚠️'} {a['texto']}" for a in rev["avisos"]]
         texto = f"🧭 Encargado: {len(rev['avisos'])} aviso(s)\n" + "\n".join(lineas) + "\n\n" + texto
     gid = f"g{int(time.time()):x}{secrets.token_hex(3)}"
     puerta = {"id": gid, "tipo": tipo, "cliente": slug, "encargo": eid, "pipeline": enc and enc["pipeline"],
               "titulo": titulo, "texto": texto, "opciones": OPCIONES[tipo],
-              "al_aprobar": ((enc or {}).get("puerta") or {}).get("al_aprobar", "nada"),
+              "al_aprobar": ((enc or {}).get("puerta") or {}).get("al_aprobar", "nada") if enc else al_aprobar,
               "rehacer": ((enc or {}).get("puerta") or {}).get("rehacer") or (enc["etapas"][-1]["id"] if enc else None),
               "hallazgos": hallazgos or [], "revision": rev, "creada": B.ahora(), "estado": "abierta"}
     with B.cerrojo("puertas"):
@@ -337,6 +341,11 @@ def _aplicar(puerta: dict, firma: str) -> str:
                 if not sel:
                     raise Rechazo("«Solo algunas» necesita los números, p. ej. «1,3»")
             resultado = _cargar("hseo_autoridad").aplicar(slug, eid, sel, firma)
+        elif accion.startswith("instalar:"):
+            resultado = _cargar("hseo_mejoras").instalar(accion[len("instalar:"):], firma)
+        elif accion == "apuntar":
+            B.anotar(B.home() / "novedades" / "apuntadas.jsonl", {"ts": B.ahora(), "titulo": puerta["titulo"], "texto": puerta["texto"][:2000], "firma": firma})
+            resultado = "apuntada para la próxima sesión"
         elif accion.startswith("pipeline:"):
             params = {"que": "\n".join(h if isinstance(h, str) else json.dumps(h, ensure_ascii=False)
                                        for h in puerta.get("hallazgos") or [])[:2000]} if puerta["tipo"] == "mantenimiento" else {}
@@ -408,13 +417,14 @@ def firmar(gid: str, ahora: float | None = None) -> dict:
             p.update(estado="firmada", firmada=B.ahora(), firma=firma, resultado=resultado)
             B.escribir(indice(gid), p)
         dec = p["decision"]
-        B.anotar(C.carpeta(p["cliente"]) / "puertas.jsonl", {
+        B.anotar((C.carpeta(p["cliente"]) if p["cliente"] != CARTERA else B.home()) / "puertas.jsonl", {
             "ts": p["firmada"], "puerta": gid, "tipo": p["tipo"], "encargo": p.get("encargo"), "verbo": dec["verbo"],
             "texto": dec.get("texto", ""), "persona": dec["actor"].get("persona"), "canal": dec["actor"].get("canal"),
             "firma": firma, "resultado": resultado, "forzado": (dec.get("prueba") or {}).get("forzado", ""),
             "segundos_hasta_decidir": _segundos_entre(p.get("creada"), dec.get("at"))})
         try:   # la memoria de la web: decisiones y correcciones (sin modelo; nunca frena al notario)
-            _cargar("hseo_wiki").regenerar_decisiones(p["cliente"])
+            if p["cliente"] != CARTERA:
+                _cargar("hseo_wiki").regenerar_decisiones(p["cliente"])
         except Exception:   # noqa: BLE001
             pass
         return p
