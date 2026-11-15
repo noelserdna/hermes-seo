@@ -61,6 +61,10 @@ def _db(slug: str) -> sqlite3.Connection:
         ctr REAL, posicion REAL, PRIMARY KEY (fecha, consulta, pagina));
       CREATE TABLE IF NOT EXISTS gsc_pagina (fecha TEXT, pagina TEXT, clics REAL, impresiones REAL, ctr REAL,
         posicion REAL, PRIMARY KEY (fecha, pagina));
+      CREATE TABLE IF NOT EXISTS gsc_pais (fecha TEXT, pais TEXT, clics REAL, impresiones REAL, ctr REAL,
+        posicion REAL, PRIMARY KEY (fecha, pais));
+      CREATE TABLE IF NOT EXISTS gsc_dispositivo (fecha TEXT, dispositivo TEXT, clics REAL, impresiones REAL, ctr REAL,
+        posicion REAL, PRIMARY KEY (fecha, dispositivo));
     """)
     return con
 
@@ -90,6 +94,13 @@ def actualizar(slug: str) -> int:
                 con.execute("INSERT OR REPLACE INTO gsc_pagina VALUES (?,?,?,?,?,?)", (
                     fecha, r.get("page") or r.get("pagina") or "", _num(r, "clics", "clicks"),
                     _num(r, "impresiones", "impressions"), _num(r, "ctr"), _num(r, "posicion", "position")))
+            for tabla, filas, claves in (("gsc_pais", datos.get("pais"), ("country", "pais")),
+                                         ("gsc_dispositivo", datos.get("dispositivo"), ("device", "dispositivo"))):
+                con.execute(f"DELETE FROM {tabla} WHERE fecha = ?", (fecha,))
+                for r in filas or []:
+                    con.execute(f"INSERT OR REPLACE INTO {tabla} VALUES (?,?,?,?,?,?)", (
+                        fecha, str(r.get(claves[0]) or r.get(claves[1]) or ""), _num(r, "clics", "clicks"),
+                        _num(r, "impresiones", "impressions"), _num(r, "ctr"), _num(r, "posicion", "position")))
             n += 1
     con.close()
     return n
@@ -130,15 +141,47 @@ def recoger(slug: str, hoy: date | None = None) -> list:
 
 def _suma(con, desde: str, hasta: str, pagina: str | None = None) -> dict:
     if pagina:
-        r = con.execute("SELECT COALESCE(SUM(clics),0), COALESCE(SUM(impresiones),0), AVG(posicion), COUNT(DISTINCT fecha) "
+        r = con.execute("SELECT COALESCE(SUM(clics),0), COALESCE(SUM(impresiones),0), "
+                        "SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0), COUNT(DISTINCT fecha) "
                         "FROM gsc_pagina WHERE fecha BETWEEN ? AND ? AND rtrim(pagina,'/') = rtrim(?,'/')",
                         (desde, hasta, pagina)).fetchone()
     else:
-        r = con.execute("SELECT COALESCE(SUM(clics),0), COALESCE(SUM(impresiones),0), AVG(posicion), COUNT(*) "
+        r = con.execute("SELECT COALESCE(SUM(clics),0), COALESCE(SUM(impresiones),0), "
+                        "SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0), COUNT(*) "
                         "FROM gsc_dia WHERE fecha BETWEEN ? AND ?", (desde, hasta)).fetchone()
     clics, imp, pos, dias = r
     return {"clics": int(clics), "impresiones": int(imp), "ctr": round(clics / imp * 100, 2) if imp else 0.0,
             "posicion": round(pos, 1) if pos else None, "dias": dias}
+
+
+# CTR de referencia por posición (orientativo, mezcla de escritorio y móvil). Con pocos clics no se puede estimar la
+# curva propia de la web: se usa esta hasta que la web pase de ~500 clics en el periodo.
+CURVA_REFERENCIA = {1: 0.28, 2: 0.15, 3: 0.10, 4: 0.07, 5: 0.05, 6: 0.04, 7: 0.03, 8: 0.025, 9: 0.02, 10: 0.017}
+
+
+def ctr_esperado(posicion: float | None) -> float:
+    if not posicion:
+        return 0.0
+    p = max(1, round(posicion))
+    return CURVA_REFERENCIA.get(p, 0.01 if p <= 20 else 0.003)
+
+
+def _grupo(con, tabla: str, campo: str, desde: str, hasta: str, limite: int) -> list:
+    filas = con.execute(
+        f"SELECT {campo}, SUM(clics), SUM(impresiones), SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0) "
+        f"FROM {tabla} WHERE fecha BETWEEN ? AND ? GROUP BY {campo} ORDER BY SUM(impresiones) DESC LIMIT ?",
+        (desde, hasta, limite)).fetchall()
+    return [{campo: k, "clics": int(c), "impresiones": int(i), "ctr": round(c / i * 100, 2) if i else 0.0,
+             "posicion": round(p, 1) if p else None} for k, c, i, p in filas]
+
+
+def _marca(slug: str) -> list:
+    cfg = C.leer(slug)
+    terminos = [str(t).lower() for t in (cfg.get("marca") or []) if str(t).strip()]
+    if not terminos:
+        base = str(cfg.get("dominio") or slug).lower().split(".")[0]
+        terminos = [base] + ([str(cfg.get("nombre")).lower()] if cfg.get("nombre") else [])
+    return sorted(set(terminos))
 
 
 def _ultimo(con) -> date | None:
@@ -158,12 +201,28 @@ def resumen(slug: str, dias: int = 28) -> dict:
     serie = [{"fecha": f, "clics": int(c), "impresiones": int(i)} for f, c, i in con.execute(
         "SELECT fecha, clics, impresiones FROM gsc_dia WHERE fecha >= ? ORDER BY fecha", ((fin - timedelta(days=89)).isoformat(),))]
     cerca = [{"consulta": q, "pagina": p, "impresiones": int(i), "clics": int(c), "posicion": round(pos, 1)} for q, p, i, c, pos in con.execute(
-        "SELECT consulta, pagina, SUM(impresiones) i, SUM(clics), AVG(posicion) pos FROM gsc_consulta "
-        "WHERE fecha BETWEEN ? AND ? GROUP BY consulta, pagina HAVING pos BETWEEN 8 AND 20 ORDER BY i DESC LIMIT 15",
+        "SELECT consulta, pagina, SUM(impresiones) i, SUM(clics), SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0) pos "
+        "FROM gsc_consulta WHERE fecha BETWEEN ? AND ? GROUP BY consulta, pagina HAVING pos BETWEEN 8 AND 20 ORDER BY i DESC LIMIT 15",
         (ini.isoformat(), fin.isoformat()))]
+    a, b = ini.isoformat(), fin.isoformat()
+    paginas = _grupo(con, "gsc_pagina", "pagina", a, b, 25)
+    for p in paginas:   # clics que tendría con el CTR de referencia de su posición
+        p["clics_esperados"] = round(p["impresiones"] * ctr_esperado(p["posicion"]), 1)
+    bajo = sorted([p for p in paginas if p["impresiones"] >= 100 and p["clics"] < 0.5 * p["clics_esperados"]],
+                  key=lambda p: p["clics_esperados"] - p["clics"], reverse=True)
+    terminos = _marca(slug)
+    marca = {"terminos": terminos, "consultas": 0, "clics": 0, "impresiones": 0}
+    for q, c, i in con.execute("SELECT consulta, SUM(clics), SUM(impresiones) FROM gsc_consulta WHERE fecha BETWEEN ? AND ? "
+                               "GROUP BY consulta", (a, b)):
+        if any(t in (q or "").lower() for t in terminos):
+            marca["consultas"] += 1; marca["clics"] += int(c); marca["impresiones"] += int(i)
+    out = {"hay_datos": True, "hasta": fin.isoformat(), "dias": dias, "actual": ahora_, "anterior": antes,
+           "serie": serie, "pagina_dos": cerca, "paginas": paginas, "bajo_ctr": bajo[:10],
+           "paises": _grupo(con, "gsc_pais", "pais", a, b, 10), "dispositivos": _grupo(con, "gsc_dispositivo", "dispositivo", a, b, 5),
+           "marca": marca,
+           "curva_ctr": "propia" if ahora_["clics"] >= 500 else "referencia (pocos clics para estimar la propia)"}
     con.close()
-    return {"hay_datos": True, "hasta": fin.isoformat(), "dias": dias, "actual": ahora_, "anterior": antes,
-            "serie": serie, "pagina_dos": cerca}
+    return out
 
 
 def comparar(slug: str, cambio_id: str, dias: int = 28) -> dict:

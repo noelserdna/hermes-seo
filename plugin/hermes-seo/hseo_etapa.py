@@ -87,6 +87,14 @@ are decided by a person at a gate after this pipeline. If something blocks you, 
 End your reply with ONE short line summarising the result."""
 
 
+def preparar(slug: str, d: Path, nombre: str) -> None:
+    """Deja datos-<nombre>.json en el encargo: cifras calculadas por código para que la etapa no las invente."""
+    if nombre == "resumen":
+        datos = _cargar("hseo_datos").resumen(slug, 28)
+    else:
+        return
+    (d / f"datos-{nombre}.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1))
+
 def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     enc = E.leer(slug, eid)
     d = E.carpeta(slug, eid)
@@ -106,6 +114,8 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     previas += [f"{h} (from {enc['origen']})" for h in enc.get("heredados") or [] if (d / h).exists()]
     salida = s.get("salida") or f"{etapa}.md"
     (d / "contexto-cliente.md").write_text(contexto(slug, etapa))
+    for nombre in s.get("prepara") or []:
+        preparar(slug, d, nombre)
     ejecutor = (cfg.get("ejecutores") or {}).get(etapa) or s.get("ejecutor", "hermes")
     arnes = PL.raiz()
     propia = C.carpeta(slug) / "extensiones" / "skills" / s["skill"] / "SKILL.md"   # las de la web mandan

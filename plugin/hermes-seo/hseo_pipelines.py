@@ -92,6 +92,10 @@ def cargar(pid: str, slug: str | None = None) -> dict:
     return p
 
 
+# Datos que el CÓDIGO deja en la carpeta del encargo antes de una etapa («prepara»: [...]): las cifras no las calcula
+# el modelo. Cada una escribe datos-<nombre>.json (ver hseo_etapa.preparar).
+PREPARA = ("resumen",)
+
 def validar(p: dict) -> list:
     e = []
     if not ID.match(str(p.get("id", ""))):
@@ -115,6 +119,9 @@ def validar(p: dict) -> list:
             e.append(f"{donde}.id no válido")
         elif s["id"] in vistos:
             e.append(f"{donde}.id «{s['id']}» repetido")
+        prep = s.get("prepara", [])
+        if not isinstance(prep, list) or any(x not in PREPARA for x in prep):
+            e.append(f"{donde}.prepara: una lista de {', '.join(PREPARA)}")
         if s.get("si_cambios") is not None and s.get("si_cambios") not in vistos:
             e.append(f"{donde}.si_cambios: el id de una etapa ANTERIOR (a la que vuelve si la verificación pide cambios)")
         vistos.add(s.get("id"))

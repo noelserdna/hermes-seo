@@ -13,7 +13,10 @@
       "requiere": [
         "gsc|bing|analitica"
       ],
-      "salida": "metricas.md"
+      "salida": "metricas.md",
+      "prepara": [
+        "resumen"
+      ]
     }
   ],
   "puerta": {

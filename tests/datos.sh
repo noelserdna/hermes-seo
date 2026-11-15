@@ -21,7 +21,12 @@ for i in range(100):
     datos = {"totales": {"clics": clics + 5, "impresiones": 1000, "ctr": 0.02, "posicion": 12.0},
              "consulta_pagina": [{"query": "qué es x", "page": "https://web.com/x", "clics": clics, "impresiones": 400, "ctr": 0.03, "posicion": 11.0},
                                  {"query": "x precio", "page": "https://web.com/precio", "clics": 5, "impresiones": 100, "ctr": 0.05, "posicion": 4.0}],
-             "pagina": [{"page": "https://web.com/x", "clics": clics, "impresiones": 400, "ctr": 0.03, "posicion": 11.0}]}
+             "pagina": [{"page": "https://web.com/x", "clics": clics, "impresiones": 400, "ctr": 0.03, "posicion": 11.0},
+                        {"page": "https://web.com/sin-clics", "clics": 0, "impresiones": 100, "ctr": 0, "posicion": 3.0},
+                        {"page": "https://web.com/poco", "clics": 0, "impresiones": 2, "ctr": 0, "posicion": 1.0}],
+             "pais": [{"country": "esp", "clics": 15, "impresiones": 600, "ctr": 0.025, "posicion": 10.0},
+                      {"country": "mex", "clics": 5, "impresiones": 400, "ctr": 0.0125, "posicion": 20.0}],
+             "dispositivo": [{"device": "DESKTOP", "clics": 18, "impresiones": 800, "ctr": 0.02, "posicion": 12.0}]}
     (d / f"{f.isoformat()}.json").write_text(json.dumps(datos))
 (Path(sys.argv[1]) / "cambios.jsonl").write_text(json.dumps({"id": "c-art-x", "ts": "2026-09-14T10:00:00Z",
     "encargo": "art-x", "url": "https://web.com/x/", "hipotesis": "más clics"}) + "\n")
@@ -32,6 +37,16 @@ R=$($H datos resumen web)
 echo "$R" | jq -e '.actual.clics == 700 and .anterior.clics == 690 and .actual.dias == 28' >/dev/null && ok "resumen: 28 días frente a los 28 anteriores" || bad "resumen ($(echo "$R" | jq -c '.actual,.anterior'))"
 echo "$R" | jq -e '[.pagina_dos[].consulta] == ["qué es x"]' >/dev/null && ok "resumen: consultas en posiciones 8-20 (no la de la posición 4)" || bad "página 2"
 echo "$R" | jq -e '(.serie | length) == 90' >/dev/null && ok "resumen: serie de 90 días para el panel" || bad "serie"
+echo "$R" | jq -e '.paises[0].pais == "esp" and .paises[0].impresiones == 16800 and .paises[1].posicion == 20' >/dev/null && ok "resumen: países (antes no se cargaban)" || bad "países ($(echo "$R" | jq -c '.paises'))"
+echo "$R" | jq -e '.dispositivos[0].dispositivo == "DESKTOP"' >/dev/null && ok "resumen: dispositivos" || bad "dispositivos"
+echo "$R" | jq -e '[.bajo_ctr[].pagina] == ["https://web.com/sin-clics"]' >/dev/null && ok "bajo_ctr: muchas impresiones y pocos clics para su posición (no las de pocas impresiones)" || bad "bajo_ctr ($(echo "$R" | jq -c '.bajo_ctr'))"
+echo "$R" | jq -e '.marca.terminos == ["web"] and .curva_ctr == "propia"' >/dev/null && ok "marca por el dominio; con más de 500 clics, curva propia" || bad "marca/curva"
+python3 - "$HERMES_SEO_HOME/clientes/web/datos/metricas.db" <<'PY' && ok "posición ponderada por impresiones (no la media de días)" || bad "posición ponderada"
+import sqlite3, sys, importlib.util
+con = sqlite3.connect(sys.argv[1])
+p = con.execute("SELECT SUM(posicion*impresiones)/SUM(impresiones) FROM gsc_pais").fetchone()[0]
+assert abs(p - 14.0) < 0.01, p
+PY
 R=$($H datos comparar web c-art-x)
 echo "$R" | jq -e '.listo and .urls["https://web.com/x/"].antes.clics == 280 and .urls["https://web.com/x/"].despues.clics == 560' >/dev/null && ok "comparar: la URL del cambio antes y después (sin depender de la barra final)" || bad "comparar ($(echo "$R" | jq -c '.urls'))"
 echo "$R" | jq -e '.web.antes.clics < .web.despues.clics' >/dev/null && ok "comparar: y la web entera para descontar la tendencia" || bad "comparar web"
@@ -44,4 +59,17 @@ PY
 $H datos comparar web c-reciente | jq -e '.listo == false and (.motivo | test("28 días"))' >/dev/null && ok "comparar: sin 28 días después, lo dice" || bad "comparar reciente"
 $H datos comparar web no-existe >/dev/null 2>&1 && bad "comparar un cambio inventado" || ok "comparar: un cambio que no existe da error"
 si "recoger sin capacidades: no falla ni avisa" "[ -z \"\$($H datos recoger web)\" ]"
+python3 - "$ROOT/plugin/hermes-seo" "$HERMES_SEO_HOME/clientes/web" <<'PY' && ok "prepara: el código deja datos-resumen.json antes de la etapa" || bad "prepara"
+import importlib.util, json, sys
+from pathlib import Path
+P, W = Path(sys.argv[1]), Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("hseo_etapa", P / "hseo_etapa.py")
+m = importlib.util.module_from_spec(spec); sys.modules["hseo_etapa"] = m; spec.loader.exec_module(m)
+d = W / "encargos" / "prueba-prepara"; d.mkdir(parents=True, exist_ok=True)
+m.preparar("web", d, "resumen")
+r = json.loads((d / "datos-resumen.json").read_text())
+assert r["hay_datos"] and r["paises"] and "bajo_ctr" in r
+PL = sys.modules["hseo_pipelines"]
+assert not PL.validar(PL.cargar("metricas-semanales")) and PL.validar({"id": "x", "nombre": "x", "etapas": [{"id": "a", "perfil": "seo-analista", "skill": "metricas", "prepara": ["inventado"]}]})
+PY
 exit $fail

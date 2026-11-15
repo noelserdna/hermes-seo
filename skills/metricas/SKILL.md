@@ -23,9 +23,11 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-analista`).
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento
-1. Datos de Search Console (si hay `gsc`): `hseo datos resumen <nombre corto>` da los últimos 28 días frente a los
-   28 anteriores y las consultas en posiciones 8-20 («de la página 2 a la 1»), desde la copia diaria. Con el MCP
-   `seo` puedes profundizar (consultas y páginas que más suben y bajan).
+1. Datos de Search Console (si hay `gsc`): **las cifras salen de `datos-resumen.json`** (en la carpeta del encargo; lo
+   deja el código): 28 días frente a los 28 anteriores, páginas, países, dispositivos, consultas de marca, consultas en
+   posiciones 8-20 y `bajo_ctr` (páginas con muchas impresiones y pocos clics para su posición). No calcules ni copies
+   cifras de otro sitio, y antes de escribir «no hay datos de X» mira su clave en ese fichero. Con el MCP `seo` puedes
+   profundizar en algo concreto, citando de dónde sale.
 2. Bing (si hay `bing`), analítica (si hay `analitica`) y bots de IA (`bots-ia`, si la analítica es Cloudflare).
 3. Los cambios publicados en las últimas semanas (`cambios.jsonl` del cliente): ¿se ve algo? Sin veredictos: los da
    la pipeline `veredicto` a los 28 días.
