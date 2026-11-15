@@ -18,7 +18,7 @@ def ok(c, t):
 class Bot:
     def __init__(s): s.enviados, s.editados, s.n = [], [], 100
     async def send_message(s, chat_id, text, reply_markup=None, message_thread_id=None, **k):
-        s.n += 1; s.enviados.append(NS(chat=chat_id, hilo=message_thread_id, text=text, kb=reply_markup)); return NS(chat_id=chat_id, message_id=s.n)
+        s.n += 1; s.enviados.append(NS(chat=chat_id, hilo=message_thread_id, text=text, kb=reply_markup, resp=k.get("reply_to_message_id"))); return NS(chat_id=chat_id, message_id=s.n)
     async def edit_message_text(s, chat_id, message_id, text, reply_markup=None): s.editados.append(NS(text=text, kb=reply_markup))
 
 class Query:
@@ -71,6 +71,25 @@ async def main():
     await m._vuelta()
     ok("aviso grave" in bot.enviados[-1].text and f"hs:acepto:{g2}" not in botones(bot.enviados[-1].kb),
        "con un aviso grave no hay botón de aprobar")
+
+    # el despliegue lanzado al publicar: cuando acaba, se contesta a la puerta (una vez); con modo liga, se reabre
+    import hseo_encargos as E
+    eid = E.lanzar("web", "radar")["id"]
+    gp = PU.abrir("web", tipo="publicar", titulo="🚀 Publicar", texto="x")["id"]
+    p = PU.leer(gp); p.update(estado="firmada", encargo=eid, resultado="PR https://x/pull/7 · despliegue lanzado",
+                              telegram=[{"chat": 111, "msg": 4242}]); PU.B.escribir(PU.indice(gp), p)
+    log = HOME / "clientes/web/logs" / f"desplegar-{eid}.log"; log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(">> Pruebas\n"); n = len(bot.enviados); await m._vuelta()
+    ok(len(bot.enviados) == n, "mientras despliega, nada")
+    log.write_text(">> Pruebas\nOK publicado: «X» (PR #7) en https://web.com\nDESPLIEGUE_OK 1\n"); await m._vuelta()
+    ok(bot.enviados[-1].resp == 4242 and "OK publicado" in bot.enviados[-1].text, "al acabar, contesta a la puerta con el resultado")
+    n = len(bot.enviados); await m._vuelta(); ok(len(bot.enviados) == n, "y solo una vez")
+    gl = PU.abrir("web", tipo="publicar", titulo="🚀 Otra", texto="x")["id"]
+    p = PU.leer(gl); p.update(estado="firmada", encargo=eid, resultado="PR · despliegue lanzado",
+                              telegram=[{"chat": 111, "msg": 4343}]); PU.B.escribir(PU.indice(gl), p)
+    log.write_text("DESPLIEGUE_MODO_LIGA\n"); await m._vuelta()
+    ok(any(x.resp == 4343 and "partido" in x.text for x in bot.enviados), "con modo liga lo dice")
+    ok(any(q["encargo"] == eid and q["estado"] == "abierta" for q in PU.puertas(("abierta",))), "y la vuelve a abrir para aprobarla después")
 
     # comandos y foto
     cmds, secciones = {}, {}

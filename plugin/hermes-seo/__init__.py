@@ -122,6 +122,34 @@ async def _sincronizar(bot, puerta: dict) -> None:
     PU.marcar(puerta["id"], tg_vista=_vista(puerta))
 
 
+async def _resultado_despliegue(bot, puerta: dict) -> None:
+    """Cuando acaba el despliegue de una puerta publicada, contesta a la propia puerta con cómo terminó (una vez).
+    Si no se publicó por el modo liga, la puerta se vuelve a abrir para aprobarla después."""
+    if puerta.get("despliegue") or "despliegue lanzado" not in str(puerta.get("resultado", "")) or not puerta.get("encargo"):
+        return
+    PUB = _cargar("hseo_publicacion")
+    r = await asyncio.to_thread(PUB.estado_despliegue, puerta["cliente"], puerta["encargo"])
+    if not r:
+        return
+    if r["ok"]:
+        texto = f"✅ {r['texto']}\nSi hay que deshacerlo, dímelo: se revierte el PR."
+    elif r["liga"]:
+        texto = f"⏸ {r['texto']} Te la vuelvo a mandar para aprobarla cuando acabe."
+    else:
+        texto = f"⚠️ El despliegue falló:\n{r['texto'][:1500]}"
+    PU.marcar(puerta["id"], despliegue={**r, "at": B.ahora()})
+    for t in puerta.get("telegram") or []:
+        try:
+            await bot.send_message(chat_id=t["chat"], text=texto, reply_to_message_id=t["msg"])
+        except Exception as e:   # noqa: BLE001
+            log.warning("hermes-seo: no pude contestar a la puerta %s: %s", puerta["id"], e)
+    if r["liga"]:
+        try:
+            await asyncio.to_thread(PU.abrir, puerta["cliente"], puerta["encargo"])
+        except B.Rechazo as e:
+            log.warning("hermes-seo: no pude reabrir %s tras el modo liga: %s", puerta["id"], e)
+
+
 # ── botones y respuestas ────────────────────────────────────────────────────────────────────────────────────────────
 def _pendientes() -> dict:
     return B.leer(B.home() / "pendientes.json", {}) or {}
@@ -246,6 +274,8 @@ async def _vuelta() -> None:
         except Exception as e:   # noqa: BLE001 — nunca para el bucle de las puertas
             log.warning("hermes-seo: vueltas de verificación: %s", e)
     for p in PU.puertas(("abierta", "decidida", "error", "firmada")):
+        if p["estado"] == "firmada" and not p.get("despliegue") and "despliegue lanzado" in str(p.get("resultado", "")):
+            await asyncio.wait_for(_resultado_despliegue(bot, p), 60)
         if p["estado"] == "firmada" and p.get("tg_vista") == _vista(p):
             continue
         if p["estado"] in ("abierta", "decidida") and not p.get("telegram"):

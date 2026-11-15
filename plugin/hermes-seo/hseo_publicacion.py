@@ -24,6 +24,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -247,6 +248,27 @@ def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict |
     subprocess.Popen(B.desacoplar(["bash", str(ruta), *partes[1:]]), start_new_session=True, cwd=str(repo), env=env,
                      stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)
     return resultado + " · despliegue lanzado"
+
+
+def estado_despliegue(slug: str, eid: str, max_horas: float = 2.0) -> dict | None:
+    """Cómo terminó el despliegue lanzado al publicar (logs/desplegar-<encargo>.log). None mientras sigue.
+    {"ok": bool, "liga": bool, "texto": str}. Lee la última línea: DESPLIEGUE_OK | DESPLIEGUE_FALLO | DESPLIEGUE_MODO_LIGA."""
+    log = C.carpeta(slug) / "logs" / f"desplegar-{eid}.log"
+    if not log.exists():
+        return None
+    lineas = [l.strip() for l in log.read_text(errors="replace").splitlines() if l.strip()]
+    ultima = lineas[-1] if lineas else ""
+    hecho = next((l for l in reversed(lineas) if l.startswith("OK publicado")), "")
+    errores = [l for l in lineas if l.startswith(("ERROR", "⚠️"))][-3:]
+    if ultima.startswith("DESPLIEGUE_OK"):
+        return {"ok": True, "liga": False, "texto": hecho or "Publicado."}
+    if ultima.startswith("DESPLIEGUE_MODO_LIGA"):
+        return {"ok": False, "liga": True, "texto": "No se publicó: hay partido (la web está en el espejo del modo liga)."}
+    if ultima.startswith("DESPLIEGUE_FALLO") or (errores and not ultima.startswith(("OK", ">>"))):
+        return {"ok": False, "liga": False, "texto": "\n".join(errores) or ultima}
+    if time.time() - log.stat().st_mtime > max_horas * 3600:
+        return {"ok": False, "liga": False, "texto": f"El despliegue no dice nada desde hace más de {max_horas:g} h: {ultima[:200]}"}
+    return None
 
 
 def wordpress(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firma: str) -> str:
