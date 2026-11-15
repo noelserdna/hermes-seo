@@ -14,6 +14,7 @@ y lo ejecuta el notario.
     hseo lanzar <cliente> <pipeline> [--param k=v]… [--brief TEXTO]
     hseo reintentar <cliente> <encargo> <etapa>          (una vez por etapa; después, una persona)
     hseo vueltas                                         (lanza las vueltas a redactar que pidió la verificación)
+    hseo preguntar <cliente> "<texto>" · hseo ordenar <cliente> "<texto>"   (solo la coordinadora: habla con el encargado)
     hseo parte <cliente> [--no-guardar]                  (el parte semanal, sin IA)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
   Cambiar el sistema (con la aprobación de la persona)
@@ -29,6 +30,7 @@ import argparse
 import importlib.util
 import json
 import os
+import time
 import sys
 from pathlib import Path
 
@@ -97,6 +99,39 @@ def _etapas_hechas(slug: str, eid: str) -> int:
     return len([s for s in enc["etapas"] if s["id"] in hechas])
 
 
+TOPE_HABLAR_S = 400   # la terminal de la coordinadora corta a los 420 s
+
+
+def hablar(slug: str, texto: str, orden: bool = False, quien_: str = "") -> str:
+    """La coordinadora le pregunta (o le ordena) algo al encargado de una web, en una conversación propia y continua
+    («coordinador») del perfil seo-p-<web>. Devuelve su respuesta. Lo apunta en acciones.jsonl (de la web y global)."""
+    import subprocess
+    C.leer(slug)
+    if os.environ.get("HSEO_AMBITO", "").startswith("seo-p-") or "/profiles/seo-p-" in os.environ.get("HERMES_HOME", ""):
+        raise Rechazo("Solo la coordinadora habla con los encargados")
+    texto = texto.strip()
+    if not texto:
+        raise Rechazo("¿Qué le digo?")
+    pref = "[Orden del coordinador: cúmplela con hseo, dentro de tu nivel; lo que pida aprobación, explícalo]" if orden \
+        else "[Pregunta del coordinador: responde con lo que sabes y lo que ves; breve]"
+    t0 = time.time()
+    hermes = os.environ.get("HERMES_BIN", "hermes")
+    try:
+        r = subprocess.run([hermes, "-p", f"seo-p-{slug}", "chat", "-Q", "-q", f"{pref}\n{texto}", "-c", "coordinador",
+                            "--create-if-missing", "--source", "coordinador"],
+                           capture_output=True, text=True, timeout=TOPE_HABLAR_S)
+        salida = "\n".join(l for l in (r.stdout or "").splitlines() if not l.startswith("session_id:")).strip()
+        if r.returncode != 0 and not salida:
+            salida = f"(el encargado no respondió: {(r.stderr or '').strip()[-200:]})"
+    except subprocess.TimeoutExpired:
+        salida = f"(el encargado no respondió en {TOPE_HABLAR_S} s)"
+    reg = {"ts": B.ahora(), "quien": quien_ or quien(), "tipo": "ordenar" if orden else "preguntar", "web": slug,
+           "texto": texto[:2000], "respuesta": salida[:2000], "segundos": round(time.time() - t0)}
+    B.anotar(C.carpeta(slug) / "acciones.jsonl", reg)
+    B.anotar(B.home() / "acciones.jsonl", reg)
+    return salida or "(sin respuesta)"
+
+
 def reintentar(slug: str, eid: str, etapa: str) -> dict:
     """Vuelve a lanzar una etapa parada (y las siguientes). Una vez por etapa y encargo; después lo decide una persona."""
     d = E.carpeta(slug, eid)
@@ -145,6 +180,8 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    for n in ("preguntar", "ordenar"):
+        x = sub.add_parser(n); x.add_argument("cliente"); x.add_argument("texto", nargs="+")
     x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
     x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
@@ -199,6 +236,8 @@ def main(argv=None) -> int:
                 return 0
             print(f"🚀 {e['nombre']} en marcha para {a.cliente} ({e['id']}): {len(e['etapas'])} etapas"
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
+        elif a.cmd in ("preguntar", "ordenar"):
+            print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
         elif a.cmd == "vigilancia":
             for l in _cargar("hseo_vigilancia").ciclo(a.cliente):
                 print(l)
