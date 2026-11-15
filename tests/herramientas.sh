@@ -227,7 +227,7 @@ corre "$HT/bots-ia" --cliente prueba
 # ---------- guardar-gsc ----------
 mkdir -p "$T/bin" "$T/casa"
 printf '#!/bin/sh\nexit 0\n' > "$T/bin/hermes"; chmod +x "$T/bin/hermes"
-GSC() { HOME="$T/casa" PATH="$T/bin:$PATH" "$HT/guardar-gsc" "$@"; }
+GSC() { HSEO_GSC_ESPERA=0 HOME="$T/casa" PATH="$T/bin:$PATH" "$HT/guardar-gsc" "$@"; }
 corre GSC --cliente prueba --desde 2026-01-03
 if [ $rc -eq 3 ] && echo "$out" | grep -q 'GSC_ERROR no hay token'; then ok "guardar-gsc sale con 3 si falta el token"; else bad "guardar-gsc sin token ($rc: $out)"; fi
 TOK="$T/casa/.hermes/profiles/perfil-prueba/mcp-tokens"; mkdir -p "$TOK"

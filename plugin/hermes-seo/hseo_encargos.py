@@ -111,6 +111,29 @@ def guardar(slug: str, e: dict) -> None:
     B.escribir(carpeta(slug, e["id"]) / "encargo.json", e)
 
 
+MAX_DECISIONES = 3   # puertas que esperan a una persona por web (las abiertas más los encargos que acabarán en una)
+
+
+def decide(p: dict | None) -> bool:
+    """¿Aprobar la puerta de esta pipeline (o de este encargo) ejecuta algo? Si no, es un informe."""
+    puerta = (p or {}).get("puerta")
+    return bool(puerta) and str(puerta.get("al_aprobar", "nada")) != "nada"
+
+
+def duplicado(slug: str, pid: str, params: dict) -> dict | None:
+    for e in listar(slug, abiertos=True):
+        if e.get("pipeline") != pid or (e.get("params") or {}) != params:
+            continue
+        if e.get("estado") in ("en-curso", "parado") or (e.get("estado") == "en-puerta" and decide(e)):
+            return e
+    return None
+
+
+def decisiones_pendientes(slug: str) -> int:
+    return sum(1 for e in listar(slug, abiertos=True)
+               if decide(e) and e.get("estado") in ("en-curso", "parado", "en-puerta"))
+
+
 def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", excepcion: bool = False,
            quien: str = "", seco: bool = False, origen: str | None = None) -> dict:
     """Valida (parámetros, capacidades, políticas), crea la carpeta del encargo y sus tarjetas encadenadas."""
@@ -128,6 +151,15 @@ def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", exc
         raise Rechazo(f"«{p['nombre']}» no admite: {', '.join(sobra)}")
     # una continuación ya pasó las políticas al empezar (la pausa sí cuenta siempre)
     PL.politicas(pid, slug, excepcion=excepcion or bool(origen))
+    if not origen:
+        igual = duplicado(slug, pid, params)
+        if igual:   # el mismo trabajo ya está en marcha: no se lanza otro (ni otra puerta igual)
+            return {**igual, "duplicado": True}
+        if decide(p) and not excepcion and not seco:
+            n = decisiones_pendientes(slug)
+            if n >= MAX_DECISIONES:
+                raise Rechazo(f"{C.leer(slug).get('nombre') or slug} ya tiene {n} decisiones pendientes: "
+                              f"decide alguna antes de lanzar «{p['nombre']}».")
     eid = _id(pid, params)
     etapas = [{"id": s["id"], "titulo": _titulo(s, params), "max_runtime": s.get("max_runtime", "60m")} for s in r["etapas"]]
     plan = {"id": eid, "cliente": slug, "pipeline": pid, "nombre": p["nombre"], "params": params,
@@ -217,7 +249,7 @@ def listar(slug: str, abiertos: bool = False) -> list:
     out = []
     for f in sorted(d.glob("*/encargo.json")) if d.is_dir() else []:
         e = B.leer(f) or {}
-        if e and (not abiertos or e.get("estado") not in ("cerrado", "descartado")):
+        if e and (not abiertos or e.get("estado") not in ("cerrado", "descartado", "hecho")):
             out.append(e)
     return sorted(out, key=lambda e: e.get("creado", ""))
 
@@ -243,7 +275,8 @@ def main(argv=None) -> int:
             brief = Path(x.brief).read_text() if x.brief else ""
             e = lanzar(x.slug, x.pipeline, params, brief, x.excepcion, x.quien, x.seco)
             print(json.dumps({"encargo": e["id"], "etapas": [s["id"] for s in e["etapas"]],
-                              "saltadas": e["saltadas"], "tarjetas": e["tarjetas"], "seco": x.seco}, ensure_ascii=False))
+                              "saltadas": e["saltadas"], "tarjetas": e["tarjetas"], "seco": x.seco,
+                              "duplicado": bool(e.get("duplicado"))}, ensure_ascii=False))
         elif x.cmd == "ver":
             print(json.dumps(leer(x.slug, x.encargo), ensure_ascii=False, indent=2))
         elif x.cmd == "listar":

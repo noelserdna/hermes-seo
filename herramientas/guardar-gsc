@@ -77,11 +77,15 @@ def leer_token(perfil, nombre):
                  3, ERR)
     d = json.loads(archivo.read_text())
     if d.get("expires_at", 0) < time.time() + 300:
-        try:
-            subprocess.run(["hermes", "-p", perfil, "mcp", "test", nombre], capture_output=True, timeout=180)
-        except (OSError, subprocess.SubprocessError):
-            pass
-        d = json.loads(archivo.read_text())
+        for intento in (1, 2):   # 15-11: la renovación falló una vez a las 06:00 y horas después funcionó sola
+            try:
+                subprocess.run(["hermes", "-p", perfil, "mcp", "test", nombre], capture_output=True, timeout=180)
+            except (OSError, subprocess.SubprocessError):
+                pass
+            d = json.loads(archivo.read_text())
+            if d.get("expires_at", 0) >= time.time() + 60 or intento == 2:
+                break
+            time.sleep(int(os.environ.get("HSEO_GSC_ESPERA", "20")))
         if d.get("expires_at", 0) < time.time() + 60:
             H.fallar(f"el acceso a Search Console ha caducado: hay que reconectar (hermes -p {perfil} mcp login {nombre})",
                      3, ERR)
@@ -129,7 +133,7 @@ def main():
     else:
         guardados = sorted(p.stem for p in destino.glob("????-??-??.json"))
         desde = dt.date.fromisoformat(guardados[0]) if guardados else fin - dt.timedelta(days=29)
-    dia, nuevos = desde, 0
+    dia, nuevos, vacios = desde, 0, 0
     while dia <= fin:
         archivo = destino / f"{dia}.json"
         if not archivo.exists():
@@ -143,10 +147,13 @@ def main():
                 "pais": filas(c.rendimiento(d, ["country"], 50)),
                 "dispositivo": filas(c.rendimiento(d, ["device"], 10)),
             }
-            archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=1))
-            nuevos += 1
+            if not (datos["totales"] or {}).get("impresiones") and not datos["pagina"]:
+                vacios += 1          # un día a cero no se guarda: se vuelve a pedir en la siguiente recogida
+            else:                    # (14-11: el 11-11 quedó guardado a cero y falseaba los 28 días)
+                archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=1))
+                nuevos += 1
         dia += dt.timedelta(days=1)
-    print(f"GSC_OK {nuevos} días nuevos (hasta {fin}) en {destino}")
+    print(f"GSC_OK {nuevos} días nuevos (hasta {fin}) en {destino}" + (f"; {vacios} sin datos todavía" if vacios else ""))
 
 
 if __name__ == "__main__":

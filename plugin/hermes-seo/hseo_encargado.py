@@ -80,10 +80,7 @@ def vigia(slug: str, ahora: float | None = None) -> list:
             out.append(f"PUERTA CON ERROR | {p['id']} | {str(p.get('error', ''))[:120]}")
         elif p["estado"] == "decidida" and ahora > float(p.get("firmar_en") or 0) + 600:
             out.append(f"DECIDIDA SIN FIRMAR | {p['id']} | {p['titulo'][:80]}")
-        elif p["estado"] == "abierta":
-            t = _tramo(ahora - _ts(p.get("creada")))
-            if t:
-                out.append(f"PUERTA ESPERANDO | {p['id']} | {t}")
+        # una puerta abierta no es un asunto: no hay recordatorios (sale en el parte y en /seo_puertas)
     if "gsc" in C.capacidades(C.leer(slug)):
         fotos = sorted((d / "datos" / "gsc").glob("*.json")) if (d / "datos" / "gsc").is_dir() else []
         if fotos:

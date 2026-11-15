@@ -154,9 +154,13 @@ def fin(slug: str, eid: str, etapa: str, res: dict, t0: float) -> dict:
     ultima = enc["etapas"][-1]["id"] == etapa
     res.setdefault("resumen", "")
     if res.get("outcome") == "done" and ultima:
-        enc["estado"] = "en-puerta" if enc.get("puerta") else "hecho"
+        # una puerta solo existe si aprobarla ejecuta algo; si no, es un informe: se guarda y sale en el parte
+        decide = bool(enc.get("puerta")) and str((enc.get("puerta") or {}).get("al_aprobar", "nada")) != "nada"
+        enc["estado"] = "en-puerta" if decide else "hecho"
+        if enc.get("puerta") and not decide:
+            enc["informe"] = True
         E.guardar(slug, enc)
-        if enc.get("puerta"):
+        if decide:
             try:
                 g = _cargar("hseo_puertas").abrir(slug, eid)
                 res["puerta"] = g["id"]

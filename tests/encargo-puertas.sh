@@ -112,7 +112,20 @@ si "puertas.jsonl registra la firma" "grep -q '\"verbo\": \"cambios\"' $HERMES_S
 R=$($EN lanzar web alta --quien ana); A=$(echo "$R" | jq -r .encargo)
 GA=$(bash "$ROOT/etapa.sh" web "$A" alta | tail -1 | jq -r '.puerta // empty')
 si "aprobar el alta lanza la línea base" "$PU decidir-local $GA acepto && ls $HERMES_SEO_HOME/clientes/web/encargos | grep -q '^linea-base-'"
-R=$($EN lanzar web radar); RD=$(echo "$R" | jq -r .encargo)
+# un informe (al_aprobar: nada) no abre puerta: queda hecho y sale en el parte
+R=$($EN lanzar web radar); RI=$(echo "$R" | jq -r .encargo)
+GI=$(bash "$ROOT/etapa.sh" web "$RI" radar | tail -1 | jq -r '.puerta // empty')
+si "un informe no abre puerta y queda hecho" "[ -z '$GI' ] && jq -e '.estado == \"hecho\" and .informe' $HERMES_SEO_HOME/clientes/web/encargos/$RI/encargo.json"
+si "y se puede volver a lanzar (no cuenta como duplicado)" "$EN lanzar web radar | jq -e '.duplicado | not'"
+no "el mismo trabajo en marcha no se lanza dos veces" "$EN lanzar web radar | jq -e '.duplicado | not'"
+# una pipeline cuya puerta ejecuta algo, para probar las decisiones
+mkdir -p "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines"
+cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/plan.json" <<'J'
+{"id":"plan","nombre":"Plan","parametros":{"n":"vuelta"},"etapas":[{"id":"radar","titulo":"Plan {n}","perfil":"seo-analista","skill":"radar","salida":"radar.md"}],
+ "puerta":{"tipo":"plan-editorial","al_aprobar":"script:nada.sh"}}
+J
+printf '#!/usr/bin/env bash\ntrue\n' > "$HERMES_SEO_HOME/clientes/web/extensiones/nada.sh"
+R=$($EN lanzar web plan --param n=1 --excepcion); RD=$(echo "$R" | jq -r .encargo)
 GR=$(bash "$ROOT/etapa.sh" web "$RD" radar | tail -1 | jq -r '.puerta // empty')
 si "rechazar cierra el encargo como descartado" "$PU decidir-local $GR rechazo 'No interesa' && jq -e '.estado == \"descartado\"' $HERMES_SEO_HOME/clientes/web/encargos/$RD/encargo.json"
 
@@ -149,7 +162,7 @@ si "script: lanza el script de la web con el encargo y la firma" "$PU decidir-lo
 $C config web politicas.congelado_hasta "" >/dev/null
 
 # ── Jev ──
-R=$($EN lanzar web radar); J1=$(echo "$R" | jq -r .encargo)
+R=$($EN lanzar web plan --param n=2 --excepcion); J1=$(echo "$R" | jq -r .encargo)
 GJ=$(bash "$ROOT/etapa.sh" web "$J1" radar | tail -1 | jq -r '.puerta // empty')
 python3 - "$GJ" <<PY && ok "Jev: modos, umbrales, reservadas, avisos graves, veto al deshacer y firma como Jev" || bad "Jev"
 exec(open("$T/py").read())
@@ -162,9 +175,9 @@ PU.poner_modo("piloto", "web"); p = PU.aplicar_jev(g, alto); assert p["jev"]["de
 PU.deshacer(g, "ana"); p = PU.leer(g); assert p["jev_vetado"]
 p = PU.aplicar_jev(g, alto); assert not p["jev"]["decide"] and "deshizo" in p["jev"]["motivo"]  # vetado
 PY
-R=$($EN lanzar web radar); J2=$(echo "$R" | jq -r .encargo)
+R=$($EN lanzar web plan --param n=3 --excepcion); J2=$(echo "$R" | jq -r .encargo)
 GJ2=$(bash "$ROOT/etapa.sh" web "$J2" radar | tail -1 | jq -r '.puerta // empty')
-GALTA=$(bash "$ROOT/etapa.sh" web "$($EN lanzar web alta | jq -r .encargo)" alta | tail -1 | jq -r '.puerta // empty')
+GALTA=$(bash "$ROOT/etapa.sh" web "$($EN lanzar web alta --excepcion | jq -r .encargo)" alta | tail -1 | jq -r '.puerta // empty')
 python3 - "$GJ2" "$GALTA" <<PY && ok "Jev en auto: umbral propio, nunca reservadas ni rechazos, el notario lo vuelve a comprobar" || bad "Jev auto"
 exec(open("$T/py").read())
 g, galta = sys.argv[1], sys.argv[2]

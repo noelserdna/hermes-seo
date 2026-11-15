@@ -189,6 +189,9 @@ def main(argv=None) -> int:
             if len(params) != len(a.param):
                 raise Rechazo("Cada --param va como clave=valor")
             e = E.lanzar(a.cliente, a.pipeline, params, a.brief, a.excepcion, quien())
+            if e.get("duplicado"):
+                print(f"⏭ {e['nombre']} ya está en marcha para {a.cliente} ({e['id']}): no lanzo otro.")
+                return 0
             print(f"🚀 {e['nombre']} en marcha para {a.cliente} ({e['id']}): {len(e['etapas'])} etapas"
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd == "reintentar":
