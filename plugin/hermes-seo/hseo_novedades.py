@@ -55,7 +55,8 @@ def _version(t: str) -> tuple:
 def recoger() -> dict:
     instalada = _version(_sal([os.environ.get("HERMES_BIN", "hermes"), "--version"]))
     tags = [l.split("refs/tags/")[-1] for l in _sal(["git", "ls-remote", "--tags", REPO_HERMES, "v*"]).splitlines() if "refs/tags/" in l]
-    estables = sorted({_version(t) for t in tags if not re.search(r"canary|rc|beta|alpha|\^", t) and _version(t)})
+    # solo vX.Y.Z de verdad: fuera canary/rc y las etiquetas con fecha (v2026.9.24), que no son versiones
+    estables = sorted({_version(t) for t in tags if re.fullmatch(r"v\d{1,3}\.\d{1,3}\.\d{1,3}", t) and _version(t)[0] < 100})
     ultima = estables[-1] if estables else ()
     inst = B.leer(B.home() / "instalacion.json") or {}
     commit_inst = (re.search(r"-([0-9a-f]{7,40})(?:-local)?$", str(inst.get("carpeta") or "")) or [None, ""])[1]

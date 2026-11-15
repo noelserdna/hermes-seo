@@ -11,11 +11,11 @@ si() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
 P="$ROOT/plugin/hermes-seo"; H="python3 $P/hseo_cli.py"
 git config --global user.name p >/dev/null 2>&1; git config --global user.email p@x >/dev/null 2>&1; git config --global init.defaultBranch main >/dev/null 2>&1
 mkdir -p "$T/bin" "$HERMES_SEO_HOME"; printf '#!/bin/sh\necho "Hermes Agent v0.23.1 (2026.9.24)"\n' > "$T/bin/hermes"; chmod +x "$T/bin/hermes"; export HERMES_BIN="$T/bin/hermes"
-git init -q --bare "$T/hermes.git"; git init -q "$T/h"; (cd "$T/h" && git commit -q --allow-empty -m a && git tag v0.23.1 && git tag v0.24.0 && git tag v0.25.0-canary.3 && git remote add origin "$T/hermes.git" && git push -q origin main --tags)
+git init -q --bare "$T/hermes.git"; git init -q "$T/h"; (cd "$T/h" && git commit -q --allow-empty -m a && git tag v0.23.1 && git tag v0.24.0 && git tag v0.25.0-canary.3 && git tag v2026.9.24 && git remote add origin "$T/hermes.git" && git push -q origin main --tags)
 export HSEO_REPO_HERMES="$T/hermes.git" HSEO_REPO_PLUGIN="$T/hermes.git"
 echo "{\"yo\":{\"nombre\":\"Yo\",\"canales\":{\"local\":\"$(id -un)\"},\"clientes\":[\"*\"]}}" > "$HERMES_SEO_HOME/aprobadores.json"
 R=$($H novedad recoger)
-echo "$R" | jq -e '.hermes.instalada == "0.23.1" and .hermes.ultima_estable == "0.24.0" and .hermes.hay_nueva' >/dev/null && ok "versiones: hay una estable nueva (la canary no cuenta)" || bad "versiones ($R)"
+echo "$R" | jq -e '.hermes.instalada == "0.23.1" and .hermes.ultima_estable == "0.24.0" and .hermes.hay_nueva' >/dev/null && ok "versiones: hay una estable nueva (ni la canary ni la etiqueta con fecha cuentan)" || bad "versiones ($R)"
 si "una novedad que sube clics o citas llega como puerta «adoptar» del sistema" "$H novedad proponer 'Hermes 0.24' 'entrega de cron por tema' 'bajo' | grep -q 'Propuesta' && python3 $P/hseo_puertas.py listar | grep -q '__cartera__.*Novedad'"
 $H novedad proponer b c d >/dev/null; $H novedad proponer e f g >/dev/null
 si "más de 3 al mes: se apunta como descartada" "$H novedad proponer h i j | grep -q 'descartada' && grep -q 'tope de 3' $HERMES_SEO_HOME/wiki/concepts/novedades-descartadas.md"
