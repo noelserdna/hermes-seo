@@ -39,4 +39,11 @@ si "haz la 1 otra vez: ya se lanzó" "$H propuesta web 1 | grep -q 'ya se lanzó
 si "el siguiente parte ya no la propone (está en marcha)" "! $H parte web --no-guardar | grep -q \"\$(jq -r '.propuestas[0].texto' $HERMES_SEO_HOME/clientes/web/informes/partes/ultimo.json | cut -c1-40)\""
 si "una propuesta que no existe se rechaza" "! $H propuesta web 9"
 si "el plan de crons incluye el parte del lunes a las 10:30" "python3 $P/hseo_crons.py plan web | jq -e 'any(.[]; .nombre == \"parte\" and .horario == \"30 10 * * 1\" and .orden == [\"parte\", \"web\"])'"
+python3 - "$HERMES_SEO_HOME/clientes/web" <<'PY'
+import json, sys, time
+from pathlib import Path
+open(Path(sys.argv[1]) / "cambios.jsonl", "a").write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ"), "url": "https://web.com/b/"}) + "\n")
+PY
+si "una página cambiada hace menos de 28 días no se propone" "! $H parte web --no-guardar | grep -q 'web.com/b\|/b (' "
+si "decimales con coma" "$H parte web --no-guardar | grep -q 'posición 9,0'"
 exit $fail

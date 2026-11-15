@@ -49,6 +49,10 @@ def _miles(n) -> str:
     return f"{int(n):,}".replace(",", ".")
 
 
+def _dec(x) -> str:
+    return str(x).replace(".", ",")
+
+
 def _var(a: float, b: float) -> str:
     if not b:
         return ""
@@ -76,26 +80,30 @@ def propuestas(slug: str, r: dict) -> list:
     """Catálogo cerrado, ordenado por clics que podría ganar; como mucho una de título y MAX_PROPUESTAS en total."""
     cand = []
     en_marcha = json.dumps([e.get("params") for e in E.listar(slug, abiertos=True)], ensure_ascii=False)
+    # una página con un cambio publicado hace menos de 28 días no se vuelve a tocar (se mezclarían los efectos)
+    hace = time.time() - 28 * 86400
+    recientes = [str(x.get("url") or "").rstrip("/") for x in ES._jsonl(C.carpeta(slug) / "cambios.jsonl") if ES._ts(x.get("ts")) >= hace]
+    en_marcha += " " + " ".join(recientes + [_ruta(u) for u in recientes if u])
     if r.get("hay_datos"):
         for p in r.get("bajo_ctr") or []:   # muchas impresiones y pocos clics para su posición
             url = p["pagina"]
-            if url in en_marcha or _ruta(url) in en_marcha:
+            if url.rstrip("/") in en_marcha or _ruta(url).rstrip("/") in en_marcha:
                 continue
             params = {"que": f"Título, meta descripción y primer párrafo de {url}: tiene {_miles(p['impresiones'])} "
                              f"impresiones y {p['clics']} clics en 28 días en la posición {p['posicion']}; con esa posición "
                              f"se esperarían unos {p['clics_esperados']:.0f}. Que el resultado de Google responda mejor a lo que se busca."}
             cand.append({"id": "bajo-ctr", "titulo": True, "valor": p["clics_esperados"] - p["clics"],
                          "texto": f"Mejorar el título y la entrada de {_ruta(url)} ({_miles(p['impresiones'])} impresiones, "
-                                  f"{p['clics']} clics, posición {p['posicion']})",
+                                  f"{p['clics']} clics, posición {_dec(p['posicion'])})",
                          "orden": {"tipo": "lanzar", "pipeline": "cambio-seo", "params": params}})
         for q in (r.get("pagina_dos") or [])[:5]:   # consultas en posiciones 8-20: de la página 2 a la 1
             url = q.get("pagina") or ""
-            if not url or url in en_marcha or _ruta(url) in en_marcha:
+            if not url or url.rstrip("/") in en_marcha or _ruta(url).rstrip("/") in en_marcha:
                 continue
             params = {"url": url, "motivo": f"La consulta «{q['consulta']}» tiene {q['impresiones']} impresiones en la "
                                             f"posición {q['posicion']}: llevarla a la primera página."}
             cand.append({"id": "pagina-dos", "titulo": False, "valor": q["impresiones"] * 0.03,
-                         "texto": f"Llevar «{q['consulta']}» a la primera página ({q['impresiones']} impresiones, posición {q['posicion']})",
+                         "texto": f"Llevar «{q['consulta']}» a la primera página ({q['impresiones']} impresiones, posición {_dec(q['posicion'])})",
                          "orden": {"tipo": "lanzar", "pipeline": "actualizacion", "params": params}})
     if not any(e.get("pipeline") == "estrategia" for e in E.listar(slug)):
         cand.append({"id": "sin-mapa", "titulo": False, "valor": 5,
@@ -159,7 +167,7 @@ def texto(parte: dict) -> str:
         a, b = c["actual"], c["anterior"]
         l.append(f"Google, 28 días hasta el {c['hasta']}: {_miles(a['clics'])} clics{_var(a['clics'], b['clics'])} · "
                  f"{_miles(a['impresiones'])} impresiones{_var(a['impresiones'], b['impresiones'])} · "
-                 f"{a['ctr']} % de clic · posición {a['posicion']}")
+                 f"{_dec(a['ctr'])} % de clic · posición {_dec(a['posicion'])}")
     for f in parte.get("faltan") or []:
         l.append(f"⚠️ Falta: {f}")
     if parte.get("hecho"):
