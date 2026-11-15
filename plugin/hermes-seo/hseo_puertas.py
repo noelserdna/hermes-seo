@@ -370,7 +370,7 @@ def _script(slug: str, eid: str | None, orden: str, firma: str) -> str:
     log = C.carpeta(slug) / "logs" / f"script-{eid or 'puerta'}-{partes[0]}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid or "", "HERMES_SEO_HOME": str(B.home())}
-    subprocess.Popen(["bash", str(ruta), *partes[1:]], start_new_session=True, cwd=str(C.carpeta(slug)), env=env,
+    subprocess.Popen(B.desacoplar(["bash", str(ruta), *partes[1:]]), start_new_session=True, cwd=str(C.carpeta(slug)), env=env,
                      stdout=open(log, "w"), stderr=subprocess.STDOUT)
     return f"lanzado {partes[0]} (registro en logs/{log.name})"
 

@@ -21,6 +21,17 @@ def home() -> Path:
     return Path(os.environ.get("HERMES_SEO_HOME", Path.home() / ".hermes" / "hermes-seo"))
 
 
+def desacoplar(cmd: list) -> list:
+    """Un proceso largo (despliegue, script de una puerta) que debe sobrevivir a un reinicio del gateway: con systemd de
+    usuario (linger) se lanza en su propio scope, fuera del cgroup del servicio; si no hay, tal cual (start_new_session)."""
+    if os.environ.get("HSEO_SIN_SCOPE") or not shutil.which("systemd-run"):
+        return cmd
+    xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    if not os.path.isdir(xdg):
+        return cmd
+    return ["env", f"XDG_RUNTIME_DIR={xdg}", "systemd-run", "--user", "--scope", "--quiet", "--collect", *cmd]
+
+
 class Rechazo(Exception):
     """Algo que la persona (o el agente) pidió y no se puede hacer; el mensaje se le enseña tal cual."""
 

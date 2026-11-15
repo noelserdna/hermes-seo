@@ -74,4 +74,16 @@ echo '{"ts": "2099-01-01T00:00:00Z", "ok": false, "motivo": "no se pudo subir"}'
 si "y si la última copia falló" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q '^COPIA FALLIDA | r2 | no se pudo subir'"
 rm -f "$HERMES_SEO_HOME/copia.json"
 no "sin copia configurada, nada" "HSEO_AVISO_DISCO=101 python3 $P/hseo_encargado.py vigia web | grep -q COPIA"
+mkdir -p "$T/bin" "$T/run"; printf '#!/bin/sh\nexit 0\n' > "$T/bin/systemd-run"; chmod +x "$T/bin/systemd-run"
+python3 - "$P" "$T" <<'PY' && ok "desacoplar: con systemd-run, en su propio scope; sin él o con HSEO_SIN_SCOPE, tal cual" || bad "desacoplar"
+import importlib.util, os, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hseo_base", Path(sys.argv[1]) / "hseo_base.py")
+B = importlib.util.module_from_spec(spec); spec.loader.exec_module(B)
+T = sys.argv[2]
+os.environ["PATH"] = T + "/bin:" + os.environ["PATH"]; os.environ["XDG_RUNTIME_DIR"] = T + "/run"
+c = B.desacoplar(["bash", "x.sh"])
+assert c[:6] == ["env", f"XDG_RUNTIME_DIR={T}/run", "systemd-run", "--user", "--scope", "--quiet"] and c[-2:] == ["bash", "x.sh"], c
+os.environ["HSEO_SIN_SCOPE"] = "1"; assert B.desacoplar(["bash", "x.sh"]) == ["bash", "x.sh"]
+PY
 exit $fail

@@ -71,16 +71,15 @@ V
   echo "  Vigía: cada 5 min (sin IA salvo si algo cambia), avisa en $destino"
 }
 
-tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan): se borran los hseo-* y se recrean
-  local PD="$HH/profiles/$P" destino tz plan
+tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan), reconciliados POR NOMBRE: se edita el que
+            # existe (conserva su id e historial), se crea el que falta y se quita el que sobra. Los errores se ven.
+  local PD="$HH/profiles/$P" destino tz plan ids nombre horario orden id fallos=0
   mkdir -p "$PD/scripts"
   destino=$(jq -r 'if (.telegram.chat_id // "") != "" then "telegram:\(.telegram.chat_id):\(.telegram.thread_id)" else "telegram" end' "$CARPETA/cliente.json")
   tz=$(jq -r '.zona_horaria' "$CARPETA/cliente.json")
   plan=$(python3 "$ARNES/plugin/hermes-seo/hseo_crons.py" plan "$SLUG") || return 1
-  for id in $(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name | startswith("hseo-")) | .id' "$PD/cron/jobs.json" 2>/dev/null || true); do
-    "$HERMES" -p "$P" cron remove "$id" >/dev/null 2>&1 || true
-  done
-  rm -f "$PD"/scripts/hseo-*.sh
+  ids=$(jq -r '(if type == "array" then . else (.jobs // []) end)[] | select(.name | startswith("hseo-")) | "\(.name)\t\(.id)"' \
+    "$PD/cron/jobs.json" 2>/dev/null || true)
   while IFS=$'\t' read -r nombre horario orden; do
     [ -n "$nombre" ] || continue
     # sin salida si todo va bien (no avisa); si falla, el motivo llega al tema de la web
@@ -89,10 +88,26 @@ tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan): s
     [ "$nombre" = datos ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
       "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
     chmod +x "$PD/scripts/hseo-$nombre.sh"
-    "$HERMES" -p "$P" cron create "$horario" --name "hseo-$nombre" --no-agent --script "hseo-$nombre.sh" \
-      --deliver "$destino" --timezone "$tz" --catch-up off >/dev/null
-    echo "  ⏰ $nombre: $horario ($tz)"
+    id=$(awk -F'\t' -v n="hseo-$nombre" '$1 == n {print $2; exit}' <<< "$ids")
+    if [ -n "$id" ]; then
+      "$HERMES" -p "$P" cron edit "$id" --schedule "$horario" --no-agent --script "hseo-$nombre.sh" \
+        --deliver "$destino" --catch-up off >/dev/null || { echo "  ⚠️ no pude actualizar hseo-$nombre" >&2; fallos=1; }
+      echo "  ⏰ $nombre: $horario ($tz) · al día"
+    else
+      "$HERMES" -p "$P" cron create "$horario" --name "hseo-$nombre" --no-agent --script "hseo-$nombre.sh" \
+        --deliver "$destino" --timezone "$tz" --catch-up off >/dev/null || { echo "  ⚠️ no pude crear hseo-$nombre" >&2; fallos=1; }
+      echo "  ⏰ $nombre: $horario ($tz) · nuevo"
+    fi
   done < <(jq -r '.[] | [.nombre, .horario, (.orden | join(" "))] | @tsv' <<< "$plan")
+  # los que ya no están en el plan
+  while IFS=$'\t' read -r nombre id; do
+    [ -n "$nombre" ] || continue
+    if ! jq -e --arg n "${nombre#hseo-}" 'any(.[]; .nombre == $n)' <<< "$plan" >/dev/null; then
+      "$HERMES" -p "$P" cron remove "$id" >/dev/null || { echo "  ⚠️ no pude quitar $nombre" >&2; fallos=1; }
+      rm -f "$PD/scripts/$nombre.sh"; echo "  🗑 $nombre: ya no está en el plan"
+    fi
+  done <<< "$ids"
+  return $fallos
 }
 
 case "$CMD" in

@@ -2,6 +2,26 @@
 # Hermes falso para las pruebas: apunta cada llamada y simula el kanban, los perfiles y las rutas de Telegram.
 echo "$*" >> "${FALSO_LLAMADAS:?}"
 F=$(dirname "$FALSO_LLAMADAS")
+# crons por perfil: create/remove mantienen profiles/<p>/cron/jobs.json (para probar la reconciliación por nombre)
+if [ "${1:-}" = -p ] && [ "${3:-}" = cron ]; then
+  python3 - "$HOME/.hermes/profiles/$2/cron/jobs.json" "${@:4}" <<'PY'
+import json, sys, hashlib, os
+f, args = sys.argv[1], sys.argv[2:]
+os.makedirs(os.path.dirname(f), exist_ok=True)
+try:
+    d = json.load(open(f))
+except Exception:
+    d = {"jobs": []}
+jobs = d["jobs"] if isinstance(d, dict) else d
+if args[0] == "create" and "--name" in args:
+    n = args[args.index("--name") + 1]
+    jobs.append({"id": hashlib.sha1((n + str(len(jobs))).encode()).hexdigest()[:12], "name": n})
+elif args[0] == "remove":
+    jobs[:] = [j for j in jobs if j["id"] != args[1]]
+json.dump({"jobs": jobs}, open(f, "w"))
+PY
+  exit 0
+fi
 case "$*" in
   "kanban boards list --json") cat "${FALSO_TABLEROS:-/dev/null}" 2>/dev/null || echo "[]" ;;
   "kanban boards create "*) b=$(echo "$*" | awk '{print $4}'); echo "[{\"slug\":\"$b\"}]" > "${FALSO_TABLEROS:?}" ;;

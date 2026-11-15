@@ -56,6 +56,17 @@ $HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1
 si "crons: con Bing hay métricas; radar desactivado; visibilidad solo si se activa (y sin preguntas no hay pipeline… pero sí la tarea)" "bash $S/actual/encargado.sh crons web && grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && ! grep -q 'hseo-radar' $FALSO_LLAMADAS && grep -q 'hseo-visibilidad-ia' $FALSO_LLAMADAS && [ ! -f $H/profiles/seo-p-web/scripts/hseo-radar.sh ]"
 si "en la zona horaria de la web" "grep -q -- '--timezone Europe/Madrid' $FALSO_LLAMADAS"
 si "reinstalar pone al día los encargados" "bash $ROOT/instalar.sh > $T/salida; grep -q 'Encargado de web al día' $T/salida"
+# crons reconciliados por nombre: reinstalar no cambia los ids; lo que sobra se quita
+J=$H/profiles/seo-p-web/cron/jobs.json
+ANTES=$(jq -c '[.jobs[] | select(.name | startswith("hseo-"))] | sort_by(.name)' $J)
+si "hay crons hseo- en el perfil del encargado" "[ \"\$(jq length <<< '$ANTES')\" -gt 0 ]"
+si "otra vez crons: mismos ids, ninguno nuevo ni perdido" "bash $S/actual/encargado.sh crons web && [ \"\$(jq -c '[.jobs[] | select(.name | startswith(\"hseo-\"))] | sort_by(.name)' $J)\" = '$ANTES' ]"
+python3 - "$J" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["jobs"].append({"id": "viejo123", "name": "hseo-sobra"}); json.dump(d, open(sys.argv[1], "w"))
+PY
+si "un hseo- que ya no está en el plan se quita" "bash $S/actual/encargado.sh crons web && ! grep -q hseo-sobra $J"
+
 # volver a la instalación anterior sin tocar datos
 ANT=$(readlink $S/actual); cp -a "$ANT" "$S/0.0.9-viejo"; echo "# viejo" >> "$S/0.0.9-viejo/plugin/hermes-seo/plugin.yaml"
 si "volver.sh reapunta actual y recopia el plugin al principal y al encargado" "bash $ROOT/volver.sh 0.0.9-viejo --sin-reinicio && [ \"\$(readlink $S/actual)\" = $S/0.0.9-viejo ] && grep -q '# viejo' $H/plugins/hermes-seo/plugin.yaml && grep -q '# viejo' $H/profiles/seo-p-web/plugins/hermes-seo/plugin.yaml"
