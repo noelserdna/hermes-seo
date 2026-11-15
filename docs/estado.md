@@ -89,3 +89,16 @@
 En DesarrolloMCP se lanzó a mano lo que iba a esperar a su fecha: datos, métricas, parte, cuaderno, novedades,
 visibilidad en IA y autoridad. Aterrizaje probado con una web de laboratorio (borrada): con 0 pasos solo arranca la
 vigilancia; sin Search Console no hay línea base; `omitir` solo admite 6, 7 y 8. Esta nota llegó por la puerta «mejora».
+
+## 15-11, noche: primeras decisiones por correo y paso a solo correo
+
+- Tres decisiones reales de Andrés por correo, todas publicadas (lección 04, #103 y la gestión de cifras del curso).
+- Correo: asunto único por puerta, con fecha y hora en la zona de la web (con el mismo asunto, Gmail juntaba la puerta
+  nueva con las viejas). Un código de una puerta ya sustituida contesta cuál vale. El tope diario (10) solo cuenta los
+  textos libres: antes descartó en silencio un PUBLICAR válido.
+- Pruebas negativas en vivo: remitente ajeno auténtico → «remitente desconocido»; contenido cambiado tras el correo →
+  no decide y se reenvía. El From falsificado no se pudo enviar en vivo (Cloudflare lo rechaza, error 10202, y el puerto
+  25 de salida está cerrado); lo cubre `autentico()` del Worker y su prueba.
+- DesarrolloMCP pasa a `contacto.canal = correo` (`hseo_correo.py contacto <web> <correo> --canal correo`; para volver,
+  `--canal ambos`). El tema de Telegram y `/seo_puertas` quedan de reserva.
+- Queda por ver: una semana sin intervenir (cuaderno, métricas y parte del lunes) y un artículo de punta a punta.
