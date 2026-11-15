@@ -7,6 +7,7 @@ Por defecto (en la zona horaria de la web), solo las que su configuración permi
   radar               lunes 07:30
   metricas-semanales  lunes 08:00
   revision-mensual    día 1, 08:30
+  autoridad           día 2, 10:00           dónde estar para ganar autoridad (abre una puerta con ≤4 gestiones)
   visibilidad-ia      días 1 y 15, 09:00     (tiene coste de APIs: desactivada salvo que la web la active)
 
 cliente.json → crons: {"radar": "0 9 * * 3", "visibilidad-ia": "0 9 1 * *", "metricas-semanales": null}
@@ -39,7 +40,7 @@ C = _cargar("hseo_clientes")
 PL = _cargar("hseo_pipelines")
 
 DEFECTO = {"datos": "0 6 * * *", "vigilancia": "*/5 * * * *", "parte": "30 10 * * 1", "radar": "30 7 * * 1", "metricas-semanales": "0 8 * * 1",
-           "revision-mensual": "30 8 1 * *"}
+           "revision-mensual": "30 8 1 * *", "autoridad": "0 10 2 * *"}
 SOLO_SI_SE_ACTIVA = {"visibilidad-ia": "0 9 1,15 * *"}   # coste externo: la persona la activa en la configuración
 
 

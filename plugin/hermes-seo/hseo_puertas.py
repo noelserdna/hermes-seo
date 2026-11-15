@@ -52,7 +52,7 @@ PL = _cargar("hseo_pipelines")
 E = _cargar("hseo_encargos")
 Rechazo = B.Rechazo
 
-APRUEBA = ("acepto",)   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
+APRUEBA = ("acepto", "algunas")   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
 DESHACER_DEFECTO_S = 180
 EMOJI = {"alta": "🧭", "plan-tecnico": "🛠", "plan-editorial": "🗺", "publicar": "🚀", "cambio-tecnico": "🔧",
          "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣"}
@@ -70,7 +70,8 @@ OPCIONES = {
                  {"verbo": "descarto", "etiqueta": "🗑 Descartar", "texto": True}],
     "cambio-tecnico": [{"verbo": "acepto", "etiqueta": "🔧 Aplicar"}, _CAMBIOS,
                        {"verbo": "descarto", "etiqueta": "🗑 Descartar", "texto": True}],
-    "difusion": [{"verbo": "acepto", "etiqueta": "📣 Adelante"}, _CAMBIOS, _NO],
+    "difusion": [{"verbo": "acepto", "etiqueta": "📣 Todas"}, {"verbo": "algunas", "etiqueta": "☑️ Solo algunas", "texto": True},
+                 _NO],
     "mantenimiento": [{"verbo": "cambio", "etiqueta": "🛠 Lanzar arreglo"},
                       {"verbo": "ignoro", "etiqueta": "🔕 Ignorar", "texto": True}],
 }
@@ -316,7 +317,7 @@ def _aplicar(puerta: dict, firma: str) -> str:
     verbo, texto = dec["verbo"], dec.get("texto", "")
     slug, eid = puerta["cliente"], puerta.get("encargo")
     enc = E.leer(slug, eid) if eid else None
-    if verbo in ("acepto", "cambio"):
+    if verbo in ("acepto", "cambio", "algunas"):
         accion = puerta.get("al_aprobar") or "nada"
         if puerta["tipo"] == "mantenimiento" and verbo == "cambio":
             accion = "pipeline:cambio-seo"
@@ -328,6 +329,13 @@ def _aplicar(puerta: dict, firma: str) -> str:
             except Exception as e:
                 raise Rechazo(f"No se pudo publicar: {e}")
             resultado = f"publicado: {res}"
+        elif accion == "gestiones":
+            sel = None
+            if verbo == "algunas":
+                sel = [int(x) for x in re.findall(r"\d+", texto)]
+                if not sel:
+                    raise Rechazo("«Solo algunas» necesita los números, p. ej. «1,3»")
+            resultado = _cargar("hseo_autoridad").aplicar(slug, eid, sel, firma)
         elif accion.startswith("pipeline:"):
             params = {"que": "\n".join(h if isinstance(h, str) else json.dumps(h, ensure_ascii=False)
                                        for h in puerta.get("hallazgos") or [])[:2000]} if puerta["tipo"] == "mantenimiento" else {}

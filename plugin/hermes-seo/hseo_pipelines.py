@@ -54,7 +54,7 @@ PERFILES_ROL = ("seo-investigador", "seo-redactor", "seo-verificador", "seo-edit
 EJECUTORES = ("hermes", "claude", "replay")
 TIPOS_PUERTA = ("alta", "plan-tecnico", "plan-editorial", "publicar", "cambio-tecnico", "decision", "veredicto",
                 "mantenimiento", "difusion")
-AL_APROBAR = re.compile(r"^(nada|publicar|pipeline:[a-z0-9-]+|script:[A-Za-z0-9._-]+( [^;&|`$<>]*)?)$")
+AL_APROBAR = re.compile(r"^(nada|publicar|gestiones|pipeline:[a-z0-9-]+|script:[A-Za-z0-9._-]+( [^;&|`$<>]*)?)$")
 ID = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 DURACION = re.compile(r"^\d{1,3}[mh]$")
 
@@ -94,7 +94,7 @@ def cargar(pid: str, slug: str | None = None) -> dict:
 
 # Datos que el CÓDIGO deja en la carpeta del encargo antes de una etapa («prepara»: [...]): las cifras no las calcula
 # el modelo. Cada una escribe datos-<nombre>.json (ver hseo_etapa.preparar).
-PREPARA = ("resumen",)
+PREPARA = ("resumen", "citas")
 
 def validar(p: dict) -> list:
     e = []

@@ -1,0 +1,23 @@
+{
+  "id": "autoridad",
+  "nombre": "Autoridad y presencia",
+  "descripcion": "Dónde citan los buscadores y las IA a otros y no a la web (listas, directorios, comparativas, foros), y hasta 4 gestiones para estar ahí, con el texto listo.",
+  "etapas": [
+    {
+      "id": "gestiones",
+      "titulo": "Autoridad y presencia: dónde estar",
+      "perfil": "seo-investigador",
+      "skill": "autoridad",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "prepara": [
+        "citas"
+      ],
+      "salida": "gestiones.md"
+    }
+  ],
+  "puerta": {
+    "tipo": "difusion",
+    "al_aprobar": "gestiones"
+  }
+}

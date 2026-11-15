@@ -16,6 +16,7 @@ y lo ejecuta el notario.
     hseo vueltas                                         (lanza las vueltas a redactar que pidió la verificación)
     hseo preguntar <cliente> "<texto>" · hseo ordenar <cliente> "<texto>"   (solo la coordinadora: habla con el encargado)
     hseo parte <cliente> [--no-guardar]                  (el parte semanal, sin IA)
+    hseo gestion pendientes <cliente> · hseo gestion hecha <cliente> <n> [url]   (autoridad: las gestiones tuyas)
     hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
   Cambiar el sistema (con la aprobación de la persona)
@@ -181,6 +182,8 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("gestion"); x.add_argument("accion", choices=("hecha", "pendientes")); x.add_argument("cliente")
+    x.add_argument("n", nargs="?", type=int); x.add_argument("url", nargs="?", default="")
     x = sub.add_parser("tanda"); x.add_argument("accion", choices=("proponer", "crear", "lanzar", "lista", "veredicto"))
     x.add_argument("cliente"); x.add_argument("id", nargs="?")
     x = sub.add_parser("wiki"); x.add_argument("accion", choices=("sembrar",)); x.add_argument("cliente")
@@ -242,6 +245,15 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "gestion":
+            AU = _cargar("hseo_autoridad")
+            if a.accion == "hecha":
+                if not a.n:
+                    raise Rechazo("uso: hseo gestion hecha <cliente> <n> [url]")
+                print(AU.hecha(a.cliente, a.n, a.url))
+            else:
+                for r in AU.pendientes_persona(a.cliente):
+                    print(f"{r.get('n')}. {r.get('destino')} ({r.get('tipo')}): {str(r.get('texto'))[:160]}")
         elif a.cmd == "tanda":
             T = _cargar("hseo_tandas")
             if a.accion in ("lanzar", "veredicto") and not a.id:

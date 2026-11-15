@@ -52,7 +52,7 @@ ETAPAS_MODELO = [
     ("revisar-lectura", "Revisión de lectura"), ("preparar", "Preparar la publicación"),
     ("analizar-cambio", "Analizar un cambio SEO"), ("aplicar-cambio", "Aplicar un cambio SEO"),
     ("metricas", "Métricas semanales"), ("revision-mensual", "Revisión mensual"), ("visibilidad", "Visibilidad en IA"),
-    ("difusion", "Difusión"), ("mantenimiento", "Mantenimiento"), ("veredicto", "Veredicto de un cambio"),
+    ("gestiones", "Autoridad y presencia"), ("mantenimiento", "Mantenimiento"), ("veredicto", "Veredicto de un cambio"),
 ]
 # juicio: donde más rinde un modelo grande
 PIENSAN = ("plan-tecnico", "mapa-tematico", "redactar", "revision-mensual", "veredicto", "aplicar-cambio")

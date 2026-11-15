@@ -110,6 +110,8 @@ def preparar(slug: str, d: Path, nombre: str) -> None:
     """Deja datos-<nombre>.json en el encargo: cifras calculadas por código para que la etapa no las invente."""
     if nombre == "resumen":
         datos = _cargar("hseo_datos").resumen(slug, 28)
+    elif nombre == "citas":
+        datos = _cargar("hseo_autoridad").citas(slug)
     else:
         return
     (d / f"datos-{nombre}.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1))

@@ -166,11 +166,15 @@ def generar(slug: str, ahora: float | None = None) -> dict:
     inc = [B.leer(f) or {} for f in sorted((d / "incidencias").glob("*.json"))] if (d / "incidencias").is_dir() else []
     resueltas = [i for i in inc if i.get("estado") == "resuelta" and i.get("sola") and ES._ts(i.get("resuelta")) >= desde]
     criterio = cfg.get("criterio") if isinstance(cfg.get("criterio"), dict) else None
+    try:
+        tuyas = [f"{r.get('n')}. {r.get('destino')}" for r in _cargar("hseo_autoridad").pendientes_persona(slug)]
+    except Exception:   # noqa: BLE001
+        tuyas = []
     return {"web": slug, "nombre": cfg.get("nombre") or slug, "fecha": datetime.now(timezone.utc).date().isoformat(),
             "cifras": r if r.get("hay_datos") else None, "faltan": faltan, "hecho": hecho,
             "publicado": [{"url": x.get("url"), "clase": x.get("clase")} for x in publicado],
             "puertas": [{"id": p["id"], "titulo": p["titulo"], "creada": p.get("creada")} for p in puertas],
-            "resueltas": [i.get("texto", "") for i in resueltas], "criterio": criterio,
+            "resueltas": [i.get("texto", "") for i in resueltas], "criterio": criterio, "gestiones_tuyas": tuyas,
             "propuestas": propuestas(slug, r)}
 
 
@@ -191,6 +195,8 @@ def texto(parte: dict) -> str:
     if parte.get("resueltas"):
         l.append(f"Incidencias resueltas solas: {len(parte['resueltas'])}")
     l.append(f"Pendiente de decidir: {len(parte['puertas'])}" + (" (" + "; ".join(p["titulo"][:50] for p in parte["puertas"]) + ")" if parte["puertas"] else ""))
+    if parte.get("gestiones_tuyas"):
+        l.append("Tu parte (autoridad, cuando puedas): " + "; ".join(parte["gestiones_tuyas"]))
     if parte.get("propuestas"):
         l.append("")
         l.append("Propuestas (responde «haz la 1», «haz la 2»…):")
