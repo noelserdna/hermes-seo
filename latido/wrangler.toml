@@ -1,0 +1,17 @@
+name = "hermes-latido"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+TELEGRAM_CHAT_ID = "888584395"
+NOMBRE = "El servidor de Hermes (Oracle)"
+MINUTOS = "15"
+
+# El id es el del KV de esta instalación; en otra cuenta: «wrangler kv namespace create LATIDO» y pon el suyo.
+[[kv_namespaces]]
+binding = "LATIDO"
+id = "570705e396b94f9289994087f89df0e4"
