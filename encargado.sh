@@ -85,7 +85,7 @@ tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan), r
     # sin salida si todo va bien (no avisa); si falla, el motivo llega al tema de la web
     printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q HSEO_QUIEN=cron PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nsalida=$(python3 %q %s 2>&1) || echo "⚠️ ${salida}"\n' \
       "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
-    [ "$nombre" = datos ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
+    [ "$nombre" = datos ] || [ "$nombre" = parte ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
       "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
     chmod +x "$PD/scripts/hseo-$nombre.sh"
     id=$(awk -F'\t' -v n="hseo-$nombre" '$1 == n {print $2; exit}' <<< "$ids")
@@ -143,7 +143,7 @@ case "$CMD" in
     "$HERMES" -p "$P" tools disable web browser image_gen tts computer_use cronjob delegation code_execution \
       connections kanban >/dev/null 2>&1 || true
     "$HERMES" -p "$P" tools enable terminal file clarify skills memory session_search vision >/dev/null 2>&1 || true
-    for kv in "terminal.cwd $CARPETA" "agent.clarify_timeout 1800" "curator.enabled false" "skills.write_approval true" "display.language es"; do
+    for kv in "terminal.cwd $CARPETA" "cron.wrap_response false" "agent.clarify_timeout 1800" "curator.enabled false" "skills.write_approval true" "display.language es"; do
       "$HERMES" -p "$P" config set $kv >/dev/null
     done
     "$HERMES" -p "$P" config set skills.external_dirs "[\"$ARNES/encargado/skills\"]" >/dev/null

@@ -14,6 +14,8 @@ y lo ejecuta el notario.
     hseo lanzar <cliente> <pipeline> [--param k=v]… [--brief TEXTO]
     hseo reintentar <cliente> <encargo> <etapa>          (una vez por etapa; después, una persona)
     hseo vueltas                                         (lanza las vueltas a redactar que pidió la verificación)
+    hseo parte <cliente> [--no-guardar]                  (el parte semanal, sin IA)
+    hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
   Cambiar el sistema (con la aprobación de la persona)
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
     hseo config <cliente> <clave.con.puntos> <valor>
@@ -142,6 +144,8 @@ def main(argv=None) -> int:
     x.add_argument("--param", action="append", default=[]); x.add_argument("--brief", default="")
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
+    x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
+    x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
     x = sub.add_parser("datos"); x.add_argument("accion", choices=("recoger", "resumen", "comparar"))
     x.add_argument("cliente"); x.add_argument("cambio", nargs="?"); x.add_argument("--dias", type=int, default=28)
@@ -194,6 +198,14 @@ def main(argv=None) -> int:
                 return 0
             print(f"🚀 {e['nombre']} en marcha para {a.cliente} ({e['id']}): {len(e['etapas'])} etapas"
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
+        elif a.cmd == "parte":
+            PA = _cargar("hseo_parte")
+            parte = PA.generar(a.cliente)
+            if not a.no_guardar:
+                PA.guardar(a.cliente, parte)
+            print(PA.texto(parte))
+        elif a.cmd == "propuesta":
+            print(_cargar("hseo_parte").ejecutar_propuesta(a.cliente, a.n, quien()))
         elif a.cmd == "vueltas":
             for slug, eid, desde in E.vueltas_pendientes():
                 print(f"↩ {slug}/{eid}: vuelve a {desde} (la verificación pidió cambios)")
