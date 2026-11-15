@@ -83,3 +83,9 @@
 | Salud del servidor | quitar la línea `hseo_sistema.py revisar` del crontab y el cron `hseo-sistema` |
 | Correo | quitar la regla «hermes-seo buzón» de Email Routing, el subdominio de envío y el Worker `hermes-correo`; `contacto.canal = telegram` |
 | Publicaciones | no se deshacen solas: se revierte el PR (`hseo lanzar <web> cambio-seo --param que="Revertir el PR #N"`) |
+
+## 15-11, tarde: puesta en marcha sin esperar
+
+En DesarrolloMCP se lanzó a mano lo que iba a esperar a su fecha: datos, métricas, parte, cuaderno, novedades,
+visibilidad en IA y autoridad. Aterrizaje probado con una web de laboratorio (borrada): con 0 pasos solo arranca la
+vigilancia; sin Search Console no hay línea base; `omitir` solo admite 6, 7 y 8. Esta nota llegó por la puerta «mejora».
