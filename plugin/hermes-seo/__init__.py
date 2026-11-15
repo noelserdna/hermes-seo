@@ -82,6 +82,12 @@ def _teclado(puerta: dict):
     return Mk([bs[i:i + 2] for i in range(0, len(bs), 2)])
 
 
+# puertas cerradas sin decisión (por el sistema o en una sesión): el mensaje pierde los botones y dice por qué
+CERRADAS = {"informe": "📄 Cerrada: era un informe, no hacía falta decidir nada.",
+            "reemplazada": "🔁 Sustituida por una puerta nueva: esta ya no vale.",
+            "caducada": "⌛ Caducada sin decidir: si hace falta, se vuelve a abrir."}
+
+
 def _render(puerta: dict) -> str:
     partes = [puerta["titulo"], "", puerta["texto"]]
     if PU.graves(puerta) and puerta.get("estado") == "abierta":
@@ -96,6 +102,8 @@ def _render(puerta: dict) -> str:
         partes += ["", f"✅ {puerta.get('firma')}: {puerta.get('resultado')}"]
     elif est == "error":
         partes += ["", f"⚠️ No se pudo completar: {puerta.get('error')}"]
+    elif est in CERRADAS:
+        partes += ["", CERRADAS[est] + (f" ({puerta['nota']})" if puerta.get("nota") else "")]
     return "\n".join(partes)[:4000]
 
 
@@ -191,6 +199,11 @@ async def _on_boton(update, context) -> None:
     opcion = next((o for o in puerta.get("opciones", []) if o["verbo"] == verbo), None)
     if not opcion or puerta.get("estado") != "abierta":
         await q.answer("Esta puerta ya está resuelta" if opcion else "Opción no válida", show_alert=True)
+        try:   # que el mensaje deje de ofrecer botones que ya no valen
+            await context.bot.edit_message_text(chat_id=q.message.chat_id, message_id=q.message.message_id,
+                                                text=_render(puerta), reply_markup=_teclado(puerta))
+        except Exception:   # noqa: BLE001
+            pass
         return
     if opcion.get("texto"):
         from telegram import ForceReply
@@ -273,10 +286,14 @@ async def _vuelta() -> None:
                 log.info("hermes-seo: %s/%s vuelve a %s (la verificación pidió cambios)", slug, eid, desde)
         except Exception as e:   # noqa: BLE001 — nunca para el bucle de las puertas
             log.warning("hermes-seo: vueltas de verificación: %s", e)
-    for p in PU.puertas(("abierta", "decidida", "error", "firmada")):
+    for p in PU.puertas(("abierta", "decidida", "error", "firmada", *CERRADAS)):
         if p["estado"] == "firmada" and not p.get("despliegue") and "despliegue lanzado" in str(p.get("resultado", "")):
             await asyncio.wait_for(_resultado_despliegue(bot, p), 60)
-        if p["estado"] == "firmada" and p.get("tg_vista") == _vista(p):
+        if p["estado"] in ("firmada", *CERRADAS) and p.get("tg_vista") == _vista(p):
+            continue
+        if p["estado"] in CERRADAS:
+            if p.get("telegram"):
+                await asyncio.wait_for(_sincronizar(bot, p), 60)
             continue
         if p["estado"] in ("abierta", "decidida") and not p.get("telegram"):
             await asyncio.wait_for(_publicar(bot, p), 60)

@@ -65,6 +65,17 @@ async def main():
     n = len(bot.editados); await m._vuelta()
     ok(len(bot.editados) == n, "una puerta firmada y al día no se vuelve a tocar")
 
+    # una puerta cerrada por fuera (informe, sustituida): su mensaje pierde los botones y dice por qué
+    gc = PU.abrir("web", tipo="decision", titulo="📊 Vieja", texto="x")["id"]
+    await m._vuelta()
+    msg_id = PU.leer(gc)["telegram"][0]["msg"]
+    p = PU.leer(gc); p["estado"] = "informe"; PU.B.escribir(PU.indice(gc), p)
+    await m._vuelta()
+    ok(bot.editados[-1].kb is None and "era un informe" in bot.editados[-1].text, "cerrada como informe: sin botones y lo dice")
+    n = len(bot.editados); await m._vuelta(); ok(len(bot.editados) == n, "y no se vuelve a editar")
+    q = Query(f"hs:acepto:{gc}", 111); await m._on_boton(NS(callback_query=q), ctx)
+    ok("ya está resuelta" in (q.respuestas[-1] or "") and bot.editados[-1].kb is None, "pulsar un botón viejo: lo dice y quita los botones")
+
     # con un aviso grave, la puerta no ofrece el botón de aprobar y lo dice
     g2 = PU.abrir("web", tipo="decision", titulo="📊 Con aviso", texto="x")["id"]
     p = PU.leer(g2); p["revision"] = {"avisos": [], "graves": 1}; PU.B.escribir(PU.indice(g2), p)
