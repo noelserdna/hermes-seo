@@ -85,7 +85,7 @@ tareas() {  # crons de la web en el perfil del encargado (hseo_crons.py plan), r
     # sin salida si todo va bien (no avisa); si falla, el motivo llega al tema de la web
     printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q HSEO_QUIEN=cron PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nsalida=$(python3 %q %s 2>&1) || echo "⚠️ ${salida}"\n' \
       "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
-    [ "$nombre" = datos ] || [ "$nombre" = parte ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
+    [ "$nombre" = datos ] || [ "$nombre" = parte ] || [ "$nombre" = vigilancia ] && printf '#!/usr/bin/env bash\nexport HERMES_SEO_HOME=%q PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"\nexec python3 %q %s\n' \
       "$HSEO" "$ARNES/plugin/hermes-seo/hseo_cli.py" "$orden" > "$PD/scripts/hseo-$nombre.sh"
     chmod +x "$PD/scripts/hseo-$nombre.sh"
     id=$(awk -F'\t' -v n="hseo-$nombre" '$1 == n {print $2; exit}' <<< "$ids")

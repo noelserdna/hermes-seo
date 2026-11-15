@@ -144,6 +144,7 @@ def main(argv=None) -> int:
     x.add_argument("--param", action="append", default=[]); x.add_argument("--brief", default="")
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
+    sub.add_parser("vigilancia").add_argument("cliente")
     x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
     x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
@@ -198,6 +199,9 @@ def main(argv=None) -> int:
                 return 0
             print(f"🚀 {e['nombre']} en marcha para {a.cliente} ({e['id']}): {len(e['etapas'])} etapas"
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
+        elif a.cmd == "vigilancia":
+            for l in _cargar("hseo_vigilancia").ciclo(a.cliente):
+                print(l)
         elif a.cmd == "parte":
             PA = _cargar("hseo_parte")
             parte = PA.generar(a.cliente)

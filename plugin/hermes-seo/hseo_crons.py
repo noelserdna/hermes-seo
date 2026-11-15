@@ -3,6 +3,7 @@
 Por defecto (en la zona horaria de la web), solo las que su configuración permite:
   datos               todos los días 06:00   recoge Search Console, Bing, analítica… (sin IA)
   parte               lunes 10:30            el parte semanal (sin IA): su salida es el mensaje
+  vigilancia          cada 5 min             incidencias de la web (sin IA): un intento de arreglo; avisa solo si sigue
   radar               lunes 07:30
   metricas-semanales  lunes 08:00
   revision-mensual    día 1, 08:30
@@ -37,7 +38,7 @@ B = _cargar("hseo_base")
 C = _cargar("hseo_clientes")
 PL = _cargar("hseo_pipelines")
 
-DEFECTO = {"datos": "0 6 * * *", "parte": "30 10 * * 1", "radar": "30 7 * * 1", "metricas-semanales": "0 8 * * 1",
+DEFECTO = {"datos": "0 6 * * *", "vigilancia": "*/5 * * * *", "parte": "30 10 * * 1", "radar": "30 7 * * 1", "metricas-semanales": "0 8 * * 1",
            "revision-mensual": "30 8 1 * *"}
 SOLO_SI_SE_ACTIVA = {"visibilidad-ia": "0 9 1,15 * *"}   # coste externo: la persona la activa en la configuración
 
@@ -62,8 +63,8 @@ def plan(slug: str) -> list:
         if nombre == "datos":
             out.append({"nombre": "datos", "horario": horario, "orden": ["datos", "recoger", slug]})
             continue
-        if nombre == "parte":
-            out.append({"nombre": "parte", "horario": horario, "orden": ["parte", slug]})
+        if nombre in ("parte", "vigilancia"):
+            out.append({"nombre": nombre, "horario": horario, "orden": [nombre, slug]})
             continue
         try:
             PL.plan(nombre, slug)   # ¿se puede lanzar con lo que tiene configurado?

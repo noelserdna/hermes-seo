@@ -142,7 +142,7 @@ def generar(slug: str, ahora: float | None = None) -> dict:
     publicado = [x for x in ES._jsonl(d / "cambios.jsonl") if ES._ts(x.get("ts")) >= desde]
     puertas = [p for p in PU.puertas(("abierta",)) if p.get("cliente") == slug]
     inc = [B.leer(f) or {} for f in sorted((d / "incidencias").glob("*.json"))] if (d / "incidencias").is_dir() else []
-    resueltas = [i for i in inc if i.get("estado") == "resuelta" and ES._ts(i.get("resuelta")) >= desde]
+    resueltas = [i for i in inc if i.get("estado") == "resuelta" and i.get("sola") and ES._ts(i.get("resuelta")) >= desde]
     criterio = cfg.get("criterio") if isinstance(cfg.get("criterio"), dict) else None
     return {"web": slug, "nombre": cfg.get("nombre") or slug, "fecha": datetime.now(timezone.utc).date().isoformat(),
             "cifras": r if r.get("hay_datos") else None, "faltan": faltan, "hecho": hecho,
