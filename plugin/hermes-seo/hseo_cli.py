@@ -16,6 +16,7 @@ y lo ejecuta el notario.
     hseo vueltas                                         (lanza las vueltas a redactar que pidió la verificación)
     hseo preguntar <cliente> "<texto>" · hseo ordenar <cliente> "<texto>"   (solo la coordinadora: habla con el encargado)
     hseo parte <cliente> [--no-guardar]                  (el parte semanal, sin IA)
+    hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
   Cambiar el sistema (con la aprobación de la persona)
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
@@ -180,6 +181,8 @@ def main(argv=None) -> int:
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
     sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("tanda"); x.add_argument("accion", choices=("proponer", "crear", "lanzar", "lista", "veredicto"))
+    x.add_argument("cliente"); x.add_argument("id", nargs="?")
     x = sub.add_parser("wiki"); x.add_argument("accion", choices=("sembrar",)); x.add_argument("cliente")
     for n in ("preguntar", "ordenar"):
         x = sub.add_parser(n); x.add_argument("cliente"); x.add_argument("texto", nargs="+")
@@ -239,6 +242,11 @@ def main(argv=None) -> int:
                   + (f"; se saltan {', '.join(s['id'] for s in e['saltadas'])}" if e["saltadas"] else ""))
         elif a.cmd in ("preguntar", "ordenar"):
             print(hablar(a.cliente, " ".join(a.texto), orden=a.cmd == "ordenar"))
+        elif a.cmd == "tanda":
+            T = _cargar("hseo_tandas")
+            if a.accion in ("lanzar", "veredicto") and not a.id:
+                raise Rechazo(f"uso: hseo tanda {a.accion} <cliente> <id>")
+            sys.exit(T.main([a.accion, a.cliente] + ([a.id] if a.id else [])))
         elif a.cmd == "wiki":
             print("🧠 Memoria sembrada: " + ", ".join(_cargar("hseo_wiki").sembrar(a.cliente)))
         elif a.cmd == "vigilancia":

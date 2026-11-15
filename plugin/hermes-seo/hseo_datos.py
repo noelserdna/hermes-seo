@@ -135,6 +135,10 @@ def recoger(slug: str, hoy: date | None = None) -> list:
         if "analitica:cloudflare" in caps:
             fallos.append(_herramienta("bots-ia", slug, "--dias", "7"))
     actualizar(slug)
+    try:   # veredicto (sin modelo) de las tandas cuya ventana ya acabó
+        _cargar("hseo_tandas").vencidas(slug)
+    except Exception as e:   # noqa: BLE001
+        fallos.append(f"veredicto de tandas: {str(e)[:150]}")
     B.anotar(C.carpeta(slug) / "datos" / "recogidas.jsonl", {"ts": B.ahora(), "fallos": [f for f in fallos if f]})
     return [f for f in fallos if f]
 

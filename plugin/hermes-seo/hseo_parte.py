@@ -105,6 +105,18 @@ def propuestas(slug: str, r: dict) -> list:
             cand.append({"id": "pagina-dos", "titulo": False, "valor": q["impresiones"] * 0.03,
                          "texto": f"Llevar «{q['consulta']}» a la primera página ({q['impresiones']} impresiones, posición {_dec(q['posicion'])})",
                          "orden": {"tipo": "lanzar", "pipeline": "actualizacion", "params": params}})
+    try:   # la tanda siguiente: varias páginas a la vez, con grupo de control (mejor que una suelta)
+        T = _cargar("hseo_tandas")
+        if not [t for t in T.abiertas(slug) if not t.get("encargo")]:
+            pr = T.proponer(slug)
+            if len(pr["tratadas"]) >= 2:
+                T.limites(slug, [p["url"] for p in pr["tratadas"]])
+                cand.append({"id": "tanda", "titulo": True, "valor": sum(p["esperados"] - p["clics"] for p in pr["tratadas"]),
+                             "texto": f"Mejorar en tanda {len(pr['tratadas'])} páginas con muchas impresiones y pocos clics ("
+                                      + ", ".join(_ruta(p["url"]) for p in pr["tratadas"]) + "), con grupo de control",
+                             "orden": {"tipo": "tanda"}})
+    except Exception:   # noqa: BLE001 — sin datos o fuera de límites: no se propone
+        pass
     if not any(e.get("pipeline") == "estrategia" for e in E.listar(slug)):
         cand.append({"id": "sin-mapa", "titulo": False, "valor": 5,
                      "texto": "Hacer la estrategia y el mapa de temas (aún no hay)",
@@ -119,6 +131,8 @@ def propuestas(slug: str, r: dict) -> list:
         if c["titulo"] and titulo:
             continue
         o = c["orden"]
+        if o["tipo"] == "tanda" and not _valida(slug, "cambio-seo", {"que": "x"}):
+            continue
         if o["tipo"] == "lanzar" and not _valida(slug, o["pipeline"], o["params"]):
             continue
         titulo = titulo or c["titulo"]
@@ -211,6 +225,11 @@ def ejecutar_propuesta(slug: str, n: int, quien: str = "") -> str:
     if o["tipo"] == "lanzar":
         e = E.lanzar(slug, o["pipeline"], o.get("params") or {}, quien=quien or "parte")
         res = f"ya estaba en marcha ({e['id']})" if e.get("duplicado") else f"lanzado {e['id']}"
+    elif o["tipo"] == "tanda":
+        T = _cargar("hseo_tandas")
+        t = T.crear(slug)
+        e = T.lanzar(slug, t["id"], quien=quien or "parte")
+        res = f"tanda {t['id']} lanzada ({e['id']})"
     elif o["tipo"] == "reintentar":
         enc = E.leer(slug, o["encargo"])
         fallos = [x for x in ES._jsonl(C.carpeta(slug) / "etapas.jsonl") if x.get("encargo") == enc["id"] and x.get("resultado") != "done"]

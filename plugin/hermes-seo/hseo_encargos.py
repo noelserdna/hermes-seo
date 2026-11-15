@@ -151,6 +151,16 @@ def lanzar(slug: str, pid: str, params: dict | None = None, brief: str = "", exc
         raise Rechazo(f"«{p['nombre']}» no admite: {', '.join(sobra)}")
     # una continuación ya pasó las políticas al empezar (la pausa sí cuenta siempre)
     PL.politicas(pid, slug, excepcion=excepcion or bool(origen))
+    if not origen and params.get("url") and not excepcion:   # una página de una tanda abierta no se toca por otro lado
+        try:
+            T = _cargar("hseo_tandas")
+            for t in T.abiertas(slug):
+                if T._norm(params["url"]) in {T._norm(u) for u in t.get("control", [])} | {T._norm(p["url"]) for p in t.get("paginas", [])}:
+                    raise Rechazo(f"{params['url']} está en la tanda {t['id']} (se mide hasta su veredicto): no se toca por otro lado")
+        except Rechazo:
+            raise
+        except Exception:   # noqa: BLE001
+            pass
     if not origen:
         igual = duplicado(slug, pid, params)
         if igual:   # el mismo trabajo ya está en marcha: no se lanza otro (ni otra puerta igual)

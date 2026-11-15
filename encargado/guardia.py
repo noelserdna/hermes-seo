@@ -46,7 +46,7 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "file", "stat", "date", "echo", "printf", "pwd", "basename", "dirname", "realpath", "column", "nl", "true",
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
-HSEO_SOLA = {"preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
+HSEO_SOLA = {"tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos"}
 # El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
@@ -114,7 +114,7 @@ def cliente_de(args: list) -> str | None:
         return pos[0] if pos else None
     if sub in ("encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion", "parte", "propuesta", "vigilancia", "preguntar", "ordenar"):
         return pos[0] if pos else None
-    if sub == "datos":
+    if sub in ("datos", "tanda", "wiki"):
         return pos[1] if len(pos) > 1 else None
     if sub == "plan":
         return pos[1] if len(pos) > 1 else None
