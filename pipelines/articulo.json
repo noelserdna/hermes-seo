@@ -24,7 +24,7 @@
       "titulo": "Redactar: {tema}",
       "perfil": "seo-redactor",
       "skill": "redactar",
-      "ejecutor": "claude",
+      "ejecutor": "hermes",
       "max_runtime": "120m",
       "salida": "borrador.md"
     },

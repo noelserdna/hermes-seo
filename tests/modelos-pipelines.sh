@@ -90,4 +90,35 @@ C.config("web", "politicas.pausado", True)
 assert rechaza(lambda: PL.politicas("actualizacion", "web", hoy=hoy))
 assert rechaza(lambda: PL.politicas("articulo", "web", excepcion=True, hoy=hoy))   # la pausa no tiene excepción
 PY
+# ── herencia: la web solo dice lo que cambia; lo demás sigue al plugin ──
+X="$HERMES_SEO_HOME/clientes/web/extensiones/pipelines"; mkdir -p "$X"
+etapa() { $PL ver "$1" --cliente web | python3 -c "import json,sys;p=json.load(sys.stdin);print(' '.join(s['id']+':'+s.get('$3','') for s in p['etapas'] if s['id']=='$2' or '$2'=='*'))"; }
+cat > "$X/articulo.json" <<'J'
+{"id": "articulo", "hereda": "articulo", "descripcion": "propia",
+ "cambia": {"redactar": {"skill": "mi-redactar", "ejecutor": "claude"}},
+ "añade": [{"tras": "verificar", "id": "extra", "titulo": "Extra", "perfil": "seo-editor", "skill": "extra", "salida": "extra.md"}],
+ "quita": ["revisar-lectura"]}
+J
+igual "herencia: cambia solo esos campos" "$(etapa articulo redactar skill) $(etapa articulo redactar ejecutor)" "redactar:mi-redactar redactar:claude"
+igual "herencia: lo demás viene del plugin" "$(etapa articulo verificar skill)" "verificar:verificar"
+igual "herencia: añade tras una etapa y quita otra" "$(etapa articulo '*' id | tr ' ' '\n' | cut -d: -f1 | tr '\n' ' ')" "investigar redactar verificar extra preparar comprobar "
+igual "herencia: la puerta y los parámetros, del plugin" "$($PL ver articulo --cliente web | python3 -c 'import json,sys;p=json.load(sys.stdin);print(p["puerta"]["tipo"], p["descripcion"], "tema" in p["parametros"])')" "publicar propia True"
+si "herencia: una pipeline heredada es válida" "! $PL validar-todas --cliente web | grep -q \"^articulo:\""
+si "herencia: el plan la usa" "$PL plan articulo --cliente web"
+echo '{"id": "articulo", "hereda": "articulo", "cambia": {"redactor-viejo": {"skill": "x"}}}' > "$X/articulo.json"
+no "herencia: nombrar una etapa que el plugin no tiene es un error" "$PL validar-todas --cliente web"
+no "herencia: y no se puede lanzar" "$PL plan articulo --cliente web"
+echo '{"id": "otra", "hereda": "no-existe", "nombre": "x"}' > "$X/articulo.json"
+no "herencia: de una pipeline que no existe, error" "$PL validar-todas --cliente web"
+rm -f "$X/articulo.json"
+cat > "$X/propia.json" <<'J'
+{"id": "propia", "nombre": "Propia", "etapas": [
+ {"id": "redactar", "perfil": "seo-redactor", "skill": "redactar"},
+ {"id": "verificar", "perfil": "seo-verificador", "skill": "verificar"},
+ {"id": "preparar", "perfil": "seo-redactor", "skill": "preparar-publicacion"}]}
+J
+igual "aviso: propia que cambia tras verificar sin comprobar" "$($PL validar-todas --cliente web | grep -c 'propia: ⚠️')" 1
+rm -f "$X/propia.json"
+igual "el plugin redacta con Hermes (Claude Code solo si la web lo pide)" "$(python3 -c "import json;print(set(s.get('ejecutor','hermes') for f in ('articulo','actualizacion','cambio-seo') for s in json.load(open('$ROOT/pipelines/'+f+'.json'))['etapas']))")" "{'hermes'}"
+
 exit $fail

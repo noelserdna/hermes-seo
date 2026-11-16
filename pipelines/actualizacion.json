@@ -24,7 +24,7 @@
       "titulo": "Reescribir: {url}",
       "perfil": "seo-redactor",
       "skill": "redactar",
-      "ejecutor": "claude",
+      "ejecutor": "hermes",
       "max_runtime": "90m",
       "salida": "borrador.md"
     },

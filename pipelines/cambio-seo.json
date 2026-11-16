@@ -23,7 +23,7 @@
       "titulo": "Preparar el cambio: {que}",
       "perfil": "seo-redactor",
       "skill": "aplicar-cambio",
-      "ejecutor": "claude",
+      "ejecutor": "hermes",
       "max_runtime": "90m",
       "salida": "publicacion.json"
     },

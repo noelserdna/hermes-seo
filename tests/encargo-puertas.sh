@@ -39,7 +39,7 @@ si "una etapa sale done" "echo '$r' | jq -e '.outcome == \"done\"'"
 si "deja su salida y el contexto del cliente" "[ -f $D/investigacion.md ] && grep -q 'Cliente: web' $D/contexto-cliente.md"
 si "el modelo de la etapa llega al ejecutor (investigar: Sonnet por defecto en hermes → sin proveedor, vacío)" "grep -q '^investigar||seo-investigador|investigacion-a-fondo' $FALSO_EJECUCIONES"
 r=$(bash "$ROOT/etapa.sh" web "$EID" redactar | ultima)
-si "redactar va a Claude con Opus" "grep -q '^redactar|opus|seo-redactor|redactar' $FALSO_EJECUCIONES"
+si "redactar va a Hermes (el modelo lo pone el proveedor del perfil)" "grep -q '^redactar||seo-redactor|redactar' $FALSO_EJECUCIONES"
 r=$(FALSO_MODO=sinsalida bash "$ROOT/etapa.sh" web "$EID" verificar | ultima)
 si "done sin su salida es un fallo" "echo '$r' | jq -e '.outcome == \"failed\" and (.reason | test(\"verificacion.md\"))'"
 si "el encargo queda parado" "jq -e '.estado == \"parado\"' $D/encargo.json"

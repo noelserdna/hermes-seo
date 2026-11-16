@@ -3,6 +3,17 @@
 Una pipeline es un JSON en pipelines/<id>.json (del plugin) o en clientes/<slug>/extensiones/pipelines/<id>.json (del
 cliente: añade pipelines propias o sustituye una del plugin con el mismo id).
 
+Herencia (lo recomendado para adaptar una del plugin): la web solo escribe lo que cambia y lo demás sigue al plugin,
+así una mejora del plugin (una etapa nueva, otro ejecutor) llega a todas las webs:
+
+  {"id": "articulo", "hereda": "articulo",
+   "cambia": {"redactar": {"skill": "mi-redactar", "ejecutor": "claude"}},   campos que cambian en esas etapas
+   "añade": [{"tras": "verificar", "id": "…", …}],                             etapas nuevas (sin «tras»: al final)
+   "quita": ["revisar-lectura"],                                                etapas que la web no hace
+   "puerta": {…}, "nombre": "…"}                                                el resto de campos sustituye al del plugin
+
+Si el plugin cambia o quita una etapa que la web nombra, la validación lo dice (no se ignora en silencio).
+
   {"id": "articulo", "nombre": "Artículo nuevo", "descripcion": "…",
    "requiere": ["publicacion"],             capacidades del cliente sin las que no se puede lanzar
    "nueva_pieza": true,                      cuenta para la congelación y el tope semanal del cliente
@@ -74,14 +85,53 @@ def _dirs(slug: str | None) -> list:
     return ds
 
 
+HERENCIA = ("hereda", "cambia", "añade", "quita")
+
+
+def heredar(hija: dict, base: dict | None) -> dict:
+    """La pipeline completa: la del plugin con los cambios de la web. Los errores van en «_herencia» (los ve validar)."""
+    err = []
+    if not base:
+        return {**hija, "_herencia": [f"hereda: no hay pipeline «{hija.get('hereda')}» en el plugin"]}
+    cambia, anade, quita = hija.get("cambia") or {}, hija.get("añade") or [], hija.get("quita") or []
+    if not isinstance(cambia, dict) or not isinstance(anade, list) or not isinstance(quita, list):
+        return {**hija, "_herencia": ["cambia: {etapa: {campos}}; añade y quita: listas"]}
+    ids = [s.get("id") for s in base.get("etapas", [])]
+    for k in list(cambia) + list(quita):
+        if k not in ids:
+            err.append(f"«{k}» no es una etapa de «{base['id']}» en el plugin (¿la renombró o la quitó?)")
+    etapas = [{**s, **(cambia.get(s.get("id")) or {})} for s in base.get("etapas", []) if s.get("id") not in quita]
+    for n in anade:
+        n = dict(n) if isinstance(n, dict) else {}
+        tras = n.pop("tras", None)
+        pos = [s.get("id") for s in etapas]
+        if tras is None:
+            etapas.append(n)
+        elif tras in pos:
+            etapas.insert(pos.index(tras) + 1, n)
+        else:
+            err.append(f"añade: «{tras}» no es una etapa de la pipeline heredada")
+    resto = {k: v for k, v in hija.items() if k not in HERENCIA}
+    out = {**{k: v for k, v in base.items() if not k.startswith("_")}, **resto, "etapas": etapas,
+           "_hereda": hija["hereda"]}
+    if err:
+        out["_herencia"] = err
+    return out
+
+
 def listar(slug: str | None = None) -> dict:
-    """{id: pipeline}; las del cliente sustituyen a las del plugin con el mismo id."""
-    out = {}
-    for d in _dirs(slug):
+    """{id: pipeline}; las del cliente sustituyen a las del plugin con el mismo id, o heredan de una con «hereda»."""
+    out, plugin = {}, {}
+    for i, d in enumerate(_dirs(slug)):
         for f in sorted(d.glob("*.json")) if d.is_dir() else []:
             p = B.leer(f)
-            if isinstance(p, dict) and p.get("id"):
-                out[p["id"]] = {**p, "_origen": str(f)}
+            if not (isinstance(p, dict) and p.get("id")):
+                continue
+            if i and p.get("hereda"):
+                p = heredar(p, plugin.get(p["hereda"]))
+            out[p["id"]] = {**p, "_origen": str(f)}
+            if not i:
+                plugin[p["id"]] = out[p["id"]]
     return out
 
 
@@ -97,7 +147,7 @@ def cargar(pid: str, slug: str | None = None) -> dict:
 PREPARA = ("resumen", "citas")
 
 def validar(p: dict) -> list:
-    e = []
+    e = list(p.get("_herencia") or [])
     if not ID.match(str(p.get("id", ""))):
         e.append("id: minúsculas, números y guiones")
     if not p.get("nombre"):
@@ -150,6 +200,17 @@ def validar(p: dict) -> list:
         elif puerta.get("rehacer") and puerta["rehacer"] not in vistos:
             e.append("puerta.rehacer: el id de una de sus etapas")
     return e
+
+
+def avisos(p: dict) -> list:
+    """Lo que no es un error pero deja a la web atrás: hoy, cambios después de la verificación que nadie comprueba
+    (las pipelines del plugin cierran con «comprobar»; una propia de la web puede no tenerlo)."""
+    ids = [s.get("id") for s in p.get("etapas", [])]
+    skills = [s.get("skill") for s in p.get("etapas", [])]
+    if "verificar" in ids and ids[-1] != "verificar" and skills[-1] != "comprobar-cambios":
+        return ["hay etapas después de verificar y no acaba con «comprobar» (skill comprobar-cambios): lo que se "
+                "cambie después de la verificación nadie comprueba que quedó bien"]
+    return []
 
 
 def plan(pid: str, slug: str) -> dict:
@@ -214,7 +275,7 @@ def main(argv=None) -> int:
     l = sub.add_parser("listar"); l.add_argument("--cliente")
     v = sub.add_parser("ver"); v.add_argument("id"); v.add_argument("--cliente")
     pl = sub.add_parser("plan"); pl.add_argument("id"); pl.add_argument("--cliente", required=True)
-    sub.add_parser("validar-todas")
+    vt = sub.add_parser("validar-todas"); vt.add_argument("--cliente")
     x = ap.parse_args(argv)
     try:
         if x.cmd == "listar":
@@ -232,11 +293,13 @@ def main(argv=None) -> int:
                 print(f"🚪 {r['pipeline']['puerta']['tipo']}")
         elif x.cmd == "validar-todas":
             mal = 0
-            for pid, p in listar().items():
+            for pid, p in listar(x.cliente).items():
                 err = validar(p)
                 if err:
                     mal += 1
                     print(f"{pid}: " + "; ".join(err))
+                for a in avisos(p):
+                    print(f"{pid}: ⚠️ {a}")
             print("ok" if not mal else f"{mal} con errores")
             return 1 if mal else 0
     except Rechazo as e:
