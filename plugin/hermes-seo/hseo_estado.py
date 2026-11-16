@@ -151,6 +151,7 @@ def turno(slug: str, ahora: float | None = None) -> str:
     at = B.leer(d / "aterrizaje.json")
     if isinstance(at, dict) and at.get("pasos"):
         hechos_at = sum(1 for p in at["pasos"].values() if p.get("ok"))
+        hechos_at = sum(1 for p in at["pasos"].values() if p.get("ok") or p.get("omitido"))
         lineas.append(f"Aterrizaje: {hechos_at} de {len(at['pasos'])} pasos.")
 
     texto = tapar("\n".join(lineas))
@@ -179,6 +180,13 @@ def cartera(ahora: float | None = None) -> str:
             pass
         cifra = f"{r['actual']['clics']} clics / {r['actual']['impresiones']} impr. en 28 días" if r.get("hay_datos") else "sin datos"
         lineas.append(f"- {cfg.get('nombre') or slug}: {len(ps)} puerta(s), {len(marcha)} en marcha, {cifra}")
+        at = B.leer(C.carpeta(slug) / "aterrizaje.json")
+        if isinstance(at, dict) and at.get("pasos") and not (at.get("completo") and (at.get("lanzados") or {}).get("estrategia")):
+            hechos = [k for k, p in at["pasos"].items() if p.get("ok") or p.get("omitido")]
+            faltan = [f"{k}: {str(p.get('detalle', ''))[:90]}" for k, p in sorted(at["pasos"].items(), key=lambda x: int(x[0]))
+                      if not (p.get("ok") or p.get("omitido"))]
+            lineas.append(f"  🛬 alta en curso: {len(hechos)} de 10" + (f"; falta {' | '.join(faltan)}" if faltan else "")
+                          + " (la recogida diaria la vuelve a comprobar y avisa por correo cuando avanza)")
     lineas.append("Para el detalle de una web: hseo estado <web> · hseo preguntar <web> \"…\"")
     return tapar("\n".join(lineas))[:3000]
 

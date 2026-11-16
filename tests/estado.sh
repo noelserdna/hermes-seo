@@ -30,6 +30,9 @@ assert "Radar: 3 temas con demanda" in t, t
 assert "1. Nuevo título para X" in t and "[clave tapada]" in t and "ghp_" not in t, t
 assert len(t) <= ES.MAX_WEB
 c = ES.cartera(); assert "La Web: 1 puerta(s)" in c and "Disco" in c, c
+assert "alta en curso" not in c
+(C.carpeta("web") / "aterrizaje.json").write_text(json.dumps({"pasos": {"1": {"ok": True}, "5": {"ok": False, "detalle": "Google aún no tiene datos"}}, "lanzados": {}}))
+c = ES.cartera(); assert "🛬 alta en curso: 1 de 10; falta 5: Google aún no tiene datos" in c, c
 PY
 python3 - "$P" <<'PY' && ok "el hook: contexto en Telegram y CLI, nada en cron; en el encargado su web, en la coordinadora la cartera" || bad "hook"
 import importlib.util, sys
