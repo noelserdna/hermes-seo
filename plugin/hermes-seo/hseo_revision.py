@@ -85,8 +85,9 @@ def _publicar(slug: str, d: Path, avisos: list) -> None:
     titulo = pub.get("titulo") or meta.get("titulo") or ""
     if not titulo:
         _aviso(avisos, True, "sin-titulo", "No tiene título")
-    elif not 30 <= len(titulo) <= 60:
-        _aviso(avisos, False, "titulo-largo", f"El título tiene {len(titulo)} caracteres (mejor entre 30 y 60)")
+    elif not 30 <= len(re.sub(r"==|\*\*", "", titulo)) <= 60:   # las marcas de resaltado (==…==) no se ven en el título
+        n = len(re.sub(r"==|\*\*", "", titulo))
+        _aviso(avisos, False, "titulo-largo", f"El título tiene {n} caracteres (mejor entre 30 y 60)")
     desc = pub.get("meta_descripcion") or meta.get("meta_descripcion") or ""
     if not desc:
         _aviso(avisos, False, "sin-meta", "No tiene meta descripción")
