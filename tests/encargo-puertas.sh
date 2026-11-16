@@ -26,7 +26,7 @@ R=$($EN lanzar web articulo --param tema='Qué es X' --quien ana)
 EID=$(echo "$R" | jq -r .encargo)
 si "lanzar crea el encargo" "[ -f $HERMES_SEO_HOME/clientes/web/encargos/$EID/encargo.json ]"
 si "crea el tablero del cliente" "grep -q 'kanban boards create web' $FALSO_LLAMADAS"
-si "5 tarjetas encadenadas para la estación" "[ \$(grep -c 'kanban --board web create' $FALSO_LLAMADAS) = 5 ] && [ \$(grep -c -- '--parent' $FALSO_LLAMADAS) = 4 ] && grep -q 'assignee seo-estacion' $FALSO_LLAMADAS"
+si "6 tarjetas encadenadas para la estación" "[ \$(grep -c 'kanban --board web create' $FALSO_LLAMADAS) = 6 ] && [ \$(grep -c -- '--parent' $FALSO_LLAMADAS) = 5 ] && grep -q 'assignee seo-estacion' $FALSO_LLAMADAS"
 si "el cuerpo de la tarjeta es «Ejecuta: etapa.sh»" "grep -q 'Ejecuta: bash .*etapa.sh web $EID investigar' $FALSO_LLAMADAS"
 si "idempotente por etapa" "grep -q -- '--idempotency-key $EID-redactar' $FALSO_LLAMADAS"
 si "el brief lleva lo pedido" "grep -q 'Qué es X' $HERMES_SEO_HOME/clientes/web/encargos/$EID/brief.md"
@@ -46,7 +46,8 @@ si "el encargo queda parado" "jq -e '.estado == \"parado\"' $D/encargo.json"
 si "etapas.jsonl lo apunta" "[ \$(wc -l < $HERMES_SEO_HOME/clientes/web/etapas.jsonl) = 3 ]"
 no "una etapa que no es del encargo" "bash $ROOT/etapa.sh web $EID inventada | tail -1 | jq -e '.outcome == \"done\"'"
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
-r=$(bash "$ROOT/etapa.sh" web "$EID" preparar | ultima)
+bash "$ROOT/etapa.sh" web "$EID" preparar >/dev/null
+r=$(bash "$ROOT/etapa.sh" web "$EID" comprobar | ultima)
 GID=$(echo "$r" | jq -r '.puerta // empty')
 si "la última etapa abre la puerta de publicar" "[ -n '$GID' ] && $PU ver $GID | jq -e '.tipo == \"publicar\" and .estado == \"abierta\"'"
 si "el encargo pasa a «en puerta»" "jq -e '.estado == \"en-puerta\" and .puerta_id == \"$GID\"' $D/encargo.json"
@@ -92,11 +93,12 @@ enc = json.load(open(next(d.glob("*/encargo.json"))))
 assert enc["estado"] == "en-curso" and enc["rondas"] == 1 and "puerta_id" not in enc
 assert "Más ejemplos" in (next(d.glob("*")) / ".estado/feedback-redactar.txt").read_text()
 PY
-si "rehacer archiva las 4 tarjetas viejas" "[ \$(grep -c 'kanban --board web archive' $FALSO_LLAMADAS) = 4 ]"
-si "rehacer crea 4 tarjetas nuevas (redactar → preparar)" "[ \$(grep -c -- '--idempotency-key $EID-.*-r1' $FALSO_LLAMADAS) = 4 ]"
+si "rehacer archiva las 5 tarjetas viejas" "[ \$(grep -c 'kanban --board web archive' $FALSO_LLAMADAS) = 5 ]"
+si "rehacer crea 5 tarjetas nuevas (redactar → comprobar)" "[ \$(grep -c -- '--idempotency-key $EID-.*-r1' $FALSO_LLAMADAS) = 5 ]"
 si "el feedback llega al prompt de redactar" "bash $ROOT/etapa.sh web $EID redactar >/dev/null && grep -q . $D/.estado/feedback-redactar.txt"
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
-GID2=$(bash "$ROOT/etapa.sh" web "$EID" preparar | tail -1 | jq -r '.puerta // empty')
+bash "$ROOT/etapa.sh" web "$EID" preparar >/dev/null
+GID2=$(bash "$ROOT/etapa.sh" web "$EID" comprobar | tail -1 | jq -r '.puerta // empty')
 si "segunda ronda: nueva puerta" "[ -n '$GID2' ] && [ '$GID2' != '$GID' ]"
 python3 - "$GID2" <<PY && ok "sin una publicación válida (aviso grave) no se aprueba; forzada, el notario da error visible" || bad "publicar sin adaptador"
 exec(open("$T/py").read())
@@ -187,7 +189,20 @@ si "el feedback de la verificación va aparte y llega al redactor" "[ -f $DV/.es
 OUT2=$(FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EV" verificar | tail -1)
 si "segunda vez CAMBIOS: ya no vuelve, sigue" "echo '$OUT2' | jq -e '.outcome == \"done\"' && jq -e '.estado == \"en-curso\" and .vueltas_verificacion == 1' $DV/encargo.json"
 for e in revisar-lectura; do bash "$ROOT/etapa.sh" web "$EV" "$e" >/dev/null; done
-GV=$(bash "$ROOT/etapa.sh" web "$EV" preparar | tail -1 | jq -r '.puerta // empty')
+bash "$ROOT/etapa.sh" web "$EV" preparar >/dev/null
+OUT3=$(FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EV" comprobar | tail -1)
+si "la comprobación final ve cambios sin aplicar: vuelve a preparar (una vez, con su propio contador)" "echo '$OUT3' | jq -e '.outcome == \"failed\" and .vuelta == \"preparar\"' && jq -e '.vueltas_comprobar == 1 and .vuelta_pendiente.desde == \"preparar\"' $DV/encargo.json"
+python3 $P/hseo_cli.py vueltas >/dev/null; bash "$ROOT/etapa.sh" web "$EV" preparar >/dev/null
+GV=$(FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EV" comprobar | tail -1 | jq -r '.puerta // empty')
 si "y llega a la puerta con el aviso grave (no se puede aprobar)" "[ -n '$GV' ] && $PU ver $GV | jq -e '.revision.graves > 0'"
+RA=$($EN lanzar web articulo --param tema='Aplicados' --excepcion); EA=$(echo "$RA" | jq -r .encargo)
+for e in investigar redactar; do bash "$ROOT/etapa.sh" web "$EA" "$e" >/dev/null; done
+FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EA" verificar >/dev/null; python3 $P/hseo_cli.py vueltas >/dev/null
+for e in redactar; do bash "$ROOT/etapa.sh" web "$EA" "$e" >/dev/null; done
+FALSO_MODO=cambios bash "$ROOT/etapa.sh" web "$EA" verificar >/dev/null
+for e in revisar-lectura preparar; do bash "$ROOT/etapa.sh" web "$EA" "$e" >/dev/null; done
+echo '{"tipo":"nuevo","titulo":"Un título de prueba suficientemente largo","meta_descripcion":"Meta","contenido":"borrador.md"}' > $HERMES_SEO_HOME/clientes/web/encargos/$EA/publicacion.json
+GA=$(bash "$ROOT/etapa.sh" web "$EA" comprobar | tail -1 | jq -r '.puerta // empty')
+si "verificación con CAMBIOS pero comprobado que están aplicados: sin aviso grave por la verificación" "[ -n '$GA' ] && $PU ver $GA | jq -e '([.revision.avisos[] | select(.codigo == \"verificacion-cambios\")] | length == 0) and any(.revision.avisos[]; .codigo == \"verificacion-aplicados\")'"
 no "una pipeline con si_cambios a una etapa posterior no valida" "python3 -c \"import importlib.util,sys;s=importlib.util.spec_from_file_location('p','$P/hseo_pipelines.py');m=importlib.util.module_from_spec(s);sys.modules['p']=m;s.loader.exec_module(m);sys.exit(1 if m.validar({'id':'x','nombre':'x','etapas':[{'id':'a','perfil':'seo-redactor','skill':'redactar','si_cambios':'b'},{'id':'b','perfil':'seo-redactor','skill':'redactar'}]}) else 0)\""
 exit $fail

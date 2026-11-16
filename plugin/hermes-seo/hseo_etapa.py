@@ -200,14 +200,15 @@ def fin(slug: str, eid: str, etapa: str, res: dict, t0: float) -> dict:
     ultima = enc["etapas"][-1]["id"] == etapa
     res.setdefault("resumen", "")
     s = next((x for x in PL.cargar(enc["pipeline"], slug)["etapas"] if x["id"] == etapa), {})
-    if res.get("outcome") == "done" and s.get("si_cambios") and int(enc.get("vueltas_verificacion") or 0) == 0:
+    clave_vueltas = "vueltas_verificacion" if etapa == "verificar" else f"vueltas_{etapa}"   # una vuelta por etapa
+    if res.get("outcome") == "done" and s.get("si_cambios") and int(enc.get(clave_vueltas) or 0) == 0:
         d = E.carpeta(slug, eid)
         f = d / (s.get("salida") or f"{etapa}.md")
         if _cargar("hseo_revision")._veredicto(f) == "CAMBIOS":
             # una sola vuelta automática: el texto vuelve a la etapa indicada con los cambios pedidos, sin pasar por
             # la persona; las tarjetas siguientes no deben arrancar (la tarjeta se da por fallida y la rehace el bucle)
             (d / f"{f.stem}-1{f.suffix}").write_text(f.read_text(errors="replace"))
-            enc.update(estado="en-vuelta", vueltas_verificacion=1,
+            enc.update(estado="en-vuelta", **{clave_vueltas: 1},
                        vuelta_pendiente={"desde": s["si_cambios"], "texto": f.read_text(errors="replace")[:4000]})
             E.guardar(slug, enc)
             res = {**res, "outcome": "failed", "reason": f"la verificación pidió cambios: vuelve a {s['si_cambios']} (una vez)",

@@ -55,6 +55,16 @@
       "ejecutor": "hermes",
       "max_runtime": "60m",
       "salida": "publicacion.json"
+    },
+    {
+      "id": "comprobar",
+      "titulo": "Comprobar los cambios: {tema}",
+      "perfil": "seo-verificador",
+      "skill": "comprobar-cambios",
+      "ejecutor": "hermes",
+      "max_runtime": "30m",
+      "salida": "comprobacion.md",
+      "si_cambios": "preparar"
     }
   ],
   "puerta": {

@@ -135,3 +135,9 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
 - Lo omitido del alta (pasos 6-8) queda «aplazado»: no se pide a diario, pero sale en el parte de los lunes con cómo
   hacerlo y en el estado de la coordinadora; se sigue comprobando y se cierra solo cuando se hace (antes, omitir un
   paso lo olvidaba para siempre: Bing en HearMyTour).
+- Comprobación final (16-11, primera prueba de artículo en HearMyTour): «preparar» decía haber aplicado los cambios
+  obligatorios de la segunda verificación, pero la versión inglesa seguía con la frase que había que quitar. Nueva
+  etapa `comprobar` (skill `comprobar-cambios`, `seo-verificador`) al final de `articulo` y `actualizacion`: comprueba
+  cada cambio obligatorio en cada versión (principal y traducciones); si falta algo vuelve una vez a `preparar` (contador
+  propio por etapa); si todo está, el CAMBIOS de la verificación deja de ser aviso grave. Las pipelines propias de
+  DesarrolloMCP (`extensiones/pipelines`) no la tienen aún.

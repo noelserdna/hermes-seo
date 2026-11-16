@@ -58,10 +58,15 @@ def _publicar(slug: str, d: Path, avisos: list) -> None:
     if conf.get("adaptador") == "repo-pr" and conf.get("desplegar") and not (pub.get("pr") or pub.get("pr_url")) \
             and pub.get("contenido") is None:
         _aviso(avisos, True, "sin-pr", "La web publica por PR y la publicación no trae ni el PR ni el contenido")
+    comp = _veredicto(d / "comprobacion.md") if (d / "comprobacion.md").exists() else ""
+    if comp == "CAMBIOS":
+        _aviso(avisos, True, "comprobacion-cambios", "Faltan por aplicar cambios obligatorios de la verificación (ver la comprobación final)")
     for f, quien in (("verificacion.md", "La verificación de datos"), ("lectura.md", "La revisión de lectura")):
         if (d / f).exists():
             v = _veredicto(d / f)
-            if v == "CAMBIOS":
+            if v == "CAMBIOS" and comp == "APROBADO":   # comprobado después: los cambios pedidos están en todas las versiones
+                _aviso(avisos, False, f"{f[:-3]}-aplicados", f"{quien} pidió cambios: comprobado que están aplicados en todas las versiones")
+            elif v == "CAMBIOS":
                 _aviso(avisos, f == "verificacion.md", f"{f[:-3]}-cambios", f"{quien} pidió cambios")
             elif not v:
                 _aviso(avisos, f == "verificacion.md", f"{f[:-3]}-sin-veredicto", f"{quien} no dejó veredicto")
