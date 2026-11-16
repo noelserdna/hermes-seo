@@ -157,6 +157,13 @@ def _analitica(slug: str, faltan: list) -> dict | None:
     return a
 
 
+def _aplazados(slug: str) -> list:
+    try:
+        return [{"n": n, "titulo": t, "desde": d, "como": c} for n, t, d, c in _cargar("hseo_aterrizaje").aplazados(slug)]
+    except Exception:   # noqa: BLE001
+        return []
+
+
 def generar(slug: str, ahora: float | None = None) -> dict:
     ahora = ahora or time.time()
     cfg = C.leer(slug)
@@ -190,6 +197,7 @@ def generar(slug: str, ahora: float | None = None) -> dict:
             "publicado": [{"url": x.get("url"), "clase": x.get("clase")} for x in publicado],
             "puertas": [{"id": p["id"], "titulo": p["titulo"], "creada": p.get("creada")} for p in puertas],
             "resueltas": [i.get("texto", "") for i in resueltas], "criterio": criterio, "gestiones_tuyas": tuyas,
+            "aplazados": _aplazados(slug),
             "propuestas": propuestas(slug, r)}
 
 
@@ -219,6 +227,8 @@ def texto(parte: dict) -> str:
     if parte.get("resueltas"):
         l.append(f"Incidencias resueltas solas: {len(parte['resueltas'])}")
     l.append(f"Pendiente de decidir: {len(parte['puertas'])}" + (" (" + "; ".join(p["titulo"][:50] for p in parte["puertas"]) + ")" if parte["puertas"] else ""))
+    for x in parte.get("aplazados") or []:
+        l.append(f"⏸ Aplazado del alta desde el {x['desde']}: {x['titulo']}. Cuando puedas: {x['como']}")
     if parte.get("gestiones_tuyas"):
         l.append("Tu parte (autoridad, cuando puedas): " + "; ".join(parte["gestiones_tuyas"]))
     if parte.get("propuestas"):

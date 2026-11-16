@@ -181,6 +181,10 @@ def cartera(ahora: float | None = None) -> str:
         cifra = f"{r['actual']['clics']} clics / {r['actual']['impresiones']} impr. en 28 días" if r.get("hay_datos") else "sin datos"
         lineas.append(f"- {cfg.get('nombre') or slug}: {len(ps)} puerta(s), {len(marcha)} en marcha, {cifra}")
         at = B.leer(C.carpeta(slug) / "aterrizaje.json")
+        apl = _cargar("hseo_aterrizaje").aplazados(slug) if isinstance(at, dict) else []
+        if apl:
+            lineas.append("  ⏸ aplazado del alta (sale en el parte; recuérdalo si sale el tema): "
+                          + " | ".join(f"{n}. {t} (desde {d})" for n, t, d, _ in apl))
         if isinstance(at, dict) and at.get("pasos") and not (at.get("completo") and (at.get("lanzados") or {}).get("estrategia")):
             hechos = [k for k, p in at["pasos"].items() if p.get("ok") or p.get("omitido")]
             persona = _cargar("hseo_aterrizaje").pendientes_persona(slug)

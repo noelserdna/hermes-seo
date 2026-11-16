@@ -197,12 +197,13 @@ def comprobar(slug: str) -> dict:
     cfg = C.leer(slug)
     for n, titulo, f, enciende in PASOS:
         previo = e["pasos"].get(str(n)) or {}
-        if previo.get("omitido"):
-            continue
         try:
             ok, det = f(slug, cfg)
         except Exception as x:   # noqa: BLE001
             ok, det = False, f"no se pudo comprobar: {str(x)[:100]}"
+        if previo.get("omitido") and not ok:   # aplazado y aún sin hacer: sigue aplazado (no se pierde: sale en el parte)
+            e["pasos"][str(n)] = {**previo, "detalle_actual": det}
+            continue
         e["pasos"][str(n)] = {"ok": ok, "detalle": det, "ts": B.ahora(), **({"desde": previo.get("desde") or B.ahora()} if ok else {})}
     E = _cargar("hseo_encargos")
     hechos = {int(k) for k, v in e["pasos"].items() if v.get("ok") or v.get("omitido")}
@@ -271,11 +272,27 @@ def recordar(slug: str, ahora: float | None = None, cada_h: float = 20) -> str:
     return texto
 
 
+COMO = {6: "dar de alta la web en Bing Webmaster (se importa desde Search Console) y guardar su clave de la API en tu "
+           "terminal: hseo secreto guardar <web> BING_WEBMASTER_API_KEY",
+        7: "decir qué analítica tiene la web (o que no tiene) y, si hace falta, guardar su clave en tu terminal",
+        8: "dar los competidores y las preguntas que haría un cliente a una IA"}
+
+
+def aplazados(slug: str) -> list:
+    """Pasos omitidos que siguen sin hacer: [(n, título, desde, cómo)]. No se piden cada día; salen en el parte."""
+    e = estado(slug)
+    if not e:
+        return []
+    titulos = {str(n): t for n, t, _, _ in PASOS}
+    return [(int(k), titulos.get(k, k), str(v.get("ts") or "")[:10], COMO.get(int(k), ""))
+            for k, v in sorted(e["pasos"].items(), key=lambda x: int(x[0])) if v.get("omitido") and not v.get("ok")]
+
+
 def omitir(slug: str, n: int) -> dict:
     if n not in OMITIBLES:
         raise Rechazo(f"Solo se pueden omitir los pasos {', '.join(map(str, OMITIBLES))}")
     e = estado(slug) or empezar(slug)
-    e["pasos"][str(n)] = {"ok": False, "omitido": True, "ts": B.ahora(), "detalle": "omitido"}
+    e["pasos"][str(n)] = {"ok": False, "omitido": True, "ts": B.ahora(), "detalle": "aplazado (sale en el parte de los lunes hasta que se haga)"}
     B.escribir(_f(slug), e)
     return comprobar(slug)
 

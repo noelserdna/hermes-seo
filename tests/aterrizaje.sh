@@ -56,4 +56,20 @@ assert A.recordar("recien", ahora=1_000_000 + 21 * 3600) != ""      # al día si
 n = [p[0] for p in A.pendientes_persona("recien")]
 assert 5 not in n and 3 in n, n
 PY
+python3 - "$P" <<'PY' && ok "lo omitido queda aplazado: sale en el parte (con cómo hacerlo) y se cierra solo cuando se hace" || bad "aplazado"
+import importlib.util, os, sys
+from pathlib import Path
+P = Path(sys.argv[1]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+A, C, PA = m("hseo_aterrizaje"), m("hseo_clientes"), m("hseo_parte")
+assert [x[0] for x in A.aplazados("nueva")] == [6], A.aplazados("nueva")
+t = PA.texto(PA.generar("nueva"))
+assert "⏸ Aplazado del alta" in t and "Bing" in t and "BING_WEBMASTER_API_KEY" in t, t
+with open(C.carpeta("nueva") / "secretos.env", "a") as f:
+    f.write("BING_WEBMASTER_API_KEY=x\n")
+C.config("nueva", "capacidades.busqueda.bing", "https://nueva.com/")
+A.comprobar("nueva")
+assert A.aplazados("nueva") == [] and A.estado("nueva")["pasos"]["6"]["ok"]
+PY
 exit $fail
