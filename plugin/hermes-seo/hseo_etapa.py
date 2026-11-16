@@ -190,8 +190,13 @@ def ejecutar(slug: str, eid: str, etapa: str) -> dict:
     except ValueError:
         res = {"outcome": "failed", "reason": f"el ejecutor no devolvió JSON: {r.stdout[-200:]} {r.stderr[-200:]}"}
     if res.get("outcome") == "done":
-        if not (d / salida).exists() or (d / salida).stat().st_mtime <= antes:
+        rehecha = any((d / ".estado" / n).exists() for n in (f"feedback-{etapa}.txt", f"feedback-verificacion-{etapa}.txt"))
+        if not (d / salida).exists() or (d / salida).stat().st_size == 0:
             res = {**res, "outcome": "failed", "reason": f"la etapa terminó sin dejar {salida}"}
+        elif (d / salida).stat().st_mtime <= antes and not rehecha:
+            res = {**res, "outcome": "failed", "reason": f"la etapa terminó sin dejar {salida}"}
+        elif (d / salida).stat().st_mtime <= antes:   # al rehacer, puede que lo pedido ya estuviera: lo confirman las siguientes
+            res = {**res, "resumen": (res.get("resumen") or "") + f" (sin cambios en {salida}: lo pedido ya estaba)"}
     return {**res, "salida": salida, "ejecutor": ejecutor, "modelo": modelo}
 
 

@@ -96,6 +96,7 @@ PY
 si "rehacer archiva las 5 tarjetas viejas" "[ \$(grep -c 'kanban --board web archive' $FALSO_LLAMADAS) = 5 ]"
 si "rehacer crea 5 tarjetas nuevas (redactar → comprobar)" "[ \$(grep -c -- '--idempotency-key $EID-.*-r1' $FALSO_LLAMADAS) = 5 ]"
 si "el feedback llega al prompt de redactar" "bash $ROOT/etapa.sh web $EID redactar >/dev/null && grep -q . $D/.estado/feedback-redactar.txt"
+si "al rehacer, una etapa que no cambia su salida (lo pedido ya estaba) no es un fallo" "FALSO_MODO=sinsalida bash $ROOT/etapa.sh web $EID redactar | tail -1 | jq -e '.outcome == \"done\" and (.resumen | test(\"lo pedido ya estaba\"))'"
 for e in verificar revisar-lectura; do bash "$ROOT/etapa.sh" web "$EID" "$e" >/dev/null; done
 bash "$ROOT/etapa.sh" web "$EID" preparar >/dev/null
 GID2=$(bash "$ROOT/etapa.sh" web "$EID" comprobar | tail -1 | jq -r '.puerta // empty')
