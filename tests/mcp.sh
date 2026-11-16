@@ -107,5 +107,7 @@ python3 "$ROOT/plugin/hermes-seo/hseo_aterrizaje.py" empezar tour >/dev/null
 si "paso 3 (cómo se publica): con el servidor MCP conectado, hecho" "jq -e '.pasos[\"3\"].ok' $W/aterrizaje.json"
 printf '# Mis preguntas\n1. ¿Cómo puede oírme todo el grupo?\n2) ¿Qué alternativa hay a las radioguías?\n- ¿Hay una app para oír al guía?\n¿Cuánto cuesta alquilar receptores?\nWhat is the best whisper system?\n' > "$T/p.txt"
 si "las preguntas para la IA se guardan donde las leen las herramientas" "python3 $ROOT/plugin/hermes-seo/hseo_cli.py preguntas tour < $T/p.txt && grep -q '^5. What is the best whisper system?' $W/preguntas-decision.md && ! grep -q 'Mis preguntas' $W/preguntas-decision.md"
+printf 'Usar estas en la prueba, son las de un cliente.\n\n1. ¿Una pregunta larga?\n2. ¿Otra pregunta larga?\n3. ¿La tercera pregunta?\n4. ¿La cuarta pregunta?\n5. ¿La quinta pregunta?\n' > "$T/p2.txt"
+si "con una lista numerada, el texto de alrededor no cuenta como pregunta" "python3 $ROOT/plugin/hermes-seo/hseo_cli.py preguntas tour < $T/p2.txt | grep -q '5 preguntas'"
 no "menos de 5 preguntas no se guardan" "printf '1. ¿Una?\n' | python3 $ROOT/plugin/hermes-seo/hseo_cli.py preguntas tour"
 exit $fail

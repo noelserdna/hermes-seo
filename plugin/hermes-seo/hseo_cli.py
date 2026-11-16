@@ -107,6 +107,9 @@ def guardar_preguntas(slug: str, texto: str) -> str:
     """Las preguntas de decisión para la prueba de IA, donde las leen las herramientas y la lista de pasos."""
     import re as _re
     preguntas = []
+    numeradas = [l for l in texto.splitlines() if _re.match(r"^\s*\d+[.)]\s", l)]
+    if len(numeradas) >= 5:   # con una lista numerada, solo esa (el texto de alrededor no son preguntas)
+        texto = "\n".join(numeradas)
     for l in texto.splitlines():
         if l.lstrip().startswith("#"):
             continue
