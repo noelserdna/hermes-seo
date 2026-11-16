@@ -322,6 +322,7 @@ def procesar(m: dict) -> str:
             slug = dueña
     if not slug:
         return "descartado: varias webs con esa dirección y no sé de cuál es"
+    m["_web"] = slug   # para el registro (y el tope diario): la web de verdad, no la de la dirección exacta
     de = contacto(slug)["correo"]   # la identidad es la dirección guardada de esa web (con su etiqueta, si la tiene)
     persona = PU.persona_de("email", de)[0]
     cfg = C.leer(slug)
@@ -435,7 +436,7 @@ def recoger() -> int:
             res = procesar(m)
         except Exception as e:   # noqa: BLE001 — un correo raro no para el resto
             res = f"error: {str(e)[:150]}"
-        B.anotar(_dir() / "recibidos.jsonl", {"ts": B.ahora(), "id": m.get("id"), "de": m.get("de"), "web": _web_de(str(m.get("de") or "")),
+        B.anotar(_dir() / "recibidos.jsonl", {"ts": B.ahora(), "id": m.get("id"), "de": m.get("de"), "web": m.get("_web") or _web_de(str(m.get("de") or "")),
                                               "asunto": str(m.get("asunto", ""))[:120], "resultado": res})
         hechos.append(m["id"])
     if hechos:

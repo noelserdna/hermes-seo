@@ -177,6 +177,7 @@ mid = json.loads((B.home() / "correo/enviados.jsonl").read_text().splitlines()[-
 (T / "buzon/pendientes.json").write_text(json.dumps([{"id": "e1", "de": "ana@gmail.com", "asunto": "Re: Confirma", "texto": "ok", "message_id": "<r1@g>", "in_reply_to": mid}]))
 HC.recoger(); HC.despachar()
 assert C.leer("etiq")["contacto"].get("verificado"), "no se comprobó"
+assert json.loads((B.home() / "correo/recibidos.jsonl").read_text().splitlines()[-1])["web"] == "etiq"
 # 2) un botón de una puerta de «etiq», enviado desde la principal: decide
 g = PU.abrir("etiq", tipo="decision", titulo="📊 Etiq", texto="t")["id"]
 PU.marcar(g, correo=HC.enviar_puerta(PU.leer(g))); c = PU.leer(g)["correo"]["codigos"]["rechazo"]
