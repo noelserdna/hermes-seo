@@ -50,6 +50,7 @@ bash "$ROOT/etapa.sh" web "$EID" preparar >/dev/null
 r=$(bash "$ROOT/etapa.sh" web "$EID" comprobar | ultima)
 GID=$(echo "$r" | jq -r '.puerta // empty')
 si "la última etapa abre la puerta de publicar" "[ -n '$GID' ] && $PU ver $GID | jq -e '.tipo == \"publicar\" and .estado == \"abierta\"'"
+si "con una comprobación detrás, la puerta sigue enseñando la publicación (no el informe de la comprobación)" "$PU ver $GID | jq -e '.texto | test(\"comprobacion.md\") and (test(\"Resultado de comprobar\") | not)'"
 si "el encargo pasa a «en puerta»" "jq -e '.estado == \"en-puerta\" and .puerta_id == \"$GID\"' $D/encargo.json"
 no "no abre dos puertas para el mismo encargo" "$PU abrir web $EID"
 $C config web politicas.pausado true >/dev/null

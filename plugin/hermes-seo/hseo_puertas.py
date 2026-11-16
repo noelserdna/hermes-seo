@@ -214,7 +214,8 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
             raise Rechazo(f"El encargo {eid} ya tiene una puerta pendiente")
         d = E.carpeta(slug, eid)
         salidas = [s.get("salida") for s in p["etapas"] if s["id"] in [x["id"] for x in enc["etapas"]] and s.get("salida")]
-        principal = salidas[-1] if salidas else ""
+        # lo que se decide es la publicación: si existe, manda aunque haya etapas de comprobación detrás
+        principal = "publicacion.json" if "publicacion.json" in salidas else (salidas[-1] if salidas else "")
         resumen = _resumen_publicacion(d) if principal == "publicacion.json" else _resumen_de(d, principal)
         detalles = [f"{tipo_param}: {v}" for tipo_param, v in (enc.get("params") or {}).items()]
         titulo = titulo or f"{EMOJI.get(tipo, '🚪')} {p['nombre']} · {cfg['nombre']}"
