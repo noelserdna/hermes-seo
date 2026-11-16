@@ -249,10 +249,44 @@ def _sin_cita(texto: str) -> str:
 
 
 def _web_de(remitente: str) -> str | None:
+    exactas, _ = _webs_de(remitente)
+    return exactas[0] if exactas else None
+
+
+def _base(correo: str) -> str:
+    local, _, dominio = correo.lower().partition("@")
+    return f"{local.split('+', 1)[0]}@{dominio}"
+
+
+def _webs_de(remitente: str) -> tuple:
+    """(webs con esa dirección exacta, webs con esa dirección + etiqueta). Gmail contesta siempre desde la dirección
+    principal, nunca desde «nombre+web@…»: esa respuesta es de la misma persona (mismo buzón, DMARC del dominio)."""
     remitente = remitente.lower()
+    exactas, etiqueta = [], []
     for slug in C.listar():
-        if contacto(slug)["correo"] == remitente:
-            return slug
+        c = contacto(slug)["correo"]
+        if not c:
+            continue
+        if c == remitente:
+            exactas.append(slug)
+        elif "+" in c.split("@")[0] and "+" not in remitente.split("@")[0] and _base(c) == remitente:
+            etiqueta.append(slug)
+    return exactas, etiqueta
+
+
+def _web_del_hilo(in_reply_to: str) -> str | None:
+    """La web del correo nuestro al que se responde (enviados.jsonl guarda el Message-ID de cada envío)."""
+    ref = str(in_reply_to or "").strip().strip("<>").lower()
+    if not ref:
+        return None
+    try:
+        for l in reversed((_dir() / "enviados.jsonl").read_text().splitlines()):
+            if ref in l.lower():
+                r = json.loads(l)
+                if str(r.get("message_id") or "").strip().strip("<>").lower() == ref:
+                    return r.get("web")
+    except (OSError, ValueError):
+        pass
     return None
 
 
@@ -271,17 +305,29 @@ def procesar(m: dict) -> str:
     """Un correo recibido (ya auténtico y no automático). Devuelve lo que se hizo (para el registro)."""
     PU = _cargar("hseo_puertas")
     de = str(m.get("de") or "").lower()
-    slug = _web_de(de)
-    if not slug:
+    exactas, etiqueta = _webs_de(de)
+    candidatas = exactas + etiqueta
+    if not candidatas:
         return "descartado: remitente desconocido"
+    texto = _sin_cita(str(m.get("texto") or ""))
+    hallado = CODIGO.search(f"{m.get('asunto', '')}\n{texto}") or CODIGO.search(texto)
+    ref = m.get("message_id") or ""
+    # ¿de qué web es? El hilo manda; si no, la dirección exacta; si solo hay una web con esa etiqueta, esa
+    hilo = _web_del_hilo(m.get("in_reply_to"))
+    slug = hilo if hilo in candidatas else (exactas[0] if exactas else (etiqueta[0] if len(etiqueta) == 1 else None))
+    if hallado and VERBOS.get(hallado.group(1).upper()) != "propuesta":   # un código ya dice de qué puerta (y web) es
+        dueña = next((p["cliente"] for p in PU.puertas(("abierta", "decidida"))
+                      if any(secrets.compare_digest(c, hallado.group(2)) for c in ((p.get("correo") or {}).get("codigos") or {}).values())), None)
+        if dueña in candidatas:
+            slug = dueña
+    if not slug:
+        return "descartado: varias webs con esa dirección y no sé de cuál es"
+    de = contacto(slug)["correo"]   # la identidad es la dirección guardada de esa web (con su etiqueta, si la tiene)
     persona = PU.persona_de("email", de)[0]
     cfg = C.leer(slug)
     if (cfg.get("contacto") or {}).get("correo") and not cfg["contacto"].get("verificado"):
         cfg["contacto"]["verificado"] = B.ahora()   # un correo auténtico desde esa dirección prueba que es suya
         C._guardar(slug, cfg)
-    texto = _sin_cita(str(m.get("texto") or ""))
-    hallado = CODIGO.search(f"{m.get('asunto', '')}\n{texto}") or CODIGO.search(texto)
-    ref = m.get("message_id") or ""
     if not hallado:   # texto libre: una petición para el encargado, que contesta en el hilo (desacoplado)
         if not texto:
             return "vacío"

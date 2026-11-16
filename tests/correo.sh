@@ -161,4 +161,31 @@ cfg = C.leer("tercera"); cfg["contacto"]["verificado"] = "2026-11-16T10:00:00Z";
 r = HC.poner_contacto("tercera", "eva@tercera.com", "ambos")
 assert "confirmación" not in r and C.leer("tercera")["contacto"].get("verificado"), r
 PY
+python3 "$P/hseo_clientes.py" alta etiq etiq.com >/dev/null
+python3 - "$P" "$T" <<'PY' && ok "contacto con etiqueta (ana+web@…): Gmail responde desde ana@…; el hilo y el código dicen de qué web es" || bad "etiqueta"
+import importlib.util, json, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, C, HC, PU = m("hseo_base"), m("hseo_clientes"), m("hseo_correo"), m("hseo_puertas")
+HC.despachar()
+HC.poner_contacto("etiq", "ana+etiq@gmail.com", "correo"); HC.despachar()
+conf = [json.loads(l) for l in (T / "buzon/enviados.jsonl").read_text().splitlines()][-1]
+mid = json.loads((B.home() / "correo/enviados.jsonl").read_text().splitlines()[-1])["message_id"]
+# 1) responde a la confirmación desde la dirección principal: cuenta para «etiq», no para «web»
+(T / "buzon/pendientes.json").write_text(json.dumps([{"id": "e1", "de": "ana@gmail.com", "asunto": "Re: Confirma", "texto": "ok", "message_id": "<r1@g>", "in_reply_to": mid}]))
+HC.recoger(); HC.despachar()
+assert C.leer("etiq")["contacto"].get("verificado"), "no se comprobó"
+# 2) un botón de una puerta de «etiq», enviado desde la principal: decide
+g = PU.abrir("etiq", tipo="decision", titulo="📊 Etiq", texto="t")["id"]
+PU.marcar(g, correo=HC.enviar_puerta(PU.leer(g))); c = PU.leer(g)["correo"]["codigos"]["rechazo"]
+(T / "buzon/pendientes.json").write_text(json.dumps([{"id": "e2", "de": "ana@gmail.com", "asunto": f"DESCARTAR {c}", "texto": f"DESCARTAR {c}", "message_id": "<r2@g>"}]))
+HC.recoger(); HC.despachar()
+assert PU.leer(g)["estado"] == "decidida", PU.leer(g)["estado"]
+# 3) un texto suelto desde la principal, sin hilo: es de la web con esa dirección exacta («web»)
+assert HC._webs_de("ana@gmail.com") == (["web"], ["etiq"])
+# 4) una dirección con etiqueta ajena no abre las demás
+assert HC._webs_de("ana+otra@gmail.com") == ([], [])
+PY
 exit $fail

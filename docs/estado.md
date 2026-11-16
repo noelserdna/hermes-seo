@@ -123,3 +123,6 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
   paso 5 distingue «el acceso funciona, Google aún no tiene datos» de un fallo real. `hseo config` vuelve a comprobar
   la lista de pasos. La carta: varios idiomas ya es un ajuste (`idiomas`); no prometer tareas periódicas que no existen.
   En Telegram, sin comentarios intermedios del modelo (`display.interim_assistant_messages false`).
+- Contacto con etiqueta (`nombre+web@gmail.com`, para una segunda web de la misma persona): Gmail responde siempre desde
+  la dirección principal. Ahora la web de un correo entrante sale del hilo (In-Reply-To frente a `enviados.jsonl`), del
+  código de la puerta o de la dirección exacta; la identidad que decide es la dirección guardada de esa web.
