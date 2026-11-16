@@ -34,6 +34,14 @@ no "no deja cambiar el slug" "$C config conrepo slug otro"
 si "un cambio de config queda en el historial" "grep -q '\"clave\": \"mercados\"' $HERMES_SEO_HOME/clientes/conrepo/config.jsonl"
 si "un cambio rechazado no se escribe" "$C ver conrepo | grep -q 'Europe/Madrid'"
 si "un cliente.json viejo con la clave jev sigue valiendo" "$C config conrepo jev.permitido false && ! $C capacidades conrepo | grep -qw jev"
+no "ia.motores: solo motores conocidos" "$C config conrepo ia '{\"motores\":[\"bard\"]}'"
+si "ia.motores: solo Claude vale, y la visibilidad en IA deja de tener coste externo" "$C config conrepo ia '{\"motores\":[\"claude\"]}' && python3 -c \"
+import importlib.util, sys
+sys.argv = ['guardia', 'conrepo', '$ROOT']
+s = importlib.util.spec_from_file_location('g', '$ROOT/encargado/guardia.py'); g = importlib.util.module_from_spec(s); s.loader.exec_module(g)
+g.CLIENTES = '$HERMES_SEO_HOME/clientes'
+assert g.con_coste('visibilidad-ia', 'conrepo') is False and g.con_coste('visibilidad-ia', 'otra') is True
+\""
 si "listar enseña todos" "[ \$($C listar --json | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))') = 6 ]"
 si "validar un cliente sano" "$C validar conrepo"
 

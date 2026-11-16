@@ -142,6 +142,9 @@ def validar(cfg: dict) -> list:
         e.append(f"capacidades.analitica.adaptador: uno de {', '.join(ANALITICA)}")
     if not isinstance(cap.get("difusion", []), list):
         e.append("capacidades.difusion: una lista")
+    mot = (cfg.get("ia") or {}).get("motores") if isinstance(cfg.get("ia"), dict) else None
+    if mot is not None and not (isinstance(mot, list) and mot and set(mot) <= {"chatgpt", "claude", "brave"}):
+        e.append("ia.motores: lista con chatgpt, claude o brave (p. ej. [\"claude\"])")
     pol = cfg.get("politicas") or {}
     if not isinstance(pol.get("pausado", False), bool):
         e.append("politicas.pausado: true o false")

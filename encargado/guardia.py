@@ -74,6 +74,13 @@ def dentro(p: str, d: str) -> bool:
 
 
 def con_coste(pipeline: str, cliente: str) -> bool:
+    if pipeline == "visibilidad-ia":   # solo Claude (la suscripción de la instalación): sin coste de APIs
+        try:
+            mot = (json.load(open(os.path.join(CLIENTES, cliente, "cliente.json"))).get("ia") or {}).get("motores")
+            if mot and set(mot) <= {"claude"}:
+                return False
+        except (OSError, ValueError, AttributeError):
+            pass
     for f in [os.path.join(ARNES, "pipelines", f"{pipeline}.json"),
               os.path.join(CLIENTES, cliente, "extensiones", "pipelines", f"{pipeline}.json")]:
         try:

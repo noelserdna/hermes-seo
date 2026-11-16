@@ -64,6 +64,9 @@ def contexto(slug: str, etapa: str | None = None) -> str:
         l.append(f"- Reglas de formato de la web (obligatorias): {reglas}")
     if cfg.get("competidores"):
         l.append(f"- Competidores: {', '.join(cfg['competidores'])}")
+    motores = (cfg.get("ia") or {}).get("motores")
+    if motores:
+        l.append(f"- Motores para la visibilidad en IA: {', '.join(motores)} (solo estos)")
     if pol.get("congelado_hasta"):
         l.append(f"- Sin piezas nuevas hasta {pol['congelado_hasta']}")
     l += ["", f"Memoria del cliente (wiki): {wiki} (empieza por index.md; enlaza, no copies).",
