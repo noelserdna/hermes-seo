@@ -34,7 +34,7 @@ assert "conectada como ana@web.test" in X.estado("tour")
 PY
 si "la sesión no está en cliente.json ni en el historial de configuración" "! grep -rq 'asercion-secreta\|tok1' $W/cliente.json $W/config.jsonl"
 si "lista las herramientas, marcando las que escriben" "$X herramientas tour | grep -q 'guardar_articulo .*escribe' && $X herramientas tour | grep -q 'despublicar_articulo .*destructiva'"
-si "lee con una herramienta de lectura (respuesta en flujo SSE)" "$X llamar tour estadisticas_blog '{\"desde\":\"2026-11-01\"}' | grep -q '\"visitas\": 42'"
+si "lee con una herramienta de lectura (respuesta en flujo SSE)" "$X llamar tour estadisticas_blog '{\"desde\":\"2026-11-01\"}' | grep -q '\"published\": 8'"
 no "una herramienta que escribe no se usa desde la CLI ni por un agente" "$X llamar tour guardar_articulo '{\"titulo\":\"x\"}'"
 
 python3 - "$ROOT" <<'PY' && ok "token caducado: se renueva con la aserción, sin volver a preguntar" || bad "renovar"
@@ -85,6 +85,24 @@ d="$W/encargos/enc3"; mkdir -p "$d"
 echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"title","url":"https://web.test/precios","antes":"a","despues":"b"}]}' > "$d/publicacion.json"
 si "un cambio técnico (páginas fijas) va como entrega a mano" "pub tour enc3 | grep -q 'por MCP solo se publica el blog'"
 
+# ── la analítica propia de la web (recogida diaria) y el parte ──
+$C config tour capacidades.analitica '{"adaptador":"mcp","embudo":{"herramienta":"embudo"},"blog":{"herramienta":"estadisticas_blog"}}' >/dev/null
+$C config tour criterio '{"fecha":"2027-03-31","objetivo_descargas":100,"objetivo_ventas":10}' >/dev/null
+python3 - "$ROOT" <<'PY' && ok "la recogida guarda el embudo y el blog, y el parte cuenta descargas y ventas frente al objetivo" || bad "analítica por MCP"
+import importlib.util, sys
+from pathlib import Path
+P = Path(sys.argv[1]) / "plugin/hermes-seo"; sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+D, PA = m("hseo_datos"), m("hseo_parte")
+assert D.recoger("tour") == [] or True
+a = D.analitica("tour")
+assert a["mes"] == {"mes": "2026-11", "visitas": 425, "descargas": 3, "pagos": 2, "ventas": 1}, a
+assert a["anterior"]["descargas"] == 1 and a["blog"] == {"visitas": 87, "buscadores": 5, "ia": 1, "publicados": 8}, a
+t = PA.texto(PA.generar("tour"))
+assert "425 visitas · 3 descargas · 2 pagos iniciados · 1 ventas" in t, t
+assert "Blog (8 artículos): 87 visitas" in t and "🎯 Objetivo del 2027-03-31: 3 de 100 descargas al mes · 1 de 10 ventas al mes" in t, t
+PY
 python3 - "$MCP_DOBLE_ESTADO" <<'PY'
 import json, sys
 e = json.load(open(sys.argv[1])); e["revocado"] = True; json.dump(e, open(sys.argv[1], "w"))

@@ -26,6 +26,7 @@ def _r(codigo, datos, cab=None):
 HERRAMIENTAS = [
     {"name": "articulos", "annotations": {"readOnlyHint": True}},
     {"name": "estadisticas_blog", "annotations": {"readOnlyHint": True}},
+    {"name": "embudo", "annotations": {"readOnlyHint": True}},
     {"name": "guardar_articulo", "annotations": {"readOnlyHint": False}},
     {"name": "despublicar_articulo", "annotations": {"readOnlyHint": False, "destructiveHint": True}},
 ]
@@ -78,8 +79,11 @@ def pedir(metodo, url, datos, cab, form):
                 sl = a.get("slug"); pre = "" if a.get("idioma") == "en" else "/es"
                 res = {"ok": True, "id": e["id"], "lang": a.get("idioma"), "slug": sl, "url": f"{ORIGEN}{pre}/{sl}",
                        "warnings": ["meta corta"] if a.get("idioma") == "en" else []}
+            elif p["name"] == "embudo":
+                res = {"months": [{"month": "2026-10", "visits": 10, "downloads": 1, "checkouts": 0, "sales": 0},
+                                  {"month": "2026-11", "visits": 425, "downloads": 3, "checkouts": 2, "sales": 1}]}
             else:
-                res = {"visitas": 42}
+                res = {"posts": {"published": 8}, "months": [{"month": "2026-11", "visits": 87, "buscadores": 5, "ia": 1}]}
             # como el servidor real: el resultado va como texto JSON, en un flujo SSE
             cuerpo = json.dumps({"jsonrpc": "2.0", "id": datos["id"], "result": {"content": [{"type": "text", "text": json.dumps(res)}]}})
             return 200, {"content-type": "text/event-stream"}, f"event: message\ndata: {cuerpo}\n\n"

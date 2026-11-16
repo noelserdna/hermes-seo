@@ -145,6 +145,18 @@ def propuestas(slug: str, r: dict) -> list:
     return out
 
 
+def _analitica(slug: str, faltan: list) -> dict | None:
+    if "analitica:mcp" not in C.capacidades(C.leer(slug)):
+        return None
+    try:
+        a = _cargar("hseo_datos").analitica(slug)
+    except Exception as e:   # noqa: BLE001
+        faltan.append(f"analítica de la web ({e})"); return None
+    if not a:
+        faltan.append("analítica de la web (aún no hay ninguna foto guardada)")
+    return a
+
+
 def generar(slug: str, ahora: float | None = None) -> dict:
     ahora = ahora or time.time()
     cfg = C.leer(slug)
@@ -174,7 +186,7 @@ def generar(slug: str, ahora: float | None = None) -> dict:
     except Exception:   # noqa: BLE001
         tuyas = []
     return {"web": slug, "nombre": cfg.get("nombre") or slug, "fecha": datetime.now(timezone.utc).date().isoformat(),
-            "cifras": r if r.get("hay_datos") else None, "faltan": faltan, "hecho": hecho,
+            "cifras": r if r.get("hay_datos") else None, "web_propia": _analitica(slug, faltan), "faltan": faltan, "hecho": hecho,
             "publicado": [{"url": x.get("url"), "clase": x.get("clase")} for x in publicado],
             "puertas": [{"id": p["id"], "titulo": p["titulo"], "creada": p.get("creada")} for p in puertas],
             "resueltas": [i.get("texto", "") for i in resueltas], "criterio": criterio, "gestiones_tuyas": tuyas,
@@ -189,6 +201,15 @@ def texto(parte: dict) -> str:
         l.append(f"Google, 28 días hasta el {c['hasta']}: {_miles(a['clics'])} clics{_var(a['clics'], b['clics'])} · "
                  f"{_miles(a['impresiones'])} impresiones{_var(a['impresiones'], b['impresiones'])} · "
                  f"{_dec(a['ctr'])} % de clic · posición {_dec(a['posicion'])}")
+    w = parte.get("web_propia") or {}
+    if w.get("mes"):
+        m, p = w["mes"], w.get("anterior") or {}
+        l.append(f"La web, {m['mes']} (hasta el {w.get('fecha')}): {_miles(m['visitas'])} visitas · {_miles(m['descargas'])} descargas · "
+                 f"{_miles(m['pagos'])} pagos iniciados · {_miles(m['ventas'])} ventas"
+                 + (f" (el mes anterior: {_miles(p.get('descargas', 0))} descargas, {_miles(p.get('ventas', 0))} ventas)" if p else ""))
+    if w.get("blog"):
+        b = w["blog"]
+        l.append(f"Blog ({b['publicados']} artículos): {_miles(b['visitas'])} visitas este mes · desde buscadores {_miles(b['buscadores'])} · desde IA {_miles(b['ia'])}")
     for f in parte.get("faltan") or []:
         l.append(f"⚠️ Falta: {f}")
     if parte.get("hecho"):
@@ -207,8 +228,17 @@ def texto(parte: dict) -> str:
     else:
         l.append("Nada que proponer esta semana.")
     cr = parte.get("criterio")
-    if cr and c:
-        l.append(f"🎯 Criterio del {cr.get('fecha', '?')}: {_miles(c['actual']['clics'])} de {cr.get('objetivo_clics', '?')} clics")
+    if cr:
+        partes = []
+        if c and cr.get("objetivo_clics"):
+            partes.append(f"{_miles(c['actual']['clics'])} de {cr['objetivo_clics']} clics (28 días)")
+        m = (w.get("mes") or {})
+        if m and cr.get("objetivo_descargas"):
+            partes.append(f"{_miles(m['descargas'])} de {cr['objetivo_descargas']} descargas al mes")
+        if m and cr.get("objetivo_ventas"):
+            partes.append(f"{_miles(m['ventas'])} de {cr['objetivo_ventas']} ventas al mes")
+        if partes:
+            l.append(f"🎯 Objetivo del {cr.get('fecha', '?')}: " + " · ".join(partes))
     return "\n".join(l)
 
 

@@ -134,6 +134,11 @@ def recoger(slug: str, hoy: date | None = None) -> list:
             fallos.append(_herramienta("enlaces-bing", slug))
         if "analitica:cloudflare" in caps:
             fallos.append(_herramienta("bots-ia", slug, "--dias", "7"))
+    if "analitica:mcp" in caps:   # la analítica propia de la web, por su servidor MCP (solo lectura)
+        try:
+            recoger_analitica_mcp(slug, hoy)
+        except Exception as e:   # noqa: BLE001
+            fallos.append(f"analítica por MCP: {str(e)[:200]}")
     actualizar(slug)
     try:   # veredicto (sin modelo) de las tandas cuya ventana ya acabó
         _cargar("hseo_tandas").vencidas(slug)
@@ -141,6 +146,46 @@ def recoger(slug: str, hoy: date | None = None) -> list:
         fallos.append(f"veredicto de tandas: {str(e)[:150]}")
     B.anotar(C.carpeta(slug) / "datos" / "recogidas.jsonl", {"ts": B.ahora(), "fallos": [f for f in fallos if f]})
     return [f for f in fallos if f]
+
+
+CAMPOS_EMBUDO = {"visitas": "visits", "descargas": "downloads", "pagos": "checkouts", "ventas": "sales"}
+
+
+def recoger_analitica_mcp(slug: str, hoy: date | None = None) -> Path | None:
+    """capacidades.analitica: {adaptador: mcp, embudo: {herramienta, args}, blog: {herramienta, args}} → una foto al
+    día en datos/analitica/<fecha>.json con lo que devuelvan (embudo del negocio y efecto del blog)."""
+    conf = (C.leer(slug).get("capacidades") or {}).get("analitica") or {}
+    X = _cargar("hseo_mcp")
+    foto = {}
+    for clave in ("embudo", "blog"):
+        h = conf.get(clave) or {}
+        if h.get("herramienta"):
+            foto[clave] = X.llamar(slug, h["herramienta"], h.get("args") or {})
+    if not foto:
+        return None
+    hoy = hoy or datetime.now(timezone.utc).date()
+    f = C.carpeta(slug) / "datos" / "analitica" / f"{hoy.isoformat()}.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    B.escribir(f, {"fecha": hoy.isoformat(), **foto})
+    return f
+
+
+def analitica(slug: str) -> dict | None:
+    """Lo último guardado de la analítica propia: este mes y el anterior del embudo, y el blog del mes."""
+    d = C.carpeta(slug) / "datos" / "analitica"
+    fotos = sorted(d.glob("*.json")) if d.is_dir() else []
+    if not fotos:
+        return None
+    x = B.leer(fotos[-1]) or {}
+    campos = {**CAMPOS_EMBUDO, **((((C.leer(slug).get("capacidades") or {}).get("analitica") or {}).get("campos")) or {})}
+    meses = ((x.get("embudo") or {}).get("months")) or []
+    def mes(m):
+        return {k: int(_num(m, v)) for k, v in campos.items()} | {"mes": m.get("month", "")} if m else None
+    blog = (x.get("blog") or {})
+    bm = (blog.get("months") or [{}])[-1] if blog.get("months") else {}
+    return {"fecha": x.get("fecha"), "mes": mes(meses[-1]) if meses else None, "anterior": mes(meses[-2]) if len(meses) > 1 else None,
+            "blog": {"visitas": int(_num(bm, "visits")), "buscadores": int(_num(bm, "buscadores")), "ia": int(_num(bm, "ia")),
+                     "publicados": int(_num(blog.get("posts") or {}, "published"))} if blog else None}
 
 
 def _suma(con, desde: str, hasta: str, pagina: str | None = None) -> dict:

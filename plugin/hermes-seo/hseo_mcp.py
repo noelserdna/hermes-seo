@@ -155,21 +155,26 @@ def esperar(slug: str, tope_s: int = 900) -> str:
     if not p:
         return "no hay ninguna conexión pendiente"
     fin = min(p["expira"] + 30, time.time() + tope_s)
+
+    def soltar():   # solo la petición propia: si alguien pidió otro código, ese fichero ya es de otra espera
+        if (B.leer(f) or {}).get("claim_token") == p["claim_token"]:
+            f.unlink(missing_ok=True)
+
     while time.time() < fin:
         c, _, t = _pedir("POST", p["token_url"], {"grant_type": GRANT_CLAIM, "claim_token": p["claim_token"]}, form=True)
         r = _json(t)
         if c == 200 and r.get("access_token"):
             _sesion(slug, r, p["correo"], p["token_url"])
-            f.unlink(missing_ok=True)
+            soltar()
             _anotar(slug, "conectado", p["correo"], r.get("scope", ""))
             return "conectado"
         err = r.get("error", "")
         if err not in ("authorization_pending", "slow_down"):
-            f.unlink(missing_ok=True)
+            soltar()
             _anotar(slug, "fallido", p["correo"], err or str(c))
             return f"no se conectó: {err or c}"
         time.sleep(p.get("intervalo", 5) + (5 if err == "slow_down" else 0))
-    f.unlink(missing_ok=True)
+    soltar()
     _anotar(slug, "caducado", p["correo"], "")
     return "caducó sin aprobar: vuelve a pedir el código"
 
