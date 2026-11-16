@@ -11,6 +11,9 @@ Lee publicacion.json del encargo (lo deja la etapa «preparar» o «aplicar-camb
   wordpress   entrada (o página) por la API REST con contraseña de aplicación (WP_USUARIO, WP_APP_PASSWORD en los
               secretos del cliente). capacidades.publicacion: {url_api, tipo (posts|pages), estado (publish|draft)}
   entrega     un paquete con los cambios exactos para quien lleve la web (clientes/<web>/entregas/<encargo>/)
+  mcp         el artículo (y sus traducciones, enlazadas) por el servidor MCP de la propia web (hseo_mcp: acceso
+              aprobado por una persona con un código). capacidades.publicacion: {url, guardar: {herramienta, args:
+              plantilla}, id, url_resultado, reglas}. Los cambios técnicos van como entrega.
 
 Cada publicación queda en clientes/<web>/cambios.jsonl (clase, hipótesis, URL, fecha): de ahí sale el veredicto.
 """
@@ -337,7 +340,74 @@ def entrega(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, 
     return f"paquete listo para quien lleve la web: {d}"
 
 
-ADAPTADORES = {"repo-pr": repo_pr, "wordpress": wordpress, "entrega": entrega}
+def _plantilla_args(plantilla: dict, valores: dict) -> dict:
+    """{"titulo": "{titulo}", "publicar": true} → argumentos. «{x}» entero toma el valor tal cual (número, booleano);
+    si no hay valor, la clave se omite. Texto con {x} dentro se rellena como texto."""
+    out = {}
+    for k, v in plantilla.items():
+        if isinstance(v, str):
+            m = re.fullmatch(r"{(\w+)}", v)
+            if m:
+                if valores.get(m.group(1)) not in (None, ""):
+                    out[k] = valores[m.group(1)]
+                continue
+            out[k] = re.sub(r"{(\w+)}", lambda x: str(valores.get(x.group(1), "")), v)
+        else:
+            out[k] = v
+    return out
+
+
+def _idioma(pub: dict, cfg: dict) -> str:
+    if pub.get("idioma"):
+        return str(pub["idioma"])
+    url = str(pub.get("url") or "")
+    for i in cfg.get("idiomas") or []:
+        if f"/{i}/" in url:
+            return i
+    return str(cfg.get("idioma") or "es")
+
+
+def mcp(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firma: str) -> str:
+    """Artículo (y sus traducciones) por el servidor MCP de la web. capacidades.publicacion:
+    {url, guardar: {herramienta, args: {…plantilla con {titulo} {slug} {cuerpo} {idioma} {traduccion_de}…}}, id: campo
+    del resultado con el número de la pieza (id), url_resultado: campo con su dirección (url)}. Las traducciones vienen
+    en publicacion.json → traducciones: [{idioma, contenido, titulo, meta_descripcion, slug}] y se guardan enlazadas."""
+    conf = cfg["capacidades"]["publicacion"]
+    if pub.get("tipo") == "cambio-tecnico":
+        return entrega(slug, eid, cfg, pub, meta, cuerpo, firma) + " (por MCP solo se publica el blog: lo demás, a mano)"
+    g = conf.get("guardar") or {}
+    if not g.get("herramienta") or not isinstance(g.get("args"), dict):
+        raise Rechazo("Falta capacidades.publicacion.guardar (herramienta y args) para publicar por MCP")
+    X = _cargar("hseo_mcp")
+    campo_id, campo_url = conf.get("id", "id"), conf.get("url_resultado", "url")
+    d = E.carpeta(slug, eid)
+
+    def guardar(p: dict, m: dict, texto: str, original=None) -> dict:
+        valores = {**m, **{k: v for k, v in p.items() if isinstance(v, (str, int, float, bool))},
+                   "cuerpo": texto.strip(), "slug": slug_de(p, m), "idioma": _idioma(p, cfg),
+                   "titulo": p.get("titulo") or m.get("titulo") or m.get("title", ""),
+                   "meta_descripcion": p.get("meta_descripcion") or m.get("meta_descripcion") or m.get("description", ""),
+                   "traduccion_de": original}
+        return X.llamar(slug, g["herramienta"], _plantilla_args(g["args"], valores), escribir=True)
+
+    hechos, avisos = [], []
+    r = guardar(pub, meta, cuerpo)
+    hechos.append(f"{_idioma(pub, cfg)}: {r.get(campo_url) or r.get(campo_id)}")
+    avisos += [str(w) for w in r.get("warnings") or []]
+    original = r.get(campo_id)
+    for t in pub.get("traducciones") or []:
+        f = (d / str(t.get("contenido") or "")).resolve()
+        if not str(f).startswith(str(d.resolve())) or not f.is_file():
+            raise Rechazo(f"Publicada la versión principal ({hechos[0]}), pero no encuentro la traducción {t.get('contenido')}")
+        tm, tc = separar_cabecera(f.read_text())
+        rt = guardar(t, tm, tc, original)
+        hechos.append(f"{_idioma(t, cfg)}: {rt.get(campo_url) or rt.get(campo_id)}")
+        avisos += [str(w) for w in rt.get("warnings") or []]
+    B.escribir(d / "publicado.json", {"principal": original, "hechos": hechos, "ts": B.ahora()})   # para deshacer después
+    return "MCP " + " · ".join(hechos) + (f" · avisos de la web: {'; '.join(avisos)[:300]}" if avisos else "")
+
+
+ADAPTADORES = {"repo-pr": repo_pr, "wordpress": wordpress, "entrega": entrega, "mcp": mcp}
 
 
 # ── worktrees: que no se coman el disco ──────────────────────────────────────────────────────────────────────────────

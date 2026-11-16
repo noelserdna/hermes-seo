@@ -136,7 +136,10 @@ def poner_contacto(slug: str, correo: str, canal: str = "correo", quien: str = "
         if otro != slug and contacto(otro)["correo"] == correo:
             raise Rechazo(f"{correo} ya es el contacto de {otro}: cada web lleva una dirección distinta (p. ej. nombre+{slug}@…)")
     cfg = C.leer(slug)
+    previo = cfg.get("contacto") or {}
     cfg["contacto"] = {"correo": correo, "canal": canal}
+    if previo.get("correo") == correo and previo.get("verificado"):   # la misma dirección sigue comprobada
+        cfg["contacto"]["verificado"] = previo["verificado"]
     C._guardar(slug, cfg)
     ap = B.leer(B.home() / "aprobadores.json", {}) or {}
     clave = f"contacto-{slug}"
@@ -145,7 +148,15 @@ def poner_contacto(slug: str, correo: str, canal: str = "correo", quien: str = "
         ap[clave] = {"nombre": f"Dueño de {cfg.get('nombre') or slug}", "canales": {"email": correo}, "clientes": [slug]}
     B.escribir(B.home() / "aprobadores.json", ap)
     os.chmod(B.home() / "aprobadores.json", 0o600)
-    return f"📧 {cfg.get('nombre') or slug}: contacto {correo}, por {canal}"
+    aviso = ""
+    if canal in ("correo", "ambos") and not cfg["contacto"].get("verificado") and activo():
+        nombre = cfg.get("nombre") or slug
+        encolar(slug, f"📧 Confirma tu correo · {nombre}",
+                f"Hola,\n\nA partir de ahora te escribiré a esta dirección sobre {nombre}: lo que se hace, lo que propongo "
+                f"y lo que te toca decidir (con botones).\n\nPara confirmar que es tuya, responde a este correo con "
+                f"cualquier texto. Si no esperabas este correo, ignóralo.", tipo="confirmacion")
+        aviso = " · correo de confirmación enviado (cuenta al responderlo)"
+    return f"📧 {cfg.get('nombre') or slug}: contacto {correo}, por {canal}{aviso}"
 
 
 # ── salida ──────────────────────────────────────────────────────────────────────────────────────────────────────────

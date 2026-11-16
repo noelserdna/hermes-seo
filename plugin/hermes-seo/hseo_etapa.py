@@ -55,6 +55,13 @@ def contexto(slug: str, etapa: str | None = None) -> str:
         l.append(f"- Voz: {neg['voz']}")
     if neg.get("objetivo"):
         l.append(f"- Objetivo: {neg['objetivo']}")
+    if neg.get("conversion"):
+        l.append(f"- Qué cuenta como conversión: {neg['conversion']}")
+    if len(cfg.get("idiomas") or []) > 1:
+        l.append(f"- Idiomas de la web: {', '.join(cfg['idiomas'])} (cada pieza nueva, en todos: la principal en {cfg['idioma']})")
+    reglas = (cfg["capacidades"].get("publicacion") or {}).get("reglas")
+    if reglas:
+        l.append(f"- Reglas de formato de la web (obligatorias): {reglas}")
     if cfg.get("competidores"):
         l.append(f"- Competidores: {', '.join(cfg['competidores'])}")
     if pol.get("congelado_hasta"):

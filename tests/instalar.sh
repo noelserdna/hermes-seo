@@ -32,7 +32,8 @@ si "con --coordinadora-estricta: además el guardia" "bash $ROOT/instalar.sh --c
 si "la carta no se duplica al reinstalar" "bash $ROOT/instalar.sh --coordinadora && [ \$(grep -c 'hermes-seo:inicio' $H/SOUL.md) = 1 ]"
 
 # ── encargado ──
-$HOME/.local/bin/hseo alta web web.com --nombre 'La Web' >/dev/null
+si "el alta crea también el encargado y la lista de 10 pasos" "$HOME/.local/bin/hseo alta web web.com --nombre 'La Web' --idiomas en,es | grep -q 'Encargado creado' && [ -f $H/profiles/seo-p-web/SOUL.md ] && [ -f $S/clientes/web/aterrizaje.json ] && jq -e '.idiomas == [\"en\",\"es\"] and .idioma == \"en\"' $S/clientes/web/cliente.json"
+rm -f $S/clientes/web/aterrizaje.json   # lo de abajo prueba una web «legado» (sin lista): todas sus tareas
 si "crear el encargado" "bash $S/actual/encargado.sh crear web"
 si "su carta con la web" "grep -q 'Encargado de La Web' $H/profiles/seo-p-web/SOUL.md && grep -q 'hseo estado web' $H/profiles/seo-p-web/SOUL.md"
 si "wiki de la web y global, con git propio" "[ -d $S/clientes/web/wiki/.git ] && [ -f $S/clientes/web/wiki/SCHEMA.md ] && [ -d $S/wiki/.git ]"
@@ -49,6 +50,7 @@ si "la foto del encargado" "python3 $S/actual/plugin/hermes-seo/hseo_encargado.p
 si "tareas periódicas: datos todos los días (sin búsqueda configurada no hay métricas)" "grep -q 'seo-p-web cron create 0 6 \* \* \* --name hseo-datos --no-agent' $FALSO_LLAMADAS && ! grep -q 'hseo-metricas-semanales' $FALSO_LLAMADAS && grep -q 'hseo-radar' $FALSO_LLAMADAS"
 si "el script de la tarea lanza con hseo" "grep -q 'hseo_cli.py lanzar web radar' $H/profiles/seo-p-web/scripts/hseo-radar.sh && grep -q 'datos recoger web' $H/profiles/seo-p-web/scripts/hseo-datos.sh"
 $HOME/.local/bin/hseo config web capacidades.busqueda.bing https://web.com/ >/dev/null
+echo "BING_WEBMASTER_API_KEY=x" >> $S/clientes/web/secretos.env
 $HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1 * *", "revision-mensual": "malo"}' >/dev/null
 si "un horario mal escrito se rechaza" "! bash $S/actual/encargado.sh crons web"
 $HOME/.local/bin/hseo config web crons '{"radar": null, "visibilidad-ia": "0 9 1 * *"}' >/dev/null

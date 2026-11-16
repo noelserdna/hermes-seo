@@ -49,6 +49,7 @@ $C config web competidores '["otra.com"]' >/dev/null
 si "con competidores, la etapa corre" "$PL plan estrategia --cliente web | grep -q '▶ competencia'"
 no "métricas sin GSC, Bing ni analítica: no" "$PL plan metricas-semanales --cliente web"
 $C config web capacidades.busqueda.bing https://web.com/ >/dev/null
+echo "BING_WEBMASTER_API_KEY=x" >> "$HERMES_SEO_HOME/clientes/web/secretos.env"
 si "métricas con Bing basta (requiere gsc|bing|analitica)" "$PL plan metricas-semanales --cliente web"
 mkdir -p "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines"
 cat > "$HERMES_SEO_HOME/clientes/web/extensiones/pipelines/radar.json" <<'J'

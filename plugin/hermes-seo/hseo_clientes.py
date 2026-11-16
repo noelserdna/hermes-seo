@@ -44,13 +44,14 @@ B = _cargar("hseo_base")
 Rechazo = B.Rechazo
 
 ESTADOS_WEB = ("nueva", "repo", "wordpress", "sin-acceso")
-PUBLICACION = ("ninguno", "repo-pr", "wordpress", "entrega")
-ANALITICA = ("ninguna", "cloudflare", "ga4", "plausible")
+PUBLICACION = ("ninguno", "repo-pr", "wordpress", "entrega", "mcp")
+ANALITICA = ("ninguna", "cloudflare", "ga4", "plausible", "mcp")
 # qué adaptadores de publicación tienen sentido en cada estado de la web («ninguno»: aún sin configurar, se puede
 # medir y auditar pero no publicar)
-PUBLICACION_POR_ESTADO = {"nueva": {"ninguno", "repo-pr", "wordpress", "entrega"},
-                          "repo": {"ninguno", "repo-pr", "entrega"},
-                          "wordpress": {"ninguno", "wordpress", "entrega"}, "sin-acceso": {"ninguno", "entrega"}}
+# «mcp»: la web publica por su propio servidor MCP con OAuth (hseo_mcp), sea cual sea su código
+PUBLICACION_POR_ESTADO = {"nueva": {"ninguno", "repo-pr", "wordpress", "entrega", "mcp"},
+                          "repo": {"ninguno", "repo-pr", "entrega", "mcp"},
+                          "wordpress": {"ninguno", "wordpress", "entrega", "mcp"}, "sin-acceso": {"ninguno", "entrega"}}
 DOMINIO = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 SUBCARPETAS = ("wiki", "datos", "informes", "briefs", "logs", "wt", "extensiones")
 
@@ -101,6 +102,11 @@ def validar(cfg: dict) -> list:
         e.append("url: tiene que empezar por https://")
     if not re.fullmatch(r"[a-z]{2}", str(cfg.get("idioma", ""))):
         e.append("idioma: código de 2 letras (es, en…)")
+    idiomas = cfg.get("idiomas", [])
+    if not (isinstance(idiomas, list) and all(re.fullmatch(r"[a-z]{2}", str(i)) for i in idiomas)):
+        e.append("idiomas: lista de códigos de 2 letras (p. ej. [\"en\", \"es\"]); el principal va en «idioma»")
+    elif idiomas and cfg.get("idioma") not in idiomas:
+        e.append("idiomas: tiene que incluir el idioma principal («idioma»)")
     mercados = cfg.get("mercados")
     if not isinstance(mercados, list) or not mercados:
         e.append("mercados: al menos uno, p. ej. [{\"pais\": \"ES\", \"bing\": \"es-ES\"}]")
@@ -126,6 +132,8 @@ def validar(cfg: dict) -> list:
         e.append("capacidades.publicacion.repo: la ruta del repo de la web (para publicar por PR)")
     if ad == "wordpress" and not str(pub.get("url_api", "")).startswith("https://"):
         e.append("capacidades.publicacion.url_api: la dirección https de la API de WordPress")
+    if ad == "mcp" and not str(pub.get("url", "")).startswith("https://"):
+        e.append("capacidades.publicacion.url: la dirección https del servidor MCP de la web")
     reg = pub.get("regenerables")
     if reg is not None and not (isinstance(reg, list) and all(isinstance(x, str) and re.fullmatch(r"[\w@-][\w.@-]*", x)
                                                                for x in reg)):
@@ -147,6 +155,13 @@ def validar(cfg: dict) -> list:
     return e
 
 
+def _hay_clave(cfg: dict, clave: str) -> bool:
+    try:
+        return bool(secretos(cfg.get("slug", "")).get(clave))
+    except Rechazo:
+        return False
+
+
 def capacidades(cfg: dict) -> set:
     """Lo que el cliente permite hacer. Las etapas de las pipelines declaran lo que necesitan (`requiere`)."""
     c = set()
@@ -159,7 +174,7 @@ def capacidades(cfg: dict) -> set:
     bus = cap.get("busqueda") or {}
     if bus.get("gsc"):
         c.add("gsc")
-    if bus.get("bing"):
+    if bus.get("bing") and _hay_clave(cfg, "BING_WEBMASTER_API_KEY"):   # sin la clave, Bing no está conectado
         c.add("bing")
     an = (cap.get("analitica") or {}).get("adaptador", "ninguna")
     if an != "ninguna":

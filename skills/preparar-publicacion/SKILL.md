@@ -33,8 +33,15 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-redactor`).
     "clase": "articulo | actualizacion", "hipotesis": "Qué esperamos que cambie y en cuánto tiempo (medible)",
     "enlaces_internos": ["https://…"], "verificacion": "APROBADO | CAMBIOS", "lectura": "APROBADO | CAMBIOS"}
    ```
-   El adaptador de publicación de la web lo convertirá en un PR, un borrador de WordPress o un paquete para quien la
-   lleve. Tú no publicas nada.
+   El adaptador de publicación de la web lo convertirá en un PR, un borrador de WordPress, un artículo en su propio
+   servidor MCP o un paquete para quien la lleve. Tú no publicas nada.
+4. **Si la web tiene varios idiomas** (`contexto-cliente.md` → «Idiomas de la web») y la pieza es nueva: escribe también
+   la versión en cada otro idioma (`borrador-<idioma>.md`, adaptada, no traducida palabra por palabra, con las mismas
+   reglas de formato) y añade a `publicacion.json`:
+   `"idioma": "<el de la principal>", "traducciones": [{"idioma": "en", "contenido": "borrador-en.md", "titulo": "…",
+   "meta_descripcion": "…", "url": "https://…/<slug en ese idioma>"}]`.
+5. **Si publica por su servidor MCP** («publica con: mcp»): añade los campos que pidan sus reglas de formato (p. ej.
+   `publico`, `categoria`) y respeta esas reglas al pie de la letra (resaltado del título, primer párrafo, secciones).
 
 ## Al terminar
 Termina tu respuesta con una sola línea que resuma el resultado (la estación la usa como resumen de la tarjeta).

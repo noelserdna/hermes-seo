@@ -9,6 +9,7 @@ y lo ejecuta el notario.
     hseo puertas [cliente] · hseo puerta <id> · hseo pipelines [--cliente C] · hseo plan <pipeline> <cliente>
     hseo modelos ver [--cliente C]
     hseo datos resumen <cliente> [--dias 28] · hseo datos comparar <cliente> <cambio> · hseo datos recoger <cliente>
+    hseo mcp estado|herramientas <cliente> · hseo mcp llamar <cliente> <herramienta> ['{json}']   (solo lectura)
   Trabajar (sola, y lo cuenta)
     hseo leccion <cliente> <etapa> "<regla general>" <encargo|puerta>…   (la confirma una persona) · hseo lecciones
     hseo lanzar <cliente> <pipeline> [--param k=v]… [--brief TEXTO]
@@ -20,7 +21,11 @@ y lo ejecuta el notario.
     hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
   Cambiar el sistema (con la aprobación de la persona)
-    hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N]
+    hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N] [--idiomas en,es] [--correo C]   (el primer idioma es el principal)
+                                                         (crea la web, su encargado y la lista de 10 pasos; con
+                                                          --correo, el contacto y su correo de confirmación)
+    hseo preguntas <cliente> < texto                     (las preguntas para la IA: una por línea o numeradas)
+    hseo mcp conectar <cliente> <correo>                 (acceso a su servidor MCP: la persona aprueba un código)
     hseo config <cliente> <clave.con.puntos> <valor>
     hseo pausar <cliente|todo> · hseo reanudar <cliente|todo>
     hseo novedad recoger · hseo novedad proponer|descartar …   (estar al día: versiones y novedades filtradas)
@@ -68,6 +73,53 @@ Rechazo = B.Rechazo
 def quien() -> str:
     """Quién pide la acción: la persona (si el canal la pasa) o el perfil de Hermes que la ejecuta."""
     return os.environ.get("HSEO_QUIEN") or os.environ.get("HERMES_PROFILE") or os.environ.get("USER", "")
+
+
+def alta(slug: str, dominio: str, estado_web: str, nombre: str = "", idiomas: str = "", correo: str = "") -> str:
+    """Todo lo de dar de alta, de una vez (lo aprobó la persona): la web, su encargado, la lista de 10 pasos y, si
+    hay correo, el contacto con su correo de confirmación. Lo que falle se dice, pero no deshace lo demás."""
+    cfg = C.alta(slug, dominio, estado_web, nombre, quien())
+    lineas = [f"🌐 Alta hecha: {C.resumen(cfg)}"]
+    lista = [i.strip().lower() for i in idiomas.split(",") if i.strip()]
+    if lista:
+        C.config(slug, "idioma", lista[0], quien())   # el primero es el principal
+        C.config(slug, "idiomas", lista, quien())
+    script = next((p for p in (B.home() / "actual" / "encargado.sh", AQUI.parent.parent / "encargado.sh") if p.exists()), None)
+    if os.environ.get("HSEO_SIN_ENCARGADO") or not script:
+        lineas.append("⚠️ El encargado no se creó aquí (créalo con encargado.sh crear)")
+    else:
+        import subprocess
+        r = subprocess.run(["bash", str(script), "crear", slug], capture_output=True, text=True, timeout=600)
+        lineas.append("🧭 Encargado creado" if r.returncode == 0 else f"⚠️ El encargado no se pudo crear: {(r.stderr or r.stdout)[-300:]}")
+    if correo:
+        try:
+            lineas.append(_cargar("hseo_correo").poner_contacto(slug, correo, "correo", quien()))
+        except Rechazo as e:
+            lineas.append(f"⚠️ Correo de contacto: {e}")
+    AT = _cargar("hseo_aterrizaje")
+    AT.empezar(slug)
+    lineas.append(AT.vista(slug))
+    lineas.append("Siguiente: lanzar «alta» (comprueba accesos) y seguir la lista.")
+    return "\n".join(lineas)
+
+
+def guardar_preguntas(slug: str, texto: str) -> str:
+    """Las preguntas de decisión para la prueba de IA, donde las leen las herramientas y la lista de pasos."""
+    import re as _re
+    preguntas = []
+    for l in texto.splitlines():
+        if l.lstrip().startswith("#"):
+            continue
+        l = _re.sub(r"^\s*(\d+[.)]|[-*•])\s*", "", l).strip()
+        if len(l) > 8:
+            preguntas.append(l)
+    if len(preguntas) < 5:
+        raise Rechazo(f"Necesito al menos 5 preguntas (una por línea); he encontrado {len(preguntas)}")
+    f = C.carpeta(slug) / "preguntas-decision.md"
+    f.write_text(f"# Preguntas de decisión ({len(preguntas)}) · {time.strftime('%d-%m-%Y')}\n\n"
+                 + "\n".join(f"{i}. {p}" for i, p in enumerate(preguntas, 1)) + "\n")
+    B.anotar(C.carpeta(slug) / "config.jsonl", {"ts": B.ahora(), "quien": quien(), "accion": "preguntas", "n": len(preguntas)})
+    return f"❓ {len(preguntas)} preguntas guardadas para la prueba de visibilidad en IA"
 
 
 def estado(slug: str | None = None) -> str:
@@ -235,6 +287,10 @@ def main(argv=None) -> int:
     sub.add_parser("lecciones").add_argument("--todas", action="store_true")
     x = sub.add_parser("alta"); x.add_argument("slug"); x.add_argument("dominio")
     x.add_argument("--estado", default="nueva", choices=C.ESTADOS_WEB); x.add_argument("--nombre", default="")
+    x.add_argument("--idiomas", default=""); x.add_argument("--correo", default="")
+    sub.add_parser("preguntas").add_argument("cliente")
+    x = sub.add_parser("mcp"); x.add_argument("accion", choices=("conectar", "estado", "herramientas", "llamar"))
+    x.add_argument("cliente"); x.add_argument("args", nargs="*")
     x = sub.add_parser("config"); x.add_argument("cliente"); x.add_argument("clave"); x.add_argument("valor")
     sub.add_parser("pausar").add_argument("objetivo")
     sub.add_parser("reanudar").add_argument("objetivo")
@@ -382,8 +438,11 @@ def main(argv=None) -> int:
                 if a.todas or l["estado"] in ("propuesta", "confirmada", "revisar"):
                     print(f"{l['id']}  {l['estado']:10} {l['etapa']:16} {l['regla']}")
         elif a.cmd == "alta":
-            cfg = C.alta(a.slug, a.dominio, a.estado, a.nombre, quien())
-            print(f"🌐 Alta hecha: {C.resumen(cfg)}\nSiguiente: completar su configuración y lanzar «alta».")
+            print(alta(a.slug, a.dominio, a.estado, a.nombre, a.idiomas, a.correo))
+        elif a.cmd == "preguntas":
+            print(guardar_preguntas(a.cliente, sys.stdin.read()))
+        elif a.cmd == "mcp":
+            sys.exit(_cargar("hseo_mcp").main([a.accion, a.cliente] + a.args))
         elif a.cmd == "config":
             print(C.resumen(C.config(a.cliente, a.clave, a.valor, quien())))
         elif a.cmd in ("pausar", "reanudar"):

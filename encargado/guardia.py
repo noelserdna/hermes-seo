@@ -47,7 +47,7 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
 HSEO_SOLA = {"novedad", "mejora", "cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
-             "leccion", "lecciones", "datos"}
+             "leccion", "lecciones", "datos", "preguntas", "mcp"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos", "contacto", "correo"}
 # El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
 # bloquea (el hook va con matcher ".*"). La coordinadora no tiene esta lista: es «ojos y manos en todo».
@@ -141,6 +141,9 @@ def orden_hseo(args: list) -> str | None:
             return f"solo puede actuar sobre {AMBITO}"
     texto = " ".join(args)
     if sub in HSEO_SOLA:
+        if sub == "mcp" and args[1:2] == ["conectar"]:   # pide un código a una persona: con su aprobación
+            APROBAR.append(f"hseo {' '.join(args)[:200]}")
+            return None
         if sub == "aterrizaje" and args[1:2] in (["omitir"], ["empezar"]):
             APROBAR.append(f"hseo {' '.join(args)[:200]}")
             return None

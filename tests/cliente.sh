@@ -24,8 +24,9 @@ no "wordpress pide la url de la API" "$C config wpweb capacidades.publicacion.ad
 si "wordpress con url de API" "$C config wpweb capacidades.publicacion '{\"adaptador\":\"wordpress\",\"url_api\":\"https://wp.com/wp-json\"}'"
 si "repo-pr con su repo da la capacidad repo" \
    "$C alta conrepo conrepo.com --estado repo && $C config conrepo capacidades.publicacion '{\"adaptador\":\"repo-pr\",\"repo\":\"/tmp/r\"}' && $C capacidades conrepo | grep -qw repo"
+no "bing sin su clave no cuenta como conectado" "$C alta sinclave sinclave.com && $C config sinclave capacidades.busqueda.bing https://sinclave.com/ && $C capacidades sinclave | grep -qw bing"
 si "gsc y bing como capacidades" \
-   "$C config conrepo capacidades.busqueda '{\"gsc\":\"sc-domain:conrepo.com\",\"bing\":\"https://conrepo.com/\"}' && $C capacidades conrepo | grep -qw gsc && $C capacidades conrepo | grep -qw bing"
+   "echo BING_WEBMASTER_API_KEY=x >> $HERMES_SEO_HOME/clientes/conrepo/secretos.env && $C config conrepo capacidades.busqueda '{\"gsc\":\"sc-domain:conrepo.com\",\"bing\":\"https://conrepo.com/\"}' && $C capacidades conrepo | grep -qw gsc && $C capacidades conrepo | grep -qw bing"
 no "rechaza una zona horaria inventada" "$C config conrepo zona_horaria Marte/Olimpo"
 no "rechaza un mercado mal escrito" "$C config conrepo mercados '[{\"pais\":\"es\",\"bing\":\"es\"}]'"
 si "acepta varios mercados" "$C config conrepo mercados '[{\"pais\":\"ES\",\"bing\":\"es-ES\"},{\"pais\":\"MX\",\"bing\":\"es-MX\"}]'"
@@ -33,7 +34,7 @@ no "no deja cambiar el slug" "$C config conrepo slug otro"
 si "un cambio de config queda en el historial" "grep -q '\"clave\": \"mercados\"' $HERMES_SEO_HOME/clientes/conrepo/config.jsonl"
 si "un cambio rechazado no se escribe" "$C ver conrepo | grep -q 'Europe/Madrid'"
 si "un cliente.json viejo con la clave jev sigue valiendo" "$C config conrepo jev.permitido false && ! $C capacidades conrepo | grep -qw jev"
-si "listar enseña todos" "[ \$($C listar --json | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))') = 5 ]"
+si "listar enseña todos" "[ \$($C listar --json | python3 -c 'import json,sys;print(len(json.load(sys.stdin)))') = 6 ]"
 si "validar un cliente sano" "$C validar conrepo"
 
 python3 - "$ROOT" <<'PY' && ok "secretos: los del cliente mandan sobre los globales y no hay comentarios" || bad "secretos"

@@ -98,7 +98,10 @@ def _p3(slug, cfg):
         return ok, "WordPress con contraseña de aplicación" if ok else "falta el acceso a WordPress (URL de la API y contraseña de aplicación)"
     if a == "entrega":
         return True, "entrega a mano"
-    return False, "falta decir cómo se publica (repositorio, WordPress o entrega a mano)"
+    if a == "mcp":   # su propio servidor MCP: cuenta cuando el acceso está aprobado
+        ok = (C.carpeta(slug) / "mcp-tokens" / "sesion.json").exists()
+        return ok, "servidor MCP conectado" if ok else "falta aprobar el acceso al servidor MCP de la web (hseo mcp conectar)"
+    return False, "falta decir cómo se publica (repositorio, WordPress, su servidor MCP o entrega a mano)"
 
 
 def _p4(slug, cfg):

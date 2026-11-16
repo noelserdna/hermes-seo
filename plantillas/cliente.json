@@ -5,6 +5,7 @@
   "dominio": "",
   "url": "",
   "idioma": "es",
+  "idiomas": [],
   "mercados": [
     {
       "pais": "ES",
@@ -16,7 +17,8 @@
   "negocio": {
     "publico": "",
     "voz": "",
-    "objetivo": ""
+    "objetivo": "",
+    "conversion": ""
   },
   "capacidades": {
     "publicacion": {

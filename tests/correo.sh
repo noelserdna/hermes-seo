@@ -143,4 +143,22 @@ for _ in range(100):   # la respuesta del encargado llega desacoplada: se espera
 assert e["text"] == "Respuesta del encargado" and e["in_reply_to"] == "<i@g>" and e["subject"] == "Re: Una duda", e
 assert "-c correo" in (T / "llamadas").read_text()
 PY
+python3 "$P/hseo_clientes.py" alta tercera tercera.com >/dev/null
+python3 - "$P" "$T" <<'PY' && ok "contacto nuevo: correo de confirmación; la misma dirección ya comprobada no lo repite ni pierde la comprobación" || bad "confirmación"
+import importlib.util, json, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, C, HC = m("hseo_base"), m("hseo_clientes"), m("hseo_correo")
+HC.despachar()
+r = HC.poner_contacto("tercera", "eva@tercera.com", "correo")
+assert "confirmación enviado" in r, r
+HC.despachar()
+env = [json.loads(l) for l in (T / "buzon/enviados.jsonl").read_text().splitlines()]
+assert env[-1]["to"] == "eva@tercera.com" and env[-1]["subject"].startswith("📧 Confirma tu correo"), env[-1]
+cfg = C.leer("tercera"); cfg["contacto"]["verificado"] = "2026-11-16T10:00:00Z"; C._guardar("tercera", cfg)
+r = HC.poner_contacto("tercera", "eva@tercera.com", "ambos")
+assert "confirmación" not in r and C.leer("tercera")["contacto"].get("verificado"), r
+PY
 exit $fail

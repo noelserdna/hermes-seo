@@ -102,3 +102,19 @@ vigilancia; sin Search Console no hay línea base; `omitir` solo admite 6, 7 y 8
 - DesarrolloMCP pasa a `contacto.canal = correo` (`hseo_correo.py contacto <web> <correo> --canal correo`; para volver,
   `--canal ambos`). El tema de Telegram y `/seo_puertas` quedan de reserva.
 - Queda por ver: una semana sin intervenir (cuaderno, métricas y parte del lunes) y un artículo de punta a punta.
+
+## 16-11: primera alta real (HearMyTour) y webs que publican por su propio MCP
+
+Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encontrados y arreglados:
+- `hseo alta` ya lo hace todo con la aprobación: la web, su encargado (`encargado.sh crear`), la lista de 10 pasos y,
+  con `--correo`, el contacto con su correo de confirmación. Antes la coordinadora no creaba el encargado («es
+  instalación») y el alta se quedaba a medias. `--idiomas en,es` (el primero es el principal; nuevo campo `idiomas`).
+- La plantilla no traía `negocio.conversion`, que el paso 1 exige. `hseo preguntas <web>` guarda las preguntas para la
+  IA donde las leen las herramientas y el paso 8. Bing solo cuenta como conectado con su clave.
+- `poner_contacto` conserva la comprobación si la dirección no cambia (antes la borraba).
+- La carta de la coordinadora: mirar la web antes de preguntar, preguntar la analítica (no deducirla del HTML),
+  conversión aparte del objetivo, no narrar mientras trabaja. Las skills que Hermes escriba sola en el perfil principal
+  piden aprobación (`skills.write_approval`).
+- Adaptador de publicación `mcp` y `hseo_mcp.py`: acceso por auth.md (`service_auth`: código de 6 cifras que aprueba
+  una persona con acceso al panel; la aserción renueva el token 90 días), lectura solo con herramientas de lectura, y
+  publicación del artículo con sus traducciones enlazadas al aprobarse la puerta. Pruebas: `tests/mcp.sh`.
