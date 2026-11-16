@@ -126,3 +126,6 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
 - Contacto con etiqueta (`nombre+web@gmail.com`, para una segunda web de la misma persona): Gmail responde siempre desde
   la dirección principal. Ahora la web de un correo entrante sale del hilo (In-Reply-To frente a `enviados.jsonl`), del
   código de la puerta o de la dirección exacta; la identidad que decide es la dirección guardada de esa web.
+- La lista de pasos de una web nueva no se volvía a comprobar sola: un paso que depende del tiempo (los primeros
+  datos de Google) no se cerraba nunca, ni se lanzaban la línea base y la estrategia. Ahora la recogida diaria la
+  comprueba (`hseo_datos.avanzar_aterrizaje`) y avisa por correo al contacto de lo que avanza.

@@ -36,4 +36,11 @@ $CL config recien capacidades.busqueda '{"gsc":"sc-domain:recien.com"}' >/dev/nu
 si "web recién nacida: con Search Console configurado y sin datos aún, la recogida diaria SÍ arranca (es la que trae los datos)" "python3 $P/hseo_crons.py plan recien | jq -e 'any(.[]; .nombre == \"datos\")'"
 mkdir -p "$HERMES_SEO_HOME/clientes/recien/datos"; echo '{"ts":"2026-11-16T06:00:00Z","fallos":[]}' > "$HERMES_SEO_HOME/clientes/recien/datos/recogidas.jsonl"
 si "paso 5 sin datos de Google pero con el acceso funcionando: lo dice, y que no hay que hacer nada" "$H aterrizaje comprobar recien | grep -q '5. Search Console — el acceso funciona.*no tienes que hacer nada'"
+echo '{}' > "$HERMES_SEO_HOME/clientes/recien/datos/gsc-hoy.tmp"; mkdir -p "$HERMES_SEO_HOME/clientes/recien/datos/gsc"; echo '{}' > "$HERMES_SEO_HOME/clientes/recien/datos/gsc/2026-11-20.json"
+si "la recogida diaria vuelve a comprobar la lista y dice lo que avanza (el paso 5 se cierra solo con los primeros datos)" "python3 -c \"
+import importlib.util, sys; sys.path.insert(0, '$P')
+s = importlib.util.spec_from_file_location('hseo_datos', '$P/hseo_datos.py'); D = importlib.util.module_from_spec(s); sys.modules['hseo_datos'] = D; s.loader.exec_module(D)
+t = D.avanzar_aterrizaje('recien'); assert 'Search Console' in t, t
+assert D.avanzar_aterrizaje('recien') == ''   # sin novedades no se repite
+\" && jq -e '.pasos[\"5\"].ok' $HERMES_SEO_HOME/clientes/recien/aterrizaje.json"
 exit $fail

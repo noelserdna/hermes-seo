@@ -140,12 +140,49 @@ def recoger(slug: str, hoy: date | None = None) -> list:
         except Exception as e:   # noqa: BLE001
             fallos.append(f"analítica por MCP: {str(e)[:200]}")
     actualizar(slug)
+    try:   # web nueva: su lista de pasos avanza sola con los datos (y lanza la línea base y la estrategia)
+        avanzar_aterrizaje(slug)
+    except Exception as e:   # noqa: BLE001
+        fallos.append(f"lista de pasos: {str(e)[:150]}")
     try:   # veredicto (sin modelo) de las tandas cuya ventana ya acabó
         _cargar("hseo_tandas").vencidas(slug)
     except Exception as e:   # noqa: BLE001
         fallos.append(f"veredicto de tandas: {str(e)[:150]}")
     B.anotar(C.carpeta(slug) / "datos" / "recogidas.jsonl", {"ts": B.ahora(), "fallos": [f for f in fallos if f]})
     return [f for f in fallos if f]
+
+
+def avanzar_aterrizaje(slug: str) -> str:
+    """Vuelve a comprobar la lista de pasos de una web nueva (cada día, tras recoger) y avisa a su contacto de lo que
+    avanza. Sin esto, un paso que depende del tiempo (los primeros datos de Google) no se cerraría nunca."""
+    AT = _cargar("hseo_aterrizaje")
+    e = AT.estado(slug)
+    if not e or (e.get("completo") and e["lanzados"].get("estrategia")):
+        return ""
+    hechos = lambda x: {k for k, v in x["pasos"].items() if v.get("ok") or v.get("omitido")}
+    antes, lanzados_antes = hechos(e), set(e.get("lanzados") or {})
+    e2 = AT.comprobar(slug)
+    nuevos = sorted(hechos(e2) - antes, key=int)
+    lanzados = [k for k in e2.get("lanzados") or {} if k not in lanzados_antes and not k.endswith("-error")]
+    if not nuevos and not lanzados:
+        return ""
+    titulos = {str(n): t for n, t, _, _ in AT.PASOS}
+    cfg = C.leer(slug)
+    l = [f"Hola,\n\nEl alta de {cfg.get('nombre') or slug} va en {len(hechos(e2))} de {len(AT.PASOS)}."]
+    if nuevos:
+        l.append("Hecho ahora: " + "; ".join(titulos.get(n, n) for n in nuevos) + ".")
+    nombres = {"linea-base": "la línea base (cómo está la web hoy, para medir lo que cambie)",
+               "estrategia": "la estrategia y el mapa de temas (te llegará para que la apruebes)"}
+    for k in lanzados:
+        l.append(f"He puesto en marcha {nombres.get(k, k)}.")
+    texto = "\n\n".join(l)
+    try:
+        HC = _cargar("hseo_correo")
+        if HC.por_correo(slug):
+            HC.encolar(slug, f"🛬 {cfg.get('nombre') or slug}: el alta avanza", texto, tipo="aviso")
+    except Exception:   # noqa: BLE001 — el aviso nunca frena la recogida
+        pass
+    return texto
 
 
 CAMPOS_EMBUDO = {"visitas": "visits", "descargas": "downloads", "pagos": "checkouts", "ventas": "sales"}
