@@ -43,4 +43,17 @@ s = importlib.util.spec_from_file_location('hseo_datos', '$P/hseo_datos.py'); D 
 t = D.avanzar_aterrizaje('recien'); assert 'Search Console' in t, t
 assert D.avanzar_aterrizaje('recien') == ''   # sin novedades no se repite
 \" && jq -e '.pasos[\"5\"].ok' $HERMES_SEO_HOME/clientes/recien/aterrizaje.json"
+si "mientras dure el alta hay recordatorio diario; las webs sin alta no lo tienen" "python3 $P/hseo_crons.py plan recien | jq -e 'any(.[]; .nombre == \"aterrizaje\" and .horario == \"0 10 * * *\")' && python3 $P/hseo_crons.py plan vieja | jq -e 'any(.[]; .nombre == \"aterrizaje\") | not'"
+python3 - "$P" <<'PY' && ok "el recordatorio pide solo lo que depende de la persona, una vez al día" || bad "recordatorio"
+import importlib.util, sys, time
+from pathlib import Path
+P = Path(sys.argv[1]); sys.path.insert(0, str(P))
+s = importlib.util.spec_from_file_location("hseo_aterrizaje", P / "hseo_aterrizaje.py"); A = importlib.util.module_from_spec(s); sys.modules["hseo_aterrizaje"] = A; s.loader.exec_module(A)
+t = A.recordar("recien", ahora=1_000_000)
+assert "me falta esto de tu parte" in t and "3. Cómo se publica" in t and "Search Console" not in t, t
+assert A.recordar("recien", ahora=1_000_000 + 3600) == ""            # no antes de un día
+assert A.recordar("recien", ahora=1_000_000 + 21 * 3600) != ""      # al día siguiente, otra vez
+n = [p[0] for p in A.pendientes_persona("recien")]
+assert 5 not in n and 3 in n, n
+PY
 exit $fail

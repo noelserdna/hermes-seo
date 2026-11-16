@@ -223,6 +223,54 @@ def comprobar(slug: str) -> dict:
     return e
 
 
+ESPERA = "no tienes que hacer nada"   # en el detalle de un paso: solo hay que esperar (no se le pide a nadie)
+
+
+def pendientes_persona(slug: str) -> list:
+    """Pasos sin hacer que dependen de una persona (no de esperar): [(n, título, detalle)]."""
+    e = estado(slug)
+    if not e:
+        return []
+    titulos = {str(n): t for n, t, _, _ in PASOS}
+    return [(int(k), titulos.get(k, k), str(v.get("detalle") or "")) for k, v in sorted(e["pasos"].items(), key=lambda x: int(x[0]))
+            if not (v.get("ok") or v.get("omitido")) and ESPERA not in str(v.get("detalle") or "")]
+
+
+def recordar(slug: str, ahora: float | None = None, cada_h: float = 20) -> str:
+    """Recordatorio diario mientras el alta tenga algo que depende de la persona: comprueba la lista, y si sigue
+    faltando algo suyo, se lo pide por el canal de la web (correo) o lo devuelve (Telegram lo entrega el cron).
+    Se calla cuando ya no le toca nada, y como mucho una vez cada `cada_h` horas."""
+    e = estado(slug)
+    if not e:
+        return ""
+    comprobar(slug)
+    falta = pendientes_persona(slug)
+    if not falta:
+        return ""
+    ahora = ahora or time.time()
+    e = estado(slug)
+    ultimo = float(e.get("recordado") or 0)
+    if ahora - ultimo < cada_h * 3600:
+        return ""
+    cfg = C.leer(slug)
+    hechos = sum(1 for v in e["pasos"].values() if v.get("ok") or v.get("omitido"))
+    texto = (f"Hola,\n\nEl alta de {cfg.get('nombre') or slug} va en {hechos} de {len(PASOS)}. Para terminarla me falta "
+             f"esto de tu parte:\n\n" + "\n".join(f"{n}. {t}: {d}" for n, t, d in falta)
+             + "\n\nLas claves nunca por correo ni por chat: se guardan en la terminal (hseo secreto guardar). "
+               "Para todo lo demás, responde a este correo. Te lo recordaré cada día hasta que esté.")
+    e["recordado"] = ahora
+    e["recordatorios"] = int(e.get("recordatorios") or 0) + 1
+    B.escribir(_f(slug), e)
+    try:
+        HC = _cargar("hseo_correo")
+        if HC.por_correo(slug):
+            HC.encolar(slug, f"🛬 {cfg.get('nombre') or slug}: falta esto para terminar el alta", texto, tipo="aviso")
+            return "" if not HC.por_telegram(slug) else texto
+    except Exception:   # noqa: BLE001
+        pass
+    return texto
+
+
 def omitir(slug: str, n: int) -> dict:
     if n not in OMITIBLES:
         raise Rechazo(f"Solo se pueden omitir los pasos {', '.join(map(str, OMITIBLES))}")
@@ -271,6 +319,10 @@ def main(argv=None) -> int:
             comprobar(a[1]); print(vista(a[1]))
         elif a[:1] == ["ver"] and len(a) == 2:
             print(vista(a[1]) or f"{a[1]} no tiene aterrizaje (es una web que ya existía)")
+        elif a[:1] == ["recordar"] and len(a) == 2:
+            t = recordar(a[1])
+            if t:
+                print(t)
         elif a[:1] == ["omitir"] and len(a) == 3:
             omitir(a[1], int(a[2])); print(vista(a[1]))
         else:

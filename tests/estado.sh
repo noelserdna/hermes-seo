@@ -32,7 +32,8 @@ assert len(t) <= ES.MAX_WEB
 c = ES.cartera(); assert "La Web: 1 puerta(s)" in c and "Disco" in c, c
 assert "alta en curso" not in c
 (C.carpeta("web") / "aterrizaje.json").write_text(json.dumps({"pasos": {"1": {"ok": True}, "5": {"ok": False, "detalle": "Google aún no tiene datos"}}, "lanzados": {}}))
-c = ES.cartera(); assert "🛬 alta en curso: 1 de 10; falta 5: Google aún no tiene datos" in c, c
+(C.carpeta("web") / "aterrizaje.json").write_text(json.dumps({"pasos": {"1": {"ok": True}, "3": {"ok": False, "detalle": "falta decir cómo se publica"}, "5": {"ok": False, "detalle": "Google aún no tiene datos: no tienes que hacer nada"}}, "lanzados": {}}))
+c = ES.cartera(); assert "🛬 alta en curso: 1 de 10; LE TOCA A LA PERSONA: 3. Cómo se publica" in c and "esperando: 5:" in c, c
 PY
 python3 - "$P" <<'PY' && ok "el hook: contexto en Telegram y CLI, nada en cron; en el encargado su web, en la coordinadora la cartera" || bad "hook"
 import importlib.util, sys

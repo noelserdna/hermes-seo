@@ -129,3 +129,6 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
 - La lista de pasos de una web nueva no se volvía a comprobar sola: un paso que depende del tiempo (los primeros
   datos de Google) no se cerraba nunca, ni se lanzaban la línea base y la estrategia. Ahora la recogida diaria la
   comprueba (`hseo_datos.avanzar_aterrizaje`) y avisa por correo al contacto de lo que avanza.
+- Insistir hasta terminar un alta (petición de Andrés): tarea diaria `hseo-aterrizaje` (10:00, solo mientras dure el
+  alta) que pide a la persona lo que le falta por el canal de la web, como mucho una vez al día y solo lo suyo (no lo
+  que es esperar); y en cada turno la coordinadora ve «LE TOCA A LA PERSONA» y lo recuerda al final de su respuesta.

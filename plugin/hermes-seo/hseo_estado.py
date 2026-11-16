@@ -183,10 +183,13 @@ def cartera(ahora: float | None = None) -> str:
         at = B.leer(C.carpeta(slug) / "aterrizaje.json")
         if isinstance(at, dict) and at.get("pasos") and not (at.get("completo") and (at.get("lanzados") or {}).get("estrategia")):
             hechos = [k for k, p in at["pasos"].items() if p.get("ok") or p.get("omitido")]
-            faltan = [f"{k}: {str(p.get('detalle', ''))[:90]}" for k, p in sorted(at["pasos"].items(), key=lambda x: int(x[0]))
-                      if not (p.get("ok") or p.get("omitido"))]
-            lineas.append(f"  🛬 alta en curso: {len(hechos)} de 10" + (f"; falta {' | '.join(faltan)}" if faltan else "")
-                          + " (la recogida diaria la vuelve a comprobar y avisa por correo cuando avanza)")
+            persona = _cargar("hseo_aterrizaje").pendientes_persona(slug)
+            espera = [f"{k}: {str(p.get('detalle', ''))[:90]}" for k, p in sorted(at["pasos"].items(), key=lambda x: int(x[0]))
+                      if not (p.get("ok") or p.get("omitido")) and int(k) not in [n for n, _, _ in persona]]
+            lineas.append(f"  🛬 alta en curso: {len(hechos)} de 10"
+                          + (f"; LE TOCA A LA PERSONA: {' | '.join(f'{n}. {t}: {d[:80]}' for n, t, d in persona)}" if persona else "")
+                          + (f"; esperando: {' | '.join(espera)}" if espera else "")
+                          + " (la recogida diaria la comprueba y avisa; si le toca a la persona, se le recuerda cada día)")
     lineas.append("Para el detalle de una web: hseo estado <web> · hseo preguntar <web> \"…\"")
     return tapar("\n".join(lineas))[:3000]
 

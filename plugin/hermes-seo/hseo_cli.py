@@ -267,7 +267,7 @@ def main(argv=None) -> int:
     x = sub.add_parser("novedad"); x.add_argument("accion", choices=("recoger", "proponer", "descartar")); x.add_argument("args", nargs="*")
     x = sub.add_parser("mejora"); x.add_argument("accion", choices=("proponer",)); x.add_argument("rama")
     x = sub.add_parser("ia"); x.add_argument("accion", choices=("resumen",)); x.add_argument("cliente")
-    x = sub.add_parser("aterrizaje"); x.add_argument("accion", choices=("empezar", "comprobar", "ver", "omitir"))
+    x = sub.add_parser("aterrizaje"); x.add_argument("accion", choices=("empezar", "comprobar", "ver", "omitir", "recordar"))
     x.add_argument("cliente"); x.add_argument("n", nargs="?", type=int)
     x = sub.add_parser("secreto"); x.add_argument("accion", choices=("guardar",)); x.add_argument("cliente"); x.add_argument("clave")
     x = sub.add_parser("contacto"); x.add_argument("cliente"); x.add_argument("correo")

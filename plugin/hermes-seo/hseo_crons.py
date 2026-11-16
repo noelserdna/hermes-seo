@@ -40,7 +40,7 @@ C = _cargar("hseo_clientes")
 PL = _cargar("hseo_pipelines")
 
 DEFECTO = {"datos": "0 6 * * *", "vigilancia": "*/5 * * * *", "parte": "30 10 * * 1", "radar": "30 7 * * 1", "metricas-semanales": "0 8 * * 1",
-           "revision-mensual": "30 8 1 * *", "autoridad": "0 10 2 * *"}
+           "revision-mensual": "30 8 1 * *", "autoridad": "0 10 2 * *", "aterrizaje": "0 10 * * *"}
 SOLO_SI_SE_ACTIVA = {"visibilidad-ia": "0 9 1 * *"}   # mensual (cada quince días es ruido); coste externo: la activa la persona
 
 
@@ -68,6 +68,11 @@ def plan(slug: str) -> list:
             if nueva and not C.capacidades(cfg) & {"gsc", "bing", "analitica"}:   # web nueva sin ninguna fuente aún
                 continue
             out.append({"nombre": "datos", "horario": horario, "orden": ["datos", "recoger", slug]})
+            continue
+        if nombre == "aterrizaje":   # solo mientras dure el alta: recuerda a la persona lo que le falta
+            at = _cargar("hseo_aterrizaje").estado(slug)
+            if at and not at.get("completo"):
+                out.append({"nombre": "aterrizaje", "horario": horario, "orden": ["aterrizaje", "recordar", slug]})
             continue
         if nombre in ("parte", "vigilancia"):
             out.append({"nombre": nombre, "horario": horario, "orden": [nombre, slug]})
