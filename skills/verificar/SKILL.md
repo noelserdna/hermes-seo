@@ -19,7 +19,8 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-verificador`).
   el mapa temático) antes de proponer nada. Léela; no la edites desde una etapa.
 - Herramientas de datos: en la carpeta que indica `contexto-cliente.md`, siempre con `--cliente <nombre corto>`
   (`--help` para su uso). Si falta una clave, la herramienta lo dice: anótalo en tu salida y sigue con lo demás.
-- Escribe tu resultado en el fichero que te pide el encargo, en el idioma de la web. Nada de publicar, desplegar,
+- Escribe tu resultado en el fichero que te pide el encargo: lo que se va a publicar, en el idioma de la web; los
+  informes, en el «idioma de los informes» de `contexto-cliente.md`. Nada de publicar, desplegar,
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento

@@ -102,6 +102,8 @@ def validar(cfg: dict) -> list:
         e.append("url: tiene que empezar por https://")
     if not re.fullmatch(r"[a-z]{2}", str(cfg.get("idioma", ""))):
         e.append("idioma: código de 2 letras (es, en…)")
+    if cfg.get("idioma_informes") and not re.fullmatch(r"[a-z]{2}", str(cfg["idioma_informes"])):
+        e.append("idioma_informes: código de 2 letras (por defecto es)")
     idiomas = cfg.get("idiomas", [])
     if not (isinstance(idiomas, list) and all(re.fullmatch(r"[a-z]{2}", str(i)) for i in idiomas)):
         e.append("idiomas: lista de códigos de 2 letras (p. ej. [\"en\", \"es\"]); el principal va en «idioma»")

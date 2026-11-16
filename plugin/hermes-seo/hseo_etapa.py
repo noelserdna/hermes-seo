@@ -47,6 +47,7 @@ def contexto(slug: str, etapa: str | None = None) -> str:
          f"- Nombre corto (para las herramientas: --cliente): {slug}",
          f"- Herramientas de datos: {PL.raiz() / 'herramientas'} (cada una con --cliente {slug}; `--help` para el uso)",
          f"- Idioma: {cfg['idioma']} · mercados: {', '.join(m['pais'] for m in cfg['mercados'])} · zona: {cfg['zona_horaria']}",
+         f"- Idioma de los informes (lo que lee la persona: informes, notas, propuestas): {cfg.get('idioma_informes') or 'es'}",
          f"- Estado de la web: {cfg['estado_web']} · publica con: {cfg['capacidades']['publicacion'].get('adaptador')}",
          f"- Capacidades: {', '.join(sorted(C.capacidades(cfg)))}"]
     if neg.get("publico"):
