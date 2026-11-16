@@ -153,6 +153,8 @@ PY
   echo "Coordinadora: carta añadida a $S; lo irreversible (decidir puertas, aprobadores, secretos) prohibido"
   # su manera de trabajar no cambia sola: Hermes puede proponer skills nuevas, pero escribirlas pide aprobación
   "$HERMES" config set skills.write_approval true >/dev/null 2>&1 || true
+  # en Telegram solo la respuesta final (sin los comentarios intermedios del modelo mientras usa herramientas)
+  "$HERMES" config set display.interim_assistant_messages false >/dev/null 2>&1 || true
   # salud del servidor: revisar FUERA de Hermes (crontab del usuario) y avisar desde un cron sin IA de la coordinadora
   LINEA="*/10 * * * * HERMES_SEO_HOME=$HSEO python3 $HSEO/actual/plugin/hermes-seo/hseo_sistema.py revisar >> $HSEO/sistema.log 2>&1"
   if [ -z "${HSEO_SIN_CRONTAB:-}" ] && command -v crontab >/dev/null && ! crontab -l 2>/dev/null | grep -q "hseo_sistema.py revisar"; then

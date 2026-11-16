@@ -15,7 +15,7 @@ echo '{"yo":{"nombre":"Yo","canales":{"local":"x"},"clientes":["*"]}}' > "$HERME
 si "una web sin aterrizaje (legado) conserva sus crons" "python3 $P/hseo_crons.py plan vieja | jq -e 'any(.[]; .nombre == \"datos\") and any(.[]; .nombre == \"parte\")'"
 $H aterrizaje empezar nueva >/dev/null
 si "web nueva: la lista dice «n de 10» y el siguiente paso" "$H aterrizaje ver nueva | grep -q '🛬 Aterrizaje de .* de 10' && $H aterrizaje ver nueva | grep -q 'Siguiente: Qué es la web'"
-si "sin Search Console comprobado no hay cron de datos; sin negocio, no hay parte; la vigilancia sí" "python3 $P/hseo_crons.py plan nueva | jq -e '(any(.[]; .nombre == \"datos\") | not) and (any(.[]; .nombre == \"parte\") | not) and any(.[]; .nombre == \"vigilancia\")'"
+si "sin ninguna fuente de datos no hay cron de datos; sin negocio, no hay parte; la vigilancia sí" "python3 $P/hseo_crons.py plan nueva | jq -e '(any(.[]; .nombre == \"datos\") | not) and (any(.[]; .nombre == \"parte\") | not) and any(.[]; .nombre == \"vigilancia\")'"
 no "un paso no se marca porque sí: omitir el 5 no vale" "$H aterrizaje omitir nueva 5"
 si "omitir el 6 (Bing) sí" "$H aterrizaje omitir nueva 6 | grep -q '➖ 6.'"
 mkdir -p "$T/repo/.git" "$HERMES_SEO_HOME/clientes/nueva/datos/gsc"; echo '{}' > "$HERMES_SEO_HOME/clientes/nueva/datos/gsc/2026-11-01.json"
@@ -31,4 +31,9 @@ $H aterrizaje comprobar nueva >/dev/null
 si "y solo una vez" "[ \$(ls $HERMES_SEO_HOME/clientes/nueva/encargos | grep -c '^linea-base-') = 1 ]"
 si "con Search Console comprobado ya hay cron de datos" "python3 $P/hseo_crons.py plan nueva | jq -e 'any(.[]; .nombre == \"datos\") and any(.[]; .nombre == \"parte\")'"
 si "las claves no se guardan si no es desde una terminal" "! echo valor | $H secreto guardar nueva BING_API_KEY 2>&1 | grep -q guardada"
+$CL alta recien recien.com >/dev/null; $H aterrizaje empezar recien >/dev/null
+$CL config recien capacidades.busqueda '{"gsc":"sc-domain:recien.com"}' >/dev/null
+si "web recién nacida: con Search Console configurado y sin datos aún, la recogida diaria SÍ arranca (es la que trae los datos)" "python3 $P/hseo_crons.py plan recien | jq -e 'any(.[]; .nombre == \"datos\")'"
+mkdir -p "$HERMES_SEO_HOME/clientes/recien/datos"; echo '{"ts":"2026-11-16T06:00:00Z","fallos":[]}' > "$HERMES_SEO_HOME/clientes/recien/datos/recogidas.jsonl"
+si "paso 5 sin datos de Google pero con el acceso funcionando: lo dice, y que no hay que hacer nada" "$H aterrizaje comprobar recien | grep -q '5. Search Console — el acceso funciona.*no tienes que hacer nada'"
 exit $fail

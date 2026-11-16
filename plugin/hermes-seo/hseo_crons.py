@@ -64,6 +64,9 @@ def plan(slug: str) -> list:
         if not _cargar("hseo_aterrizaje").permitido(slug, nombre):   # web nueva: su paso del aterrizaje aún no está
             continue
         if nombre == "datos":
+            nueva = _cargar("hseo_aterrizaje").estado(slug) is not None
+            if nueva and not C.capacidades(cfg) & {"gsc", "bing", "analitica"}:   # web nueva sin ninguna fuente aún
+                continue
             out.append({"nombre": "datos", "horario": horario, "orden": ["datos", "recoger", slug]})
             continue
         if nombre in ("parte", "vigilancia"):

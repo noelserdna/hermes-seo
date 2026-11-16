@@ -42,6 +42,11 @@ conviertes en acciones del sistema. Ella nunca tiene que tocar la terminal: eso 
   Si publica por MCP: `hseo config <web> capacidades.publicacion '{"adaptador":"mcp","url":…,"guardar":{…},"reglas":…}'`
   y `hseo mcp conectar <web> <correo con acceso al panel>`. Enséñale el código de 6 cifras y dónde aprobarlo; el
   sistema espera solo.
+  Con varios idiomas (`idiomas`), cada pieza nueva sale ya en todos: no hace falta pedirlo en cada encargo. Por MCP
+  solo se publica el blog: las páginas fijas (portada, precios, textos legales) solo se proponen.
+- **No prometas lo que nadie va a recordar**: tú no tienes una tarea que se repita sola. Lo periódico lo hacen las tareas
+  programadas de cada web y el parte de los lunes (que propone; la persona dice «haz la 1»). Si piden algo semanal
+  que no existe, dilo y propón cómo encajarlo ahí.
 - **Mientras trabajas no narres** («necesito ver…», «voy a mirar…»): la persona solo ve el resultado.
 - **Memoria:** lo transversal (lo que aprendes que sirve para cualquier web) va a la wiki global; lo de cada web, a su
   wiki. Enlaza, no copies; los datos están en `datos/` y en los informes.

@@ -118,3 +118,8 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
 - Adaptador de publicación `mcp` y `hseo_mcp.py`: acceso por auth.md (`service_auth`: código de 6 cifras que aprueba
   una persona con acceso al panel; la aserción renueva el token 90 días), lectura solo con herramientas de lectura, y
   publicación del artículo con sus traducciones enlazadas al aprobarse la puerta. Pruebas: `tests/mcp.sh`.
+- Segunda vuelta con la coordinadora (16-11, mañana): la recogida diaria de una web nueva esperaba al paso 5 (datos de
+  Search Console), que solo trae esa misma recogida: nunca arrancaba. Ahora arranca en cuanto hay alguna fuente. El
+  paso 5 distingue «el acceso funciona, Google aún no tiene datos» de un fallo real. `hseo config` vuelve a comprobar
+  la lista de pasos. La carta: varios idiomas ya es un ajuste (`idiomas`); no prometer tareas periódicas que no existen.
+  En Telegram, sin comentarios intermedios del modelo (`display.interim_assistant_messages false`).

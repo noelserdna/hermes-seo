@@ -113,7 +113,15 @@ def _p4(slug, cfg):
 def _p5(slug, cfg):
     fotos = list((C.carpeta(slug) / "datos" / "gsc").glob("*.json")) if (C.carpeta(slug) / "datos" / "gsc").is_dir() else []
     ok = "gsc" in C.capacidades(cfg) and bool(fotos)
-    return ok, f"{len(fotos)} días guardados" if ok else "falta dar acceso a Search Console (y que llegue la primera recogida)"
+    if ok:
+        return True, f"{len(fotos)} días guardados"
+    if "gsc" not in C.capacidades(cfg):
+        return False, "falta decir qué propiedad de Search Console es (capacidades.busqueda.gsc) y dar acceso a la cuenta del sistema"
+    recogidas = _jsonl(C.carpeta(slug) / "datos" / "recogidas.jsonl")
+    fallo = next((x for x in (recogidas[-1].get("fallos") or []) if "gsc" in x.lower()), "") if recogidas else ""
+    if recogidas and not fallo:   # el acceso funciona: Google aún no tiene datos (web nueva o con muy poco tráfico)
+        return False, "el acceso funciona, pero Google aún no tiene datos de esta web (tarda unos días): no tienes que hacer nada"
+    return False, f"la recogida de Search Console falla: {fallo[:160]}" if fallo else "falta la primera recogida de Search Console"
 
 
 def _p6(slug, cfg):
@@ -163,7 +171,8 @@ PASOS = [
     (9, "Reglas: ritmo y quién decide", _p9, "topes y puertas"),
     (10, "Correo o tema de contacto, comprobado", _p10, "el parte y las puertas"),
 ]
-REQUISITO = {"datos": 5, "metricas-semanales": 5, "revision-mensual": 5, "parte": 1, "radar": 8, "visibilidad-ia": 8,
+# «datos» no espera al paso 5: es la propia recogida la que trae los primeros datos (si esperase, nunca llegarían)
+REQUISITO = {"metricas-semanales": 5, "revision-mensual": 5, "parte": 1, "radar": 8, "visibilidad-ia": 8,
              "autoridad": 8, "colaboraciones": 8, "usos-candidatos": 8}
 
 

@@ -130,7 +130,7 @@ case "$CMD" in
     "$HERMES" -p "$P" tools disable web browser image_gen tts computer_use cronjob delegation code_execution \
       connections kanban >/dev/null 2>&1 || true
     "$HERMES" -p "$P" tools enable terminal file clarify skills memory session_search vision >/dev/null 2>&1 || true
-    for kv in "terminal.cwd $CARPETA" "cron.wrap_response false" "agent.clarify_timeout 1800" "curator.enabled false" "skills.write_approval true" "display.language es"; do
+    for kv in "terminal.cwd $CARPETA" "cron.wrap_response false" "agent.clarify_timeout 1800" "curator.enabled false" "skills.write_approval true" "display.language es" "display.interim_assistant_messages false"; do
       "$HERMES" -p "$P" config set $kv >/dev/null
     done
     "$HERMES" -p "$P" config set skills.external_dirs "[\"$ARNES/encargado/skills\"]" >/dev/null

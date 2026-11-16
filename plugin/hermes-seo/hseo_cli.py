@@ -448,6 +448,10 @@ def main(argv=None) -> int:
             sys.exit(_cargar("hseo_mcp").main([a.accion, a.cliente] + a.args))
         elif a.cmd == "config":
             print(C.resumen(C.config(a.cliente, a.clave, a.valor, quien())))
+            if (C.carpeta(a.cliente) / "aterrizaje.json").exists():   # la lista de pasos sigue a la configuración
+                AT = _cargar("hseo_aterrizaje")
+                e = AT.comprobar(a.cliente)
+                print(f"🛬 Aterrizaje: {len([1 for v in e['pasos'].values() if v.get('ok') or v.get('omitido')])} de 10")
         elif a.cmd in ("pausar", "reanudar"):
             print(pausar(a.objetivo, a.cmd == "pausar"))
         elif a.cmd == "modelos":
