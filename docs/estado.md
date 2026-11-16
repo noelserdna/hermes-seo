@@ -141,3 +141,12 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
   cada cambio obligatorio en cada versión (principal y traducciones); si falta algo vuelve una vez a `preparar` (contador
   propio por etapa); si todo está, el CAMBIOS de la verificación deja de ser aviso grave. Las pipelines propias de
   DesarrolloMCP (`extensiones/pipelines`) no la tienen aún.
+
+## 16-11 noche: herencia de pipelines y redacción con Hermes (0.1.0-bc80237)
+
+- Pipelines de una web con `hereda` + `cambia`/`añade`/`quita` (ver `hseo_pipelines.py`). Las 3 de DesarrolloMCP que adaptaban
+  una del plugin ya heredan (comprobado que el resultado es idéntico al de antes). Deshacer: copiar
+  `~/backups-hermes-seo/pipelines-dmcp-pre-herencia-20261116/*.json` a `clientes/desarrollomcp/extensiones/pipelines/`.
+- `redactar` (articulo, actualizacion) y `aplicar-cambio` (cambio-seo) con ejecutor `hermes`: Opus por el perfil `seo-redactor`.
+  Prueba de coste: créditos de uso desactivados, 0,00 € tras la llamada.
+- HearMyTour: A y B publicados por MCP en dos idiomas a partir de un PUBLICAR por correo cada uno.
