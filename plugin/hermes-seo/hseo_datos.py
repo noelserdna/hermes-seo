@@ -18,6 +18,7 @@ import json
 import sqlite3
 import subprocess
 import sys
+import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -168,6 +169,10 @@ def avanzar_aterrizaje(slug: str) -> str:
         return ""
     titulos = {str(n): t for n, t, _, _ in AT.PASOS}
     cfg = C.leer(slug)
+    if nuevos:   # un paso hecho enciende tareas periódicas (métricas, revisión mensual…): se crean ya, no en la próxima instalación
+        script = next((p for p in (B.home() / "actual" / "encargado.sh",) if p.exists()), None)
+        if script and not os.environ.get("HSEO_SIN_ENCARGADO"):
+            subprocess.run(["bash", str(script), "crons", slug], capture_output=True, text=True, timeout=600)
     l = [f"Hola,\n\nEl alta de {cfg.get('nombre') or slug} va en {len(hechos(e2))} de {len(AT.PASOS)}."]
     if nuevos:
         l.append("Hecho ahora: " + "; ".join(titulos.get(n, n) for n in nuevos) + ".")
