@@ -28,7 +28,8 @@ verificar el texto entero, solo que lo que la verificación pidió está hecho, 
 1. Lee `verificacion.md`: su lista de **cambios obligatorios**. Si su veredicto es APROBADO y no hay cambios
    obligatorios, escribe `comprobacion.md` diciéndolo y termina con `VEREDICTO: APROBADO`.
 2. Lee `publicacion.json`: el contenido (`contenido`) y cada traducción (`traducciones[].contenido`). Esas son las
-   versiones que se van a publicar; ninguna puede quedarse fuera.
+   versiones que se van a publicar; ninguna puede quedarse fuera. Si trae un PR (`pr`), lo que se publica son los
+   ficheros de esa rama: compruébalos en el worktree del encargo (o con `git show <rama>:<fichero>`), no un borrador.
 3. Para cada cambio obligatorio y cada versión: ¿está aplicado? Busca la frase que había que quitar o cambiar (y sus
    equivalentes en el otro idioma) y comprueba que lo nuevo dice lo que pidió la verificación, ni más ni menos.
 4. Tú no corriges el texto: solo compruebas. Escribe `comprobacion.md` con una tabla | Cambio | Versión | ¿Aplicado? |
