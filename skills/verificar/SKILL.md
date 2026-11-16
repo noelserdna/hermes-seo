@@ -25,7 +25,9 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-verificador`).
 
 ## Procedimiento
 1. Lee el borrador (o el cambio) y la nota de fuentes. Sin el contexto del encargo: con desconfianza.
-2. Cada afirmación de hechos: abre la fuente y comprueba que dice eso (no más). Vigila el alcance («puede» ≠ «debe»,
+2. Cada afirmación de hechos: abre la fuente y comprueba que dice eso (no más). **Si una fuente no se puede abrir**
+   (403, 404, muro de pago, caída), la afirmación que depende de ella es un **cambio obligatorio**: quitarla o
+   apoyarla en otra fuente que sí se pueda comprobar. Nunca la dejes «para que decida la puerta». Vigila el alcance («puede» ≠ «debe»,
    propuesta ≠ estándar), cifras, fechas, nombres, enlaces (que respondan y lleven a lo que dicen) y código o pasos.
 3. Si es un cambio técnico, comprueba que hace lo que dice el análisis y que no rompe nada evidente (redirecciones en
    bucle, canonical a otra página, páginas con tráfico que desaparecen).

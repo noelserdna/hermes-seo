@@ -58,6 +58,8 @@ def contexto(slug: str, etapa: str | None = None) -> str:
         l.append(f"- Objetivo: {neg['objetivo']}")
     if neg.get("conversion"):
         l.append(f"- Qué cuenta como conversión: {neg['conversion']}")
+    if neg.get("producto"):
+        l.append(f"- Datos del producto confirmados por el dueño (mandan sobre lo que diga la web): {neg['producto']}")
     if len(cfg.get("idiomas") or []) > 1:
         l.append(f"- Idiomas de la web: {', '.join(cfg['idiomas'])} (cada pieza nueva, en todos: la principal en {cfg['idioma']})")
     reglas = (cfg["capacidades"].get("publicacion") or {}).get("reglas")
