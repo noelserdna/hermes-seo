@@ -141,17 +141,86 @@
           h("div", { style: tenue }, "Veredicto: a los 28 días, pídeselo a su encargado («¿qué tal fue el cambio del " + (c.ts || "").slice(0, 10) + "?»)."))));
   }
 
-  const SECCIONES = [["Cartera", Cartera], ["Decisiones", Decisiones], ["Métricas", Metricas], ["Cambios", Cambios]];
+  function Tabla({ datos }) {
+    return h("table", { style: { width: "100%", fontSize: 13, borderCollapse: "collapse" } }, h("tbody", null,
+      Object.entries(datos).map(([k, v]) => h("tr", { key: k },
+        h("td", { style: { padding: "3px 8px 3px 0", ...tenue, width: "38%", verticalAlign: "top" } }, k),
+        h("td", { style: { padding: 3, wordBreak: "break-word" } }, v == null || v === "" ? "—" : String(v))))));
+  }
+
+  function Campo({ slug, c, alGuardar }) {
+    const aTexto = (v) => (v == null ? "" : Array.isArray(v) ? v.join("\n") : String(v));
+    const [editando, setEditando] = useState(false);
+    const [v, setV] = useState(aTexto(c.valor));
+    const [msg, setMsg] = useState("");
+    useEffect(() => { setV(aTexto(c.valor)); }, [c.valor]);
+    const guardar = (valor) => post("/config/" + slug, { clave: c.clave, valor })
+      .then(() => { setMsg("✅ Guardado"); setEditando(false); alGuardar(); })
+      .catch((e) => setMsg("⚠️ " + String(e.message || e)));
+    const mostrar = c.tipo === "si-no" ? (c.valor ? "sí" : "no") : aTexto(c.valor) || "—";
+    return h("div", { style: { padding: "8px 0", borderBottom: BORDE } },
+      h("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" } },
+        h("strong", { style: { fontSize: 14 } }, c.etiqueta),
+        c.tipo === "si-no"
+          ? h(Button, { size: "sm", variant: "outline", onClick: () => guardar(!c.valor) }, c.valor ? "Quitar" : "Activar")
+          : !editando ? h(Button, { size: "sm", variant: "ghost", onClick: () => { setEditando(true); setMsg(""); } }, "Cambiar") : null),
+      c.ayuda ? h("div", { style: tenue }, c.ayuda) : null,
+      editando
+        ? h("div", { style: { marginTop: 6 } },
+            c.tipo === "texto" || c.tipo === "lista"
+              ? h("textarea", { value: v, onChange: (e) => setV(e.target.value), rows: c.tipo === "lista" ? 4 : 5,
+                  style: { width: "100%", fontFamily: "inherit", fontSize: 13, padding: 6, border: BORDE, borderRadius: 6, background: "transparent", color: "inherit" } })
+              : h(Input, { value: v, onChange: (e) => setV(e.target.value), type: c.tipo === "numero" ? "number" : "text", placeholder: c.tipo === "fecha" ? "AAAA-MM-DD" : "" }),
+            h("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+              h(Button, { size: "sm", onClick: () => guardar(v) }, "Guardar"),
+              h(Button, { size: "sm", variant: "ghost", onClick: () => { setEditando(false); setV(aTexto(c.valor)); setMsg(""); } }, "Cancelar")))
+        : h("div", { style: { whiteSpace: "pre-wrap", marginTop: 4, fontSize: 13 } }, mostrar),
+      msg ? h("div", { style: { fontSize: 12, marginTop: 4 } }, msg) : null);
+  }
+
+  function Configuracion() {
+    const [webs] = usarDatos("/webs", 0);
+    const [web, setWeb] = useState("");
+    useEffect(() => { if (webs && webs.length && !web) setWeb(webs[0].slug); }, [webs]);
+    const [cfg, setCfg] = useState(null);
+    const cargar = useCallback(() => { if (web) get("/config/" + web).then(setCfg).catch((e) => setCfg({ error: String(e.message || e) })); }, [web]);
+    useEffect(() => { setCfg(null); cargar(); }, [cargar]);
+    if (!webs) return h("p", { style: tenue }, "Cargando…");
+    const seccion = (t, ...hijos) => h("div", { style: caja }, h("strong", null, t), h("div", { style: { marginTop: 8 } }, ...hijos));
+    return h("div", null,
+      h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 } },
+        webs.map((w) => h(Button, { key: w.slug, size: "sm", variant: w.slug === web ? "default" : "outline", onClick: () => setWeb(w.slug) }, w.nombre))),
+      !cfg ? h("p", { style: tenue }, "Cargando…") : cfg.error ? h("p", { style: tenue }, cfg.error) : h("div", null,
+        cfg.alta && !cfg.alta.completo ? h("p", null, "🛬 Alta en curso: " + cfg.alta.hechos + " de 10 pasos.") : null,
+        seccion("La web", h(Tabla, { datos: cfg.web })),
+        seccion("Lo que puedes cambiar", h("p", { style: tenue }, "Se aplica en el siguiente trabajo, sin reiniciar nada. Cada cambio queda en el historial."),
+          cfg.editables.map((c) => h(Campo, { key: c.clave, slug: web, c, alGuardar: cargar }))),
+        seccion("Cómo publica", h(Tabla, { datos: cfg.publicacion }), h("p", { style: { ...tenue, marginTop: 6 } }, "Esto, el contacto y las claves se cambian con la coordinadora: las claves nunca pasan por aquí.")),
+        seccion("Contacto", h(Tabla, { datos: cfg.contacto })),
+        seccion("Cómo trabaja (igual en todas las webs salvo «preparar»)", cfg.como_trabaja.map((p) => h("div", { key: p.id, style: { marginBottom: 10 } },
+          h("div", null, h("strong", { style: { fontSize: 13 } }, p.nombre), " ",
+            p.propia ? h(Badge, { variant: "outline" }, p.hereda ? "adaptada" : "propia de esta web") : null,
+            p.puerta ? h("span", { style: tenue }, " → 🚪 " + p.puerta) : null),
+          h("div", { style: { ...tenue, marginTop: 2 } }, p.etapas.map((e) => e.id + " (" + e.ejecutor + (e.modelo && e.modelo !== "el del perfil" ? ", " + e.modelo : "") + ")").join(" → "))))),
+        seccion("Tareas programadas", h(Tabla, { datos: Object.fromEntries(cfg.tareas.map((t) => [t.nombre, t.horario])) })),
+        seccion("Puede", h("div", { style: tenue }, cfg.capacidades.join(", ") || "nada configurado aún")),
+        seccion("Historial de cambios", !cfg.historial.length ? h("p", { style: tenue }, "Sin cambios registrados.") :
+          cfg.historial.map((r, i) => h("div", { key: i, style: { fontSize: 12, padding: "4px 0", borderBottom: BORDE } },
+            h("div", null, (r.ts || "").slice(0, 16).replace("T", " ") + " · " + (r.quien || "—") + " · ", h("strong", null, r.clave)),
+            h("div", { style: tenue }, r.antes + " → " + r.despues))))));
+  }
+
+  const SECCIONES = [["Cartera", Cartera], ["Decisiones", Decisiones], ["Métricas", Metricas], ["Cambios", Cambios], ["Configuración", Configuracion]];
 
   function Pagina() {
     const [sec, setSec] = useState(0);
     return h("div", { style: { padding: 16, maxWidth: 960 } },
       h("h1", { style: { fontSize: 20, fontWeight: 600, marginBottom: 4 } }, "SEO"),
-      h("p", { style: { ...tenue, marginBottom: 12 } }, "Tus webs, lo que espera tu decisión, sus datos y lo que se ha cambiado. Para pedir trabajo, habla con la coordinadora o con el encargado de cada web."),
+      h("p", { style: { ...tenue, marginBottom: 12 } }, "Tus webs, lo que espera tu decisión, sus datos, lo que se ha cambiado y su configuración. Para pedir trabajo, habla con la coordinadora o con el encargado de cada web."),
       h("div", { style: { display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" } },
         SECCIONES.map(([n], i) => h(Button, { key: n, size: "sm", variant: i === sec ? "default" : "ghost", onClick: () => setSec(i) }, n))),
       h(SECCIONES[sec][1]));
   }
-  Pagina.partes = { Cartera, Decisiones, Metricas, Cambios };
+  Pagina.partes = { Cartera, Decisiones, Metricas, Cambios, Configuracion };
   window.__HERMES_PLUGINS__.register("hermes-seo", Pagina);
 })();
