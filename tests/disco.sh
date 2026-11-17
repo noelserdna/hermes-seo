@@ -53,6 +53,24 @@ r = PUB.limpiar_worktree("web", "e1"); assert r.startswith("quitado") and not wt
 assert PUB.limpiar_worktree("web", "e1") == ""
 PY
 
+python3 - "$P" "$T" <<'PY' && ok "limpiar al publicar: sin mirar el remoto (rama ya borrada) y borra la rama local; nunca con cambios" || bad "limpiar al publicar"
+import importlib.util, subprocess, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("hseo_publicacion", P / "hseo_publicacion.py")
+PUB = importlib.util.module_from_spec(spec); sys.modules["hseo_publicacion"] = PUB; spec.loader.exec_module(PUB)
+repo, wt = T / "repo", T / "wt" / "e2"
+subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", "-b", "hermes/e2", str(wt)], check=True)
+g = lambda *a: subprocess.run(["git", "-C", str(wt), *a], check=True, capture_output=True)
+(wt / "c").write_text("c"); g("add", "c"); g("commit", "-qm", "c")   # como un PR fusionado con rebase: la rama ya no está
+(wt / "c").write_text("otro")
+r = PUB.limpiar_worktree("web", "e2", publicado=True); assert "sin guardar" in r and wt.exists(), r
+g("checkout", "-q", "--", "c")
+r = PUB.limpiar_worktree("web", "e2", publicado=True); assert r.startswith("quitado") and not wt.exists(), r
+ramas = subprocess.run(["git", "-C", str(repo), "branch", "--list", "hermes/e2"], capture_output=True, text=True).stdout
+assert not ramas.strip(), ramas
+PY
+
 python3 - "$P" <<'PY' && ok "disco: línea con % y GB, aviso según umbral" || bad "disco"
 import importlib.util, os, sys
 from pathlib import Path

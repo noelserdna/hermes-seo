@@ -373,7 +373,7 @@ def _aplicar(puerta: dict, firma: str) -> str:
         raise Rechazo(f"Verbo desconocido: {verbo}")
     if enc:
         E.guardar(slug, enc)
-        if enc.get("estado") == "descartado":   # al publicar ya lo quita el despliegue; al descartar, aquí
+        if enc.get("estado") == "descartado":   # al descartar, aquí; al publicar, cuando el despliegue acaba bien
             _cargar("hseo_publicacion").limpiar_worktree(slug, eid)
     return resultado
 

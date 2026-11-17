@@ -146,6 +146,11 @@ async def _resultado_despliegue(bot, puerta: dict) -> None:
     else:
         texto = f"⚠️ El despliegue falló:\n{r['texto'][:1500]}"
     PU.marcar(puerta["id"], despliegue={**r, "at": B.ahora()})
+    if r["ok"]:   # publicado: su carpeta de trabajo ya no hace falta (igual para todas las webs)
+        try:
+            log.info("hermes-seo: %s", await asyncio.to_thread(PUB.limpiar_worktree, puerta["cliente"], puerta["encargo"], True))
+        except Exception as e:   # noqa: BLE001
+            log.warning("hermes-seo: no pude quitar la carpeta de %s: %s", puerta["encargo"], e)
     try:
         HC = _cargar("hseo_correo")
         if HC.por_correo(puerta["cliente"]):

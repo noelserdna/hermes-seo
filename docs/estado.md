@@ -166,3 +166,10 @@ no por web. Lo único que cambia entre webs es **cómo se lleva el texto revisad
   `dmcp-aplicar-cambio`; `caso`, `temario` y `uso-escribir` redactan con Hermes y llevan al repo con `dmcp-abrir-pr`.
   Copia previa: `~/backups-hermes-seo/dmcp-homogeneo-20261117/` (`extensiones-y-cliente.tgz` + `retirado/`).
 - Prueba en vivo: `actualizacion-desarrollomcp-com-blog-mcp-vs-ap-ced5` (/blog/mcp-vs-api-rest-function-calling).
+
+### 17-11, mediodía: la carpeta de trabajo se quita al publicar, en el plugin
+Al publicar, el worktree del encargo se quedaba: el plugin dejaba esa limpieza al script de despliegue de cada web y
+el de DesarrolloMCP lo buscaba por el slug del artículo, no por el encargo (quedaron 5 carpetas de PR ya fusionados).
+Ahora, cuando el despliegue termina bien (`_resultado_despliegue`), el plugin llama a
+`limpiar_worktree(..., publicado=True)`: igual para todas las webs con repo, sin mirar el remoto (la rama puede estar
+borrada o reescrita al fusionar), nunca con cambios sin guardar, y borra también la rama local `hermes/…`.

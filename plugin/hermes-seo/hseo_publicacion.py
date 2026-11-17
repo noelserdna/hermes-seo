@@ -437,20 +437,29 @@ def aligerar(slug: str, eid: str) -> list:
     return borrado
 
 
-def limpiar_worktree(slug: str, eid: str) -> str:
+def limpiar_worktree(slug: str, eid: str, publicado: bool = False) -> str:
     """Al cerrarse el encargo, quita su worktree si no pierde nada: sin cambios sin guardar y con el último commit
-    ya en el remoto (la rama sigue en GitHub)."""
+    ya en el remoto (la rama sigue en GitHub). Con `publicado` (el despliegue terminó bien y el PR está fusionado)
+    no se mira el remoto, porque al fusionar la rama puede haberse borrado o reescrito, y se borra también la rama
+    local. Es igual para todas las webs: no depende de que el script de despliegue de cada una lo haga."""
     repo, wt = _worktree(slug, eid)
     if not wt:
         return ""
     try:
         if _git(wt, "status", "--porcelain").strip():
             return f"no se quita {wt}: tiene cambios sin guardar"
-        _git(repo, "fetch", "-q", "origin")
-        if not _git(wt, "branch", "-r", "--contains", "HEAD").strip():
-            return f"no se quita {wt}: tiene commits que no están en el remoto"
+        if not publicado:
+            _git(repo, "fetch", "-q", "origin")
+            if not _git(wt, "branch", "-r", "--contains", "HEAD").strip():
+                return f"no se quita {wt}: tiene commits que no están en el remoto"
+        rama = _git(wt, "symbolic-ref", "-q", "--short", "HEAD").strip() if publicado else ""
         _git(repo, "worktree", "remove", "--force", str(wt))
         _git(repo, "worktree", "prune")
+        if rama.startswith("hermes/"):
+            try:
+                _git(repo, "branch", "-D", rama)
+            except Exception:   # noqa: BLE001  la rama local es lo de menos
+                pass
         return f"quitado {wt}"
     except Exception as e:   # nunca debe romper el cierre de una puerta
         return f"no se quitó {wt}: {e}"
