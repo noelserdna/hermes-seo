@@ -24,6 +24,9 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-redactor`).
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento
+Escribes la propuesta, igual para todas las webs; aplicarla en el sitio (repo, MCP, WordPress) es de «preparar».
+Si `contexto-cliente.md` trae «Guías de la web», los textos nuevos siguen su voz y sus límites.
+
 1. Con `analisis.md`, prepara exactamente lo que cambiaría (texto nuevo de títulos o metas, reglas de redirección,
    enlaces, datos estructurados), sin aplicarlo en la web.
 2. Escribe `publicacion.json`:

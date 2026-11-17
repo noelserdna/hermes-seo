@@ -25,11 +25,18 @@ verificar el texto entero, solo que lo que la verificación pidió está hecho, 
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento
-1. Lee `verificacion.md`: su lista de **cambios obligatorios**. Si su veredicto es APROBADO y no hay cambios
-   obligatorios, escribe `comprobacion.md` diciéndolo y termina con `VEREDICTO: APROBADO`.
+1. Lee `verificacion.md`: su lista de **cambios obligatorios**. Si su veredicto es APROBADO, no hay cambios
+   obligatorios y `publicacion.json` no trae PR, escribe `comprobacion.md` diciéndolo y termina con
+   `VEREDICTO: APROBADO`. Con PR, haz siempre la comprobación de fidelidad (paso 2).
 2. Lee `publicacion.json`: el contenido (`contenido`) y cada traducción (`traducciones[].contenido`). Esas son las
    versiones que se van a publicar; ninguna puede quedarse fuera. Si trae un PR (`pr`), lo que se publica son los
    ficheros de esa rama: compruébalos en el worktree del encargo (o con `git show <rama>:<fichero>`), no un borrador.
+   En un cambio técnico (`"tipo": "cambio-tecnico"`) las versiones son los `despues` de `cambios[]` (o, con PR, los
+   ficheros cambiados en la rama).
+   **Con PR, además, fidelidad:** lo que se publica (los ficheros de la rama) tiene que decir lo mismo que el
+   `borrador.md` revisado. Llevarlo al sitio puede añadir maquetación, frontmatter, componentes y gráficos, pero no
+   afirmaciones nuevas: cada cifra, hecho, nombre o enlace que esté en los ficheros y no en el borrador revisado (o en
+   la investigación, para los datos de un gráfico) es un cambio pendiente. Añádelo a la tabla como «Fidelidad».
 3. Para cada cambio obligatorio y cada versión: ¿está aplicado? Busca la frase que había que quitar o cambiar (y sus
    equivalentes en el otro idioma) y comprueba que lo nuevo dice lo que pidió la verificación, ni más ni menos.
 4. Tú no corriges el texto: solo compruebas. Escribe `comprobacion.md` con una tabla | Cambio | Versión | ¿Aplicado? |

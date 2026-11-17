@@ -36,6 +36,25 @@
       "max_runtime": "60m",
       "salida": "verificacion.md",
       "si_cambios": "aplicar-cambio"
+    },
+    {
+      "id": "preparar",
+      "titulo": "Preparar la publicación: {que}",
+      "perfil": "seo-redactor",
+      "skill": "preparar-publicacion",
+      "ejecutor": "hermes",
+      "max_runtime": "60m",
+      "salida": "publicacion.json"
+    },
+    {
+      "id": "comprobar",
+      "titulo": "Comprobar los cambios: {que}",
+      "perfil": "seo-verificador",
+      "skill": "comprobar-cambios",
+      "ejecutor": "hermes",
+      "max_runtime": "30m",
+      "salida": "comprobacion.md",
+      "si_cambios": "preparar"
     }
   ],
   "puerta": {

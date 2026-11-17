@@ -119,14 +119,40 @@ def heredar(hija: dict, base: dict | None) -> dict:
     return out
 
 
+CAMPOS_PREPARAR = ("skill", "ejecutor", "max_runtime", "perfil")
+
+
+def _preparar_de(slug: str | None) -> dict:
+    """Cómo lleva esta web el texto revisado a su sitio (capacidades.publicacion.preparar). Es lo ÚNICO que cambia
+    entre webs en las pipelines del plugin: escribir, verificar, revisar y comprobar son iguales para todas."""
+    if not slug:
+        return {}
+    try:
+        pub = (_cargar("hseo_clientes").leer(slug).get("capacidades") or {}).get("publicacion") or {}
+    except Exception:   # noqa: BLE001
+        return {}
+    prep = pub.get("preparar")
+    return {k: v for k, v in prep.items() if k in CAMPOS_PREPARAR} if isinstance(prep, dict) else {}
+
+
+def _con_preparar(p: dict, prep: dict) -> dict:
+    if not prep or not any(s.get("id") == "preparar" for s in p.get("etapas", [])):
+        return p
+    return {**p, "etapas": [{**s, **prep} if s.get("id") == "preparar" else s for s in p["etapas"]]}
+
+
 def listar(slug: str | None = None) -> dict:
-    """{id: pipeline}; las del cliente sustituyen a las del plugin con el mismo id, o heredan de una con «hereda»."""
+    """{id: pipeline}; las del cliente sustituyen a las del plugin con el mismo id, o heredan de una con «hereda».
+    En las del plugin, la etapa «preparar» es la de la web (capacidades.publicacion.preparar)."""
     out, plugin = {}, {}
+    prep = _preparar_de(slug)
     for i, d in enumerate(_dirs(slug)):
         for f in sorted(d.glob("*.json")) if d.is_dir() else []:
             p = B.leer(f)
             if not (isinstance(p, dict) and p.get("id")):
                 continue
+            if not i:
+                p = _con_preparar(p, prep)
             if i and p.get("hereda"):
                 p = heredar(p, plugin.get(p["hereda"]))
             out[p["id"]] = {**p, "_origen": str(f)}

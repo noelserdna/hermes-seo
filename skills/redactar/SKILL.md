@@ -24,8 +24,14 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-redactor`).
   escribir a nadie ni tocar la configuración: eso es de una puerta.
 
 ## Procedimiento
+0. **Escribir es igual en todas las webs; llevarlo al sitio, no.** Tú escribes texto (Markdown) en `borrador.md`.
+   Lo que depende de cómo publica la web (frontmatter, componentes, ficheros del repo, maquetación, comandos de
+   comprobación, campos de su MCP) lo hace la etapa «preparar»: no lo hagas aquí ni toques el repo de la web. Si
+   `contexto-cliente.md` trae «Guías de la web», **léelas antes de escribir**: su voz, estilo y estructura mandan sobre
+   las reglas genéricas de abajo (longitud, título, preguntas frecuentes…). Si piden un gráfico o figura, marca dónde
+   va con una línea `[GRÁFICO: qué muestra y con qué datos de la investigación]`; lo monta «preparar».
 1. Lee `investigacion.md`, el brief, la voz y el público de `contexto-cliente.md` y, si es una actualización, la
-   página actual (descárgala). Si hay `feedback` de una ronda anterior en el encargo, aplícalo primero.
+   página actual (descárgala; si la web vive en un repo que puedes leer, lee su fichero). Si hay `feedback` de una ronda anterior en el encargo, aplícalo primero.
 2. Estructura: título de 40 a 60 caracteres con la búsqueda principal; la respuesta en las dos primeras frases;
    apartados que respondan las preguntas reales (cada uno empieza respondiendo); un ejemplo concreto que haga de hilo;
    cierre con el siguiente paso lógico para el lector (y el objetivo de la web, si encaja).

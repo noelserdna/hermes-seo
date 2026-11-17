@@ -41,7 +41,10 @@ Etapa de una pipeline de hermes-seo (perfil habitual: `seo-redactor`).
    reglas de formato) y añade a `publicacion.json`:
    `"idioma": "<el de la principal>", "traducciones": [{"idioma": "en", "contenido": "borrador-en.md", "titulo": "…",
    "meta_descripcion": "…", "url": "https://…/<slug en ese idioma>"}]`.
-5. **Si publica por su servidor MCP** («publica con: mcp»): añade los campos que pidan sus reglas de formato (p. ej.
+5. **Si es un cambio técnico** (`publicacion.json` con `"tipo": "cambio-tecnico"`, de la etapa «aplicar-cambio»): no
+   hay borrador; aplica los cambios obligatorios de `verificacion.md` a `cambios[]` (el `despues` de cada uno) y
+   reescribe `publicacion.json` con el mismo formato, `clase`, `hipotesis` y `como_deshacer`, y `"verificacion"`.
+6. **Si publica por su servidor MCP** («publica con: mcp»): añade los campos que pidan sus reglas de formato (p. ej.
    `publico`, `categoria`) y respeta esas reglas al pie de la letra (resaltado del título, primer párrafo, secciones).
 
 ## Al terminar

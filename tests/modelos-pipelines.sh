@@ -121,4 +121,15 @@ igual "aviso: propia que cambia tras verificar sin comprobar" "$($PL validar-tod
 rm -f "$X/propia.json"
 igual "el plugin redacta con Hermes (Claude Code solo si la web lo pide)" "$(python3 -c "import json;print(set(s.get('ejecutor','hermes') for f in ('articulo','actualizacion','cambio-seo') for s in json.load(open('$ROOT/pipelines/'+f+'.json'))['etapas']))")" "{'hermes'}"
 
+# ── lo único que cambia entre webs: cómo prepara (lleva el texto revisado a su sitio) y qué guías se leen ──
+no "preparar con un ejecutor raro no vale" "$C config web capacidades.publicacion.preparar '{\"skill\": \"mi-pr\", \"ejecutor\": \"bash\"}'"
+si "preparar propio de la web" "$C config web capacidades.publicacion.preparar '{\"skill\": \"mi-pr\", \"ejecutor\": \"claude\", \"max_runtime\": \"90m\"}'"
+si "guías de la web" "$C config web capacidades.publicacion.guias '[\"/repo/docs/guia-de-voz.md\"]'"
+for pid in articulo actualizacion cambio-seo; do
+  igual "$pid: preparar es el de la web" "$(etapa $pid preparar skill) $(etapa $pid preparar ejecutor)" "preparar:mi-pr preparar:claude"
+  igual "$pid: redactar/aplicar y comprobar, los del plugin" "$(etapa $pid comprobar skill)" "comprobar:comprobar-cambios"
+done
+igual "otra web sin preparar propio: el del plugin" "$($C alta otra otra.com --estado repo >/dev/null; $PL ver articulo --cliente otra | python3 -c 'import json,sys;print([s["skill"] for s in json.load(sys.stdin)["etapas"] if s["id"]=="preparar"][0])')" preparar-publicacion
+si "las guías llegan al contexto de las etapas" "python3 -c 'import sys;sys.path.insert(0,\"$P\");import hseo_etapa as E;assert \"guia-de-voz.md\" in E.contexto(\"web\")'"
+
 exit $fail

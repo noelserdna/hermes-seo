@@ -136,6 +136,16 @@ def validar(cfg: dict) -> list:
         e.append("capacidades.publicacion.url_api: la dirección https de la API de WordPress")
     if ad == "mcp" and not str(pub.get("url", "")).startswith("https://"):
         e.append("capacidades.publicacion.url: la dirección https del servidor MCP de la web")
+    prep = pub.get("preparar")
+    if prep is not None and not (isinstance(prep, dict) and re.fullmatch(r"[a-z][a-z0-9-]{1,60}", str(prep.get("skill", "")))
+                                 and prep.get("ejecutor", "hermes") in ("hermes", "claude")
+                                 and re.fullmatch(r"\d{1,3}[mh]", str(prep.get("max_runtime", "60m")))):
+        e.append("capacidades.publicacion.preparar: {skill, ejecutor: hermes|claude, max_runtime} (cómo lleva esta web "
+                 "el texto revisado a su sitio: un PR en su repo, campos para su MCP…)")
+    guias = pub.get("guias")
+    if guias is not None and not (isinstance(guias, list) and len(guias) <= 20
+                                  and all(isinstance(x, str) and x.strip() for x in guias)):
+        e.append("capacidades.publicacion.guias: lista de ficheros o URL que se leen antes de escribir (voz, estilo…)")
     reg = pub.get("regenerables")
     if reg is not None and not (isinstance(reg, list) and all(isinstance(x, str) and re.fullmatch(r"[\w@-][\w.@-]*", x)
                                                                for x in reg)):

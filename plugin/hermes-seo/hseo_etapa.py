@@ -65,6 +65,9 @@ def contexto(slug: str, etapa: str | None = None) -> str:
     reglas = (cfg["capacidades"].get("publicacion") or {}).get("reglas")
     if reglas:
         l.append(f"- Reglas de formato de la web (obligatorias): {reglas}")
+    guias = (cfg["capacidades"].get("publicacion") or {}).get("guias")
+    if guias:
+        l.append(f"- Guías de la web (léelas antes de escribir o revisar; mandan sobre las reglas genéricas): {', '.join(guias)}")
     if cfg.get("competidores"):
         l.append(f"- Competidores: {', '.join(cfg['competidores'])}")
     motores = (cfg.get("ia") or {}).get("motores")
