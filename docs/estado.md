@@ -150,3 +150,19 @@ Prueba de punta a punta hablando con la coordinadora por Telegram. Fallos encont
 - `redactar` (articulo, actualizacion) y `aplicar-cambio` (cambio-seo) con ejecutor `hermes`: Opus por el perfil `seo-redactor`.
   Prueba de coste: créditos de uso desactivados, 0,00 € tras la llamada.
 - HearMyTour: A y B publicados por MCP en dos idiomas a partir de un PUBLICAR por correo cada uno.
+
+## 17-11: escribir es igual en todas las webs (0.1.0-17e99f4)
+
+Principio (Andrés): el plugin tiene un solo objetivo para todos los proyectos; las pipelines cambian por tipo de trabajo,
+no por web. Lo único que cambia entre webs es **cómo se lleva el texto revisado a su sitio**:
+- `capacidades.publicacion.preparar` {skill, ejecutor, max_runtime}: sustituye la etapa «preparar» de las pipelines del
+  plugin para esa web (DesarrolloMCP: `dmcp-abrir-pr` con Claude Code: worktree, MDX, componentes, comprobaciones, PR).
+- `capacidades.publicacion.guias`: ficheros o URL de voz y estilo que se leen antes de escribir (salen en el contexto).
+- `capacidades.publicacion.reglas`: reglas de formato del texto (ya existía).
+- Redactar: siempre la skill del plugin con Hermes y Opus; solo texto, los gráficos como `[GRÁFICO: …]`.
+- `cambio-seo` acaba como los demás (preparar + comprobar). `comprobar-cambios`, con PR, comprueba la fidelidad: lo que
+  va al repo no añade afirmaciones al borrador revisado.
+- DesarrolloMCP: fuera sus copias de `articulo`, `actualizacion` y `cambio-seo` y las skills `dmcp-redactar` y
+  `dmcp-aplicar-cambio`; `caso`, `temario` y `uso-escribir` redactan con Hermes y llevan al repo con `dmcp-abrir-pr`.
+  Copia previa: `~/backups-hermes-seo/dmcp-homogeneo-20261117/` (`extensiones-y-cliente.tgz` + `retirado/`).
+- Prueba en vivo: `actualizacion-desarrollomcp-com-blog-mcp-vs-ap-ced5` (/blog/mcp-vs-api-rest-function-calling).
