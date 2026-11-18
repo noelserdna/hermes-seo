@@ -56,7 +56,7 @@ APRUEBA = ("acepto", "algunas")
 CARTERA = "__cartera__"   # puertas del sistema (novedades, mejoras del plugin), no de una web   # los verbos que ejecutan lo aprobado (con un aviso grave, bloqueados)
 DESHACER_DEFECTO_S = 180
 EMOJI = {"alta": "🧭", "plan-tecnico": "🛠", "plan-editorial": "🗺", "publicar": "🚀", "cambio-tecnico": "🔧",
-         "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣", "adoptar": "🆕", "mejora": "⬆️"}
+         "decision": "📊", "veredicto": "⚖️", "mantenimiento": "🩺", "difusion": "📣", "adoptar": "🆕", "mejora": "⬆️", "retirar": "🗑"}
 _APROBAR = {"verbo": "acepto", "etiqueta": "✅ De acuerdo"}
 _CAMBIOS = {"verbo": "cambios", "etiqueta": "✏️ Cambios", "texto": True}
 _NO = {"verbo": "rechazo", "etiqueta": "❌ No", "texto": True}
@@ -76,6 +76,7 @@ OPCIONES = {
     "adoptar": [{"verbo": "acepto", "etiqueta": "📌 Apuntarla para una sesión"},
                 {"verbo": "descarto", "etiqueta": "🗑 No interesa", "texto": True}],
     "mejora": [{"verbo": "acepto", "etiqueta": "⬆️ Instalar"}, {"verbo": "descarto", "etiqueta": "🗑 Descartar", "texto": True}],
+    "retirar": [{"verbo": "acepto", "etiqueta": "🗑 Retirar"}, {"verbo": "descarto", "etiqueta": "↩️ Dejarlas", "texto": True}],
     "mantenimiento": [{"verbo": "cambio", "etiqueta": "🛠 Lanzar arreglo"},
                       {"verbo": "ignoro", "etiqueta": "🔕 Ignorar", "texto": True}],
 }
@@ -342,6 +343,8 @@ def _aplicar(puerta: dict, firma: str) -> str:
                 if not sel:
                     raise Rechazo("«Solo algunas» necesita los números, p. ej. «1,3»")
             resultado = _cargar("hseo_autoridad").aplicar(slug, eid, sel, firma)
+        elif accion == "retirar":
+            resultado = _cargar("hseo_publicacion").retirar(slug, puerta.get("hallazgos") or [], firma)
         elif accion.startswith("instalar:"):
             resultado = _cargar("hseo_mejoras").instalar(accion[len("instalar:"):], firma)
         elif accion == "apuntar":

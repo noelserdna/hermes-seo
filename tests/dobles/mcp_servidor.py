@@ -79,6 +79,17 @@ def pedir(metodo, url, datos, cab, form):
                 sl = a.get("slug"); pre = "" if a.get("idioma") == "en" else "/es"
                 res = {"ok": True, "id": e["id"], "lang": a.get("idioma"), "slug": sl, "url": f"{ORIGEN}{pre}/{sl}",
                        "warnings": ["meta corta"] if a.get("idioma") == "en" else []}
+            elif p["name"] == "articulos":
+                res = {"datos": e.get("articulos", [])}
+            elif p["name"] == "despublicar_articulo":
+                a = p["arguments"]
+                if a.get("confirmar") is not True:   # como el real: lo destructivo pide confirmar: true
+                    return _r(200, {"jsonrpc": "2.0", "id": datos["id"], "result": {"isError": True, "content": [{"type": "text", "text": "Input validation error: confirmar"}]}})
+                for x in e.get("articulos", []):
+                    if x["id"] == a.get("articulo"):
+                        x["status"] = "draft"
+                _g(e)
+                res = {"ok": True}
             elif p["name"] == "embudo":
                 res = {"months": [{"month": "2026-10", "visits": 10, "downloads": 1, "checkouts": 0, "sales": 0},
                                   {"month": "2026-11", "visits": 425, "downloads": 3, "checkouts": 2, "sales": 1}]}

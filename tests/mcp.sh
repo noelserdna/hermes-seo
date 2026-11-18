@@ -85,6 +85,86 @@ d="$W/encargos/enc3"; mkdir -p "$d"
 echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"title","url":"https://web.test/precios","antes":"a","despues":"b"}]}' > "$d/publicacion.json"
 si "un cambio técnico (páginas fijas) va como entrega a mano" "pub tour enc3 | grep -q 'por MCP solo se publica el blog'"
 
+# ── retirar páginas publicadas: la persona lo pide, decide en una puerta y la web las despublica ──
+python3 - "$MCP_DOBLE_ESTADO" <<'PY'
+import json, sys
+e = json.load(open(sys.argv[1]))
+e["articulos"] = [{"id": 1, "url": "https://web.test/es/a", "status": "published"}, {"id": 2, "url": "https://web.test/a", "status": "published"},
+                  {"id": 3, "url": "https://web.test/b", "status": "draft"}, {"id": 4, "url": "https://web.test/c", "status": "published"}]
+json.dump(e, open(sys.argv[1], "w"))
+PY
+H="python3 $ROOT/plugin/hermes-seo/hseo_cli.py"
+no "sin capacidades.publicacion.retirar no se puede pedir" "$H retirar tour https://web.test/a"
+$C config tour capacidades.publicacion.retirar '{"buscar":"articulos","herramienta":"despublicar_articulo","args":{"articulo":"{id}","confirmar":true}}' >/dev/null || bad "config de retirar"
+echo "{\"ana\":{\"nombre\":\"Ana\",\"canales\":{\"local\":\"$(id -un)\"},\"clientes\":[\"*\"]}}" > "$HERMES_SEO_HOME/aprobadores.json"
+no "no se pide retirar una página que no está publicada" "$H retirar tour https://web.test/b"
+no "ni una de otra web" "$H retirar tour https://otra.test/a"
+R=$($H retirar tour https://web.test/a https://web.test/es/a/ --motivo "no me gusta el tema")
+GID=$(echo "$R" | grep -oE 'g[0-9a-f]{10,}' | head -1)
+si "pedirlo abre una puerta «retirar» con las dos versiones y el motivo, sin tocar la web" \
+  "[ -n '$GID' ] && jq -e '.tipo == \"retirar\" and .al_aprobar == \"retirar\" and (.hallazgos|length) == 2 and (.texto|test(\"no me gusta\"))' $HERMES_SEO_HOME/puertas/$GID.json && jq -e '[.articulos[]|select(.status==\"published\")]|length == 3' $MCP_DOBLE_ESTADO"
+no "no se abre otra puerta para las mismas páginas" "$H retirar tour https://web.test/a"
+python3 - "$ROOT" "$GID" "$MCP_DOBLE_ESTADO" <<'PY' && ok "al aprobarla se despublican (con confirmar), queda en cambios y la otra sigue" || bad "retirar al aprobar"
+import importlib.util, json, os, sys
+from pathlib import Path
+P = Path(sys.argv[1]) / "plugin/hermes-seo"; sys.path.insert(0, str(P))
+s = importlib.util.spec_from_file_location("hseo_puertas", P / "hseo_puertas.py"); PU = importlib.util.module_from_spec(s); sys.modules["hseo_puertas"] = PU; s.loader.exec_module(PU)
+p = PU.decidir_local(sys.argv[2], "acepto")
+assert "retiradas: /a, /es/a" in p["resultado"], p["resultado"]
+e = json.load(open(sys.argv[3]))
+st = {a["id"]: a["status"] for a in e["articulos"]}
+assert st == {1: "draft", 2: "draft", 3: "draft", 4: "published"}, st
+d = [l["arguments"] for l in e["llamadas"] if l["name"] == "despublicar_articulo"]
+assert d == [{"articulo": 2, "confirmar": True}, {"articulo": 1, "confirmar": True}], d
+c = [json.loads(l) for l in open(Path(os.environ["HERMES_SEO_HOME"]) / "clientes/tour/cambios.jsonl")]
+assert c[-1]["clase"] == "retirada" and c[-1]["urls"] == ["https://web.test/a", "https://web.test/es/a/"], c[-1]
+PY
+python3 - "$ROOT" <<'PY' && ok "si al aprobar ya no están publicadas, no se toca nada y se dice" || bad "retirar dos veces"
+import importlib.util, sys
+from pathlib import Path
+P = Path(sys.argv[1]) / "plugin/hermes-seo"; sys.path.insert(0, str(P))
+s = importlib.util.spec_from_file_location("hseo_publicacion", P / "hseo_publicacion.py"); M = importlib.util.module_from_spec(s); sys.modules["hseo_publicacion"] = M; s.loader.exec_module(M)
+try:
+    M.retirar("tour", ["https://web.test/a"], "Ana"); sys.exit(1)
+except M.Rechazo as e:
+    assert "Ya no están publicadas" in str(e), e
+PY
+
+python3 - "$ROOT" <<'PY' && ok "WordPress: busca la entrada por su dirección y la pasa a borrador; con repo, se lanza el cambio técnico" || bad "retirar en WordPress o repo"
+import importlib.util, sys
+from pathlib import Path
+P = Path(sys.argv[1]) / "plugin/hermes-seo"; sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+C, M = m("hseo_clientes"), m("hseo_publicacion")
+C.alta("wpweb", "wp.test", "wordpress")
+cfg = C.leer("wpweb"); cfg.setdefault("capacidades", {})["publicacion"] = {"adaptador": "wordpress", "url_api": "https://wp.test/wp-json/wp/v2"}
+B = m("hseo_base"); B.escribir(C.carpeta("wpweb") / "cliente.json", cfg)
+hechas = []
+def pedir(metodo, ruta, datos=None):
+    hechas.append((metodo, ruta, datos))
+    if metodo == "GET":
+        return [{"id": 7, "link": "https://wp.test/blog/x/"}] if "slug=x" in ruta else []
+    return {"id": 7, "status": "draft"}
+M._wp = lambda slug, conf: pedir
+assert M.retirar("wpweb", ["https://wp.test/blog/x"], "Ana") == "retiradas: /blog/x"
+assert ("POST", "/posts/7", {"status": "draft"}) in hechas, hechas
+try:
+    M.retirar("wpweb", ["https://wp.test/blog/y"], "Ana"); sys.exit(1)
+except M.Rechazo as e:
+    assert "Ya no están publicadas" in str(e)
+lanzados = []
+M.E.lanzar = lambda slug, pid, params, **k: lanzados.append((slug, pid, params)) or {"id": "cambio-seo-x"}
+cfg["capacidades"]["publicacion"] = {"adaptador": "repo-pr", "repo": "/tmp/x"}; B.escribir(C.carpeta("wpweb") / "cliente.json", cfg)
+r = M.pedir_retirar("wpweb", ["https://wp.test/blog/x"], "no gusta", "Ana")
+assert lanzados and lanzados[0][1] == "cambio-seo" and "https://wp.test/blog/x" in lanzados[0][2]["que"] and "cambio-seo-x" in r, (lanzados, r)
+cfg["capacidades"]["publicacion"] = {"adaptador": "entrega"}; B.escribir(C.carpeta("wpweb") / "cliente.json", cfg)
+try:
+    M.pedir_retirar("wpweb", ["https://wp.test/blog/x"]); sys.exit(1)
+except M.Rechazo as e:
+    assert "a mano" in str(e)
+PY
+
 # ── la analítica propia de la web (recogida diaria) y el parte ──
 $C config tour capacidades.analitica '{"adaptador":"mcp","embudo":{"herramienta":"embudo"},"blog":{"herramienta":"estadisticas_blog"}}' >/dev/null
 $C config tour criterio '{"fecha":"2027-03-31","objetivo_descargas":100,"objetivo_ventas":10}' >/dev/null

@@ -20,6 +20,7 @@ y lo ejecuta el notario.
     hseo gestion pendientes <cliente> · hseo gestion hecha <cliente> <n> [url]   (autoridad: las gestiones tuyas)
     hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
+    hseo retirar <cliente> <url>… [--motivo TEXTO]        (quitar páginas publicadas: le llega a la persona para decidir)
   Cambiar el sistema (con la aprobación de la persona)
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N] [--idiomas en,es] [--correo C]   (el primer idioma es el principal)
                                                          (crea la web, su encargado y la lista de 10 pasos; con
@@ -282,6 +283,7 @@ def main(argv=None) -> int:
         x = sub.add_parser(n); x.add_argument("cliente"); x.add_argument("texto", nargs="+")
     x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
     x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
+    x = sub.add_parser("retirar"); x.add_argument("cliente"); x.add_argument("urls", nargs="+"); x.add_argument("--motivo", default="")
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
     x = sub.add_parser("datos"); x.add_argument("accion", choices=("recoger", "resumen", "comparar"))
     x.add_argument("cliente"); x.add_argument("cambio", nargs="?"); x.add_argument("--dias", type=int, default=28)
@@ -413,6 +415,8 @@ def main(argv=None) -> int:
                         HC._html(f"Parte de la semana · {parte['nombre']}", PA.texto(parte), bot), tipo="parte")
             if a.no_guardar or HC.por_telegram(a.cliente):
                 print(PA.texto(parte))
+        elif a.cmd == "retirar":
+            print(_cargar("hseo_publicacion").pedir_retirar(a.cliente, a.urls, a.motivo, quien()))
         elif a.cmd == "propuesta":
             print(_cargar("hseo_parte").ejecutar_propuesta(a.cliente, a.n, quien()))
         elif a.cmd == "vueltas":

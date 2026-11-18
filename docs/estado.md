@@ -173,3 +173,17 @@ el de DesarrolloMCP lo buscaba por el slug del artículo, no por el encargo (que
 Ahora, cuando el despliegue termina bien (`_resultado_despliegue`), el plugin llama a
 `limpiar_worktree(..., publicado=True)`: igual para todas las webs con repo, sin mirar el remoto (la rama puede estar
 borrada o reescrita al fusionar), nunca con cambios sin guardar, y borra también la rama local `hermes/…`.
+
+### 17-11 (noche) / 18-11: retirar páginas publicadas, con su puerta
+Andrés pidió quitar los dos artículos que hizo Hermes en HearMyTour y la coordinadora contestó que no se podía (el
+sistema solo sabía publicar). Ahora es igual en todas las webs:
+- `hseo retirar <web> <url>… [--motivo T]` (coordinadora o encargado, nivel «sola»: solo pide). Comprueba que son de
+  esa web y que están publicadas.
+- **MCP o WordPress:** abre la puerta `retirar` (🗑 Retirar / ↩️ Dejarlas), que llega por correo o Telegram como
+  todas. Al aprobarla (con la ventana para deshacer), el notario las despublica: MCP con
+  `capacidades.publicacion.retirar` `{buscar, herramienta, args}` (p. ej. `articulos` → `despublicar_articulo`
+  `{"articulo": "{id}", "confirmar": true}`), WordPress pasándolas a borrador. Si alguna ya no está publicada, no se
+  toca nada. Queda en `cambios.jsonl` (clase `retirada`) y en la wiki.
+- **Repo y PR:** lanza un `cambio-seo` que prepara el PR que las quita; esa es la decisión.
+- **Sin forma de publicar:** se dice que es a mano.
+Cartas de la coordinadora y del encargado: nunca contestar que no se puede; usar `hseo retirar` con cada idioma.

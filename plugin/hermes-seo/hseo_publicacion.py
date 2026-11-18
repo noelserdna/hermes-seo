@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import time
 import sys
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -408,6 +409,139 @@ def mcp(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firm
 
 
 ADAPTADORES = {"repo-pr": repo_pr, "wordpress": wordpress, "entrega": entrega, "mcp": mcp}
+
+
+# ── retirar lo publicado: igual para todas las webs; cada adaptador sabe cómo ─────────────────────────────────────
+# La persona pide quitar páginas (`hseo retirar <web> <url>…`). Con MCP o WordPress se abre una puerta «retirar» y, al
+# aprobarla, se despublican (quedan en borrador: se pueden volver a publicar en la web). Con repo y PR se lanza un
+# cambio técnico, cuyo PR es la decisión. Sin forma de publicar, se dice que es a mano.
+CON_PUERTA = ("mcp", "wordpress")
+
+
+def _ruta(u) -> str:
+    return (urllib.parse.urlsplit(str(u).strip()).path or "/").rstrip("/") or "/"
+
+
+def _publicadas_mcp(slug: str, conf: dict) -> tuple:
+    """(config de retirar, {ruta: pieza publicada}) leyendo la lista de la web con su herramienta de lectura."""
+    r = conf.get("retirar") or {}
+    if not r.get("buscar") or not r.get("herramienta"):
+        raise Rechazo("Falta capacidades.publicacion.retirar (buscar, herramienta, args) para retirar por MCP")
+    lista = _cargar("hseo_mcp").llamar(slug, r["buscar"], r.get("buscar_args") or {})
+    items = lista.get(r.get("lista", "datos")) if isinstance(lista, dict) else lista
+    cu, ce = r.get("url", "url"), r.get("estado", "status")
+    return r, {_ruta(i[cu]): i for i in items or [] if isinstance(i, dict) and i.get(cu)
+               and str(i.get(ce, "published")).lower() in ("published", "publish", "publicado")}
+
+
+def _wp(slug: str, conf: dict):
+    s = C.secretos(slug)
+    if not s.get("WP_USUARIO") or not s.get("WP_APP_PASSWORD"):
+        raise Rechazo("Faltan WP_USUARIO y WP_APP_PASSWORD en los secretos de la web")
+    base, auth = conf["url_api"].rstrip("/"), base64.b64encode(f"{s['WP_USUARIO']}:{s['WP_APP_PASSWORD']}".encode()).decode()
+
+    def pedir(metodo: str, ruta: str, datos=None):
+        req = urllib.request.Request(f"{base}{ruta}", method=metodo, data=json.dumps(datos).encode() if datos is not None else None,
+                                     headers={"Authorization": f"Basic {auth}", "Content-Type": "application/json", "User-Agent": "hermes-seo/0.1"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read() or b"null")
+        except urllib.error.HTTPError as e:
+            raise Rechazo(f"WordPress respondió {e.code}: {e.read()[:200].decode(errors='replace')}")
+    return pedir
+
+
+def _publicadas_wp(slug: str, conf: dict, urls: list) -> tuple:
+    pedir, tipo = _wp(slug, conf), conf.get("tipo", "posts")
+    hallado = {}
+    for u in urls:
+        seg = _ruta(u).rsplit("/", 1)[-1]
+        for i in pedir("GET", f"/{tipo}?slug={urllib.parse.quote(seg)}&status=publish&_fields=id,link") or []:
+            if _ruta(i.get("link", "")) == _ruta(u):
+                hallado[_ruta(u)] = i
+    return pedir, hallado
+
+
+def _comprobar_urls(cfg: dict, urls: list) -> list:
+    urls = [str(u).strip() for u in urls if str(u).strip()]
+    if not urls:
+        raise Rechazo("Di qué páginas retirar (sus direcciones)")
+    dom = str(cfg.get("dominio", "")).lower()
+    ajenas = [u for u in urls if not (urllib.parse.urlsplit(u).hostname or "").lower().removeprefix("www.").endswith(dom.removeprefix("www."))]
+    if ajenas:
+        raise Rechazo(f"No son de {dom}: {', '.join(ajenas)}")
+    return urls
+
+
+def pedir_retirar(slug: str, urls: list, motivo: str = "", quien: str = "") -> str:
+    """Lo que pide la persona: abre la puerta «retirar» (o el cambio técnico, si la web publica por PR)."""
+    cfg = C.leer(slug)
+    conf = cfg["capacidades"].get("publicacion") or {}
+    ad = conf.get("adaptador", "ninguno")
+    urls = _comprobar_urls(cfg, urls)
+    PU = _cargar("hseo_puertas")
+    if ad in CON_PUERTA:
+        hallado = _publicadas_mcp(slug, conf)[1] if ad == "mcp" else _publicadas_wp(slug, conf, urls)[1]
+        faltan = [u for u in urls if _ruta(u) not in hallado]
+        if faltan:
+            raise Rechazo(f"No están publicadas en la web: {', '.join(faltan)}")
+        if any(p["cliente"] == slug and p["tipo"] == "retirar" and set(map(_ruta, p.get("hallazgos") or [])) & set(map(_ruta, urls))
+               for p in PU.puertas()):
+            raise Rechazo("Ya hay una puerta pendiente para retirar alguna de esas páginas")
+        texto = ("Dejan de estar en la web (su dirección dará 404 y salen del mapa del sitio). No se borran: quedan en "
+                 "borrador y se pueden volver a publicar desde la propia web.\n\n" + "\n".join(f"• {u}" for u in urls)
+                 + (f"\n\nMotivo: {motivo}" if motivo else "") + (f"\nLo pidió: {quien}" if quien else ""))
+        p = PU.abrir(slug, None, "retirar", f"{PU.EMOJI['retirar']} Retirar {len(urls)} página(s) · {cfg['nombre']}",
+                     texto, hallazgos=urls, al_aprobar="retirar")
+        return f"Puerta {p['id']} abierta: le llega a la persona para decidir"
+    if ad == "repo-pr":
+        n = E.lanzar(slug, "cambio-seo", {"que": "Retirar del sitio estas páginas (dejar de publicarlas sin romper enlaces "
+                                                 f"internos, sitemap ni traducciones): {' '.join(urls)}" + (f". Motivo: {motivo}" if motivo else "")},
+                     quien=quien or "retirar")
+        return f"Lanzado {n['id']}: prepara el PR que las retira y llega a la persona como cualquier cambio técnico"
+    raise Rechazo(f"{cfg['nombre']} no publica sola (adaptador «{ad}»): esas páginas hay que retirarlas a mano")
+
+
+def retirar(slug: str, urls: list, firma: str) -> str:
+    """Lo que hace el notario al aprobarse la puerta «retirar»: despublica cada página. Nada si falta alguna."""
+    cfg = C.leer(slug)
+    if (cfg.get("politicas") or {}).get("pausado") or (B.home() / "pausa").exists():
+        raise Rechazo(f"{cfg['nombre']} está en pausa: no se toca la web")
+    conf = cfg["capacidades"].get("publicacion") or {}
+    ad = conf.get("adaptador", "ninguno")
+    urls = _comprobar_urls(cfg, urls)
+    _antes_de_publicar(slug, cfg)
+    hechos = []
+    if ad == "mcp":
+        r, hallado = _publicadas_mcp(slug, conf)
+        faltan = [u for u in urls if _ruta(u) not in hallado]
+        if faltan:
+            raise Rechazo(f"Ya no están publicadas (no se ha tocado nada): {', '.join(faltan)}")
+        X = _cargar("hseo_mcp")
+        for u in urls:
+            try:
+                X.llamar(slug, r["herramienta"], _plantilla_args(r.get("args") or {"id": "{id}"}, {"id": hallado[_ruta(u)][r.get("id", "id")]}),
+                         escribir=True)
+            except Rechazo as e:
+                raise Rechazo(f"Retiradas {', '.join(hechos) or 'ninguna'}; falló {_ruta(u)}: {e}")
+            hechos.append(_ruta(u))
+    elif ad == "wordpress":
+        pedir, hallado = _publicadas_wp(slug, conf, urls)
+        faltan = [u for u in urls if _ruta(u) not in hallado]
+        if faltan:
+            raise Rechazo(f"Ya no están publicadas (no se ha tocado nada): {', '.join(faltan)}")
+        for u in urls:
+            pedir("POST", f"/{conf.get('tipo', 'posts')}/{hallado[_ruta(u)]['id']}", {"status": "draft"})
+            hechos.append(_ruta(u))
+    else:
+        raise Rechazo(f"{cfg['nombre']} no retira páginas por puerta (adaptador «{ad}»)")
+    B.anotar(C.carpeta(slug) / "cambios.jsonl", {"id": f"r-{int(time.time())}", "ts": B.ahora(), "clase": "retirada",
+                                                 "hipotesis": "", "urls": urls, "adaptador": ad, "resultado": ", ".join(hechos), "firma": firma})
+    try:
+        _cargar("hseo_wiki").regenerar_cambios(slug)
+    except Exception:   # noqa: BLE001  la memoria nunca frena
+        pass
+    return "retiradas: " + ", ".join(hechos)
 
 
 # ── worktrees: que no se coman el disco ──────────────────────────────────────────────────────────────────────────────

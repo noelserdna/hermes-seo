@@ -46,14 +46,14 @@ LECTURA = {"ls", "cat", "head", "tail", "grep", "egrep", "rg", "wc", "jq", "sort
            "file", "stat", "date", "echo", "printf", "pwd", "basename", "dirname", "realpath", "column", "nl", "true",
            "cd", "test", "[", "shasum", "sha256sum", "md5sum", "dig", "host", "whois"}
 GIT_LECTURA = {"log", "show", "diff", "status", "blame", "describe", "rev-parse", "ls-files", "shortlog", "grep"}
-HSEO_SOLA = {"novedad", "mejora", "cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
+HSEO_SOLA = {"novedad", "mejora", "cuaderno", "ia", "aterrizaje", "gestion", "tanda", "wiki", "preguntar", "ordenar", "vueltas", "vigilancia", "parte", "propuesta", "retirar", "clientes", "estado", "encargos", "encargo", "puertas", "puerta", "pipelines", "plan", "lanzar", "reintentar",
              "leccion", "lecciones", "datos", "preguntas", "mcp"}
 HSEO_APROBAR = {"alta", "config", "pausar", "reanudar", "modelos", "contacto", "correo"}
 # El encargado (que puede recibir texto de terceros: webs, correos) solo usa estas herramientas; cualquier otra se
 # bloquea (el hook va con matcher ".*"). La coordinadora no tiene esta lista: es «ojos y manos en todo».
 HERRAMIENTAS_ENCARGADO = {"terminal", "read_file", "write_file", "patch", "search_files", "skills_list", "skill_view",
                           "todo_list", "memory", "session_search", "clarify", "vision_analyze"}
-CON_VALOR = {"--param", "--brief", "--cliente", "--dias", "--quien"}   # opciones de hseo que llevan un valor detrás
+CON_VALOR = {"--param", "--brief", "--cliente", "--dias", "--quien", "--motivo"}   # opciones de hseo que llevan un valor detrás
 
 
 def bloquear(motivo: str) -> None:
@@ -119,7 +119,7 @@ def cliente_de(args: list) -> str | None:
         pos.append(a)
     if sub in ("estado", "puertas"):
         return pos[0] if pos else None
-    if sub in ("contacto", "encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion", "parte", "propuesta", "vigilancia", "preguntar", "ordenar"):
+    if sub in ("contacto", "encargos", "encargo", "lanzar", "reintentar", "config", "pausar", "reanudar", "leccion", "parte", "propuesta", "retirar", "vigilancia", "preguntar", "ordenar"):
         return pos[0] if pos else None
     if sub in ("datos", "tanda", "wiki", "gestion", "aterrizaje", "ia"):
         return pos[1] if len(pos) > 1 else None

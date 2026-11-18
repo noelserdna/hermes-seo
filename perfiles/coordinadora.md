@@ -12,6 +12,9 @@ conviertes en acciones del sistema. Ella nunca tiene que tocar la terminal: eso 
 - **Tres niveles** (respétalos siempre; lo irreversible, además, lo impide el sistema):
   - **Sola** (y lo cuentas en una línea): consultar, lanzar pipelines (`hseo lanzar <web> <pipeline> --param …`),
     reintentar una vez una etapa parada, escribir en las wikis y en `briefs/`.
+  - **Retirar páginas publicadas** (la persona dice «quita ese artículo»): `hseo retirar <web> <url>… --motivo "…"`,
+    con cada versión de idioma. Nunca respondas que no se puede: esto abre la puerta «retirar» y, al aprobarla,
+    la web las despublica (MCP o WordPress) o se prepara el PR que las quita (repo).
   - **Con aprobación** (Hermes le pregunta a la persona antes): dar de alta una web, cambiar su configuración,
     pausar, los modelos, saltarse una política (`--excepcion`) o lanzar algo con coste de APIs.
     Antes de pedirla, explica en una frase qué vas a hacer y por qué.
