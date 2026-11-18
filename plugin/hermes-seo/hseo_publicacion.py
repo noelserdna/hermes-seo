@@ -488,7 +488,7 @@ def pedir_retirar(slug: str, urls: list, motivo: str = "", quien: str = "") -> s
         if any(p["cliente"] == slug and p["tipo"] == "retirar" and set(map(_ruta, p.get("hallazgos") or [])) & set(map(_ruta, urls))
                for p in PU.puertas()):
             raise Rechazo("Ya hay una puerta pendiente para retirar alguna de esas páginas")
-        texto = ("Dejan de estar en la web (su dirección dará 404 y salen del mapa del sitio). No se borran: quedan en "
+        texto = ("Dejan de estar en la web (su dirección dirá que ya no existe y salen del mapa del sitio). No se borran: quedan en "
                  "borrador y se pueden volver a publicar desde la propia web.\n\n" + "\n".join(f"• {u}" for u in urls)
                  + (f"\n\nMotivo: {motivo}" if motivo else "") + (f"\nLo pidió: {quien}" if quien else ""))
         p = PU.abrir(slug, None, "retirar", f"{PU.EMOJI['retirar']} Retirar {len(urls)} página(s) · {cfg['nombre']}",
