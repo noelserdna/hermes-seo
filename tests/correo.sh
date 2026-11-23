@@ -111,6 +111,38 @@ pend({"id": "b3", "de": "ana@gmail.com", "asunto": "Re: puerta", "message_id": "
       "texto": f"Todavía no lo publiques\n\n-----Original Message-----\nFrom: hermes\nPara decidir:\n  APROBAR {cod2['acepto']}"})
 HC.recoger(); assert PU.leer(g2)["estado"] == "abierta" and ult() == "petición al encargado", ult()
 PY
+python3 - "$P" "$T" <<'PY' && ok "lo aprobado es lo que se ejecuta: si el borrador cambia tras decidir, no se firma y la puerta se reabre; la acción al aprobar sale de la pipeline" || bad "huella y acción de la puerta"
+import importlib.util, json, sys, time
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, C, E, PU, HC = m("hseo_base"), m("hseo_clientes"), m("hseo_encargos"), m("hseo_puertas"), m("hseo_correo")
+pend = lambda *ms: (T / "buzon/pendientes.json").write_text(json.dumps(list(ms)))
+import subprocess
+subprocess.run([sys.executable, str(P / "hseo_clientes.py"), "config", "web", "capacidades.publicacion", '{"adaptador":"repo-pr","repo":"/tmp/r"}'], check=True, capture_output=True)
+e = E.lanzar("web", "articulo", {k: "x" for k in (m("hseo_pipelines").cargar("articulo", "web").get("parametros") or {})})
+d = E.carpeta("web", e["id"])
+(d / "borrador.md").write_text("---\ntitulo: T\n---\nTexto aprobado\n")
+(d / "publicacion.json").write_text(json.dumps({"titulo": "T", "contenido": "borrador.md"}))
+# una etapa desviada cambia en encargo.json lo que hace la puerta: no cuenta, manda la pipeline
+enc = E.leer("web", e["id"]); enc["puerta"] = {"tipo": "mejora", "al_aprobar": "instalar:rama@abcdef1"}; E.guardar("web", enc)
+g = PU.abrir("web", e["id"])["id"]; p = PU.leer(g)
+assert p["tipo"] == "publicar" and p["al_aprobar"] == "publicar", (p["tipo"], p["al_aprobar"])
+p["revision"] = {"avisos": [], "graves": 0}; B.escribir(PU.indice(g), p)   # (el encargo de la prueba no pasó la verificación)
+PU.marcar(g, correo=HC.enviar_puerta(PU.leer(g))); p = PU.leer(g); cod = p["correo"]["codigos"]
+assert {"texto", "publicacion", "contenido"} <= set(p["correo"]["huella"]) and not HC.cambiado(p)
+pend({"id": "h1", "de": "ana@gmail.com", "asunto": "x", "texto": f"PUBLICAR {cod['acepto']}", "message_id": "<h1@g>"})
+HC.recoger(); assert PU.leer(g)["estado"] == "decidida"
+(d / "borrador.md").write_text("---\ntitulo: T\n---\nOtro texto, cambiado después de decidir\n")
+try: PU.firmar(g, ahora=time.time() + 7200); raise SystemExit("firmó un contenido distinto del aprobado")
+except B.Rechazo as ex: assert "cambió" in str(ex), ex
+p = PU.leer(g); assert p["estado"] == "abierta" and not p.get("decision") and not p.get("correo"), p["estado"]
+# instalar código del plugin solo en la puerta de mejoras del sistema
+g3 = PU.abrir("web", tipo="mejora", titulo="x", texto="x", al_aprobar="instalar:rama@abcdef1")["id"]
+try: PU._aplicar({**PU.leer(g3), "decision": {"verbo": "acepto"}}, "Ana"); raise SystemExit("instaló desde la puerta de una web")
+except B.Rechazo: pass
+PY
 python3 - "$P" "$T" <<'PY' && ok "botón de un correo viejo: no decide, y se contesta cuál vale; cada puerta con su asunto" || bad "código viejo"
 import importlib.util, json, sys
 from pathlib import Path

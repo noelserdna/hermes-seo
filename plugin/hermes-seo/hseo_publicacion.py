@@ -252,6 +252,11 @@ def _desplegar(slug: str, eid: str, conf: dict, repo: Path, pr: str, env: dict |
         s = C.secretos(slug)
         env = {**os.environ, **({"GH_TOKEN": s["GH_TOKEN"]} if s.get("GH_TOKEN") else {})}
     env = {**env, "HSEO_FIRMA": firma, "HSEO_ENCARGO": eid}   # quién aprobó: el script decide
+    # el commit que la persona vio al aprobar: el script de la web debe negarse si el PR ya no está en ese commit
+    aprobado = next((((x.get("correo") or {}).get("huella") or {}).get("pr") for x in _cargar("hseo_puertas").puertas(("decidida",))
+                     if x.get("encargo") == eid and x.get("cliente") == slug), None)
+    if aprobado:
+        env["HSEO_PR_SHA"] = aprobado
     (C.carpeta(slug) / "logs").mkdir(parents=True, exist_ok=True)
     subprocess.Popen(B.desacoplar(["bash", str(ruta), *partes[1:]]), start_new_session=True, cwd=str(repo), env=env,
                      stdout=open(C.carpeta(slug) / "logs" / f"desplegar-{eid}.log", "w"), stderr=subprocess.STDOUT)

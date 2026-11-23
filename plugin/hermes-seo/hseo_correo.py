@@ -211,6 +211,66 @@ def _hash(p: dict) -> str:
     return hashlib.sha256(base.encode()).hexdigest()[:16]
 
 
+def _cabeza_pr(slug: str, pr: str) -> str:
+    """El commit de cabecera del PR que se va a desplegar («» si no se puede saber: sin gh, sin red, sin repo)."""
+    try:
+        cfg = C.leer(slug)
+        repo = os.path.expanduser(str(((cfg.get("capacidades") or {}).get("publicacion") or {}).get("repo") or ""))
+        numero = str(pr).rstrip("/").rsplit("/", 1)[-1]
+        if not repo or not numero.isdigit():
+            return ""
+        s = C.secretos(slug)
+        env = {**os.environ, **({"GH_TOKEN": s["GH_TOKEN"]} if s.get("GH_TOKEN") else {})}
+        r = subprocess.run(["gh", "pr", "view", numero, "--json", "headRefOid", "-q", ".headRefOid"], cwd=repo, env=env,
+                           capture_output=True, text=True, timeout=20)
+        sha = r.stdout.strip()
+        return sha if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", sha) else ""
+    except Exception:   # noqa: BLE001
+        return ""
+
+
+def huella(p: dict) -> dict:
+    """Lo que la persona aprueba, pieza a pieza: el texto de la puerta, publicacion.json, el contenido que se publica
+    (borrador y traducciones) y el commit de cabecera del PR. Si algo de esto cambia después del correo, no es lo que vio."""
+    h = lambda b: hashlib.sha256(b).hexdigest()[:16]   # noqa: E731
+    out = {"texto": h(str(p.get("texto", "")).encode())}
+    if not p.get("encargo") or p.get("cliente") == "__cartera__":
+        return out
+    d = C.carpeta(p["cliente"]) / "encargos" / p["encargo"]
+    f = d / "publicacion.json"
+    if not f.exists():
+        return out
+    out["publicacion"] = h(f.read_bytes())
+    pub = B.leer(f) if isinstance(B.leer(f), dict) else {}
+    partes = b""
+    for nombre in [pub.get("contenido")] + [t.get("contenido") for t in (pub.get("traducciones") or []) if isinstance(t, dict)]:
+        g = (d / str(nombre)).resolve() if nombre else None
+        if g and str(g).startswith(str(d.resolve())) and g.is_file():
+            partes += str(nombre).encode() + b"\0" + g.read_bytes() + b"\0"
+    if partes:
+        out["contenido"] = h(partes)
+    pr = pub.get("pr") or pub.get("pr_url")
+    sha = _cabeza_pr(p["cliente"], str(pr)) if pr else ""
+    if sha:
+        out["pr"] = sha
+    return out
+
+
+def cambiado(p: dict) -> bool:
+    """¿Lo que se va a ejecutar ya no es lo que se envió? El commit del PR solo se compara si ahora se puede leer."""
+    c = p.get("correo") or {}
+    if not c.get("huella"):   # puertas enviadas antes de la huella: la comprobación de entonces
+        return c.get("hash") != _hash(p)
+    ahora = huella(p)
+    for k, v in c["huella"].items():
+        if k == "pr":
+            if ahora.get("pr") and ahora["pr"] != v:
+                return True
+        elif ahora.get(k) != v:
+            return True
+    return False
+
+
 def enviar_puerta(p: dict) -> dict:
     """Correo de una puerta abierta, con un código por opción (se guardan en la puerta)."""
     PU = _cargar("hseo_puertas")
@@ -234,7 +294,7 @@ def enviar_puerta(p: dict) -> dict:
     except Exception:
         cuando = time.strftime("%d-%m %H:%M", time.localtime())
     encolar(p["cliente"], f"🚪 {p['titulo']} · {cuando}", texto, _html(p["titulo"], p["texto"] + aviso, botones), tipo="puerta")
-    return {"codigos": cod, "hash": _hash(p), "enviado": B.ahora()}
+    return {"codigos": cod, "hash": _hash(p), "huella": huella(p), "enviado": B.ahora()}
 
 
 # clientes que citan sin «>» (Outlook, algunos móviles) y reenvíos: desde ahí todo es el correo anterior, no la respuesta
@@ -378,7 +438,7 @@ def procesar(m: dict) -> str:
         if p["estado"] != "abierta":
             encolar(slug, f"Ya estaba decidida: {p['titulo']}", "Esa puerta ya no está pendiente.", en_respuesta_a=ref, tipo="confirmacion")
             return "ya decidida"
-        if (p.get("correo") or {}).get("hash") != _hash(p):
+        if cambiado(p):
             PU.marcar(p["id"], correo=None)
             encolar(slug, f"La propuesta cambió: {p['titulo']}", "Lo que se iba a publicar ha cambiado desde que te escribí: te mando la versión nueva.",
                     en_respuesta_a=ref, tipo="confirmacion")

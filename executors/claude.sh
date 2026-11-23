@@ -53,6 +53,13 @@ AJUSTES=$(jq -nc --arg h "$H" '{permissions: {deny: [
   ("Edit(" + $h + "/secretos.env)"), ("Edit(" + $h + "/clientes/*/cliente.json)"), ("Edit(" + $h + "/clientes/*/secretos.env)"),
   ("Edit(" + $h + "/clientes/*/wiki/**)"), ("Edit(" + $h + "/actual/**)"), "Edit(~/.hermes/config.yaml)", "Edit(~/.hermes/.env)",
   "Read(~/.hermes/.env)", ("Read(" + $h + "/secretos.env)"), ("Read(" + $h + "/clientes/*/secretos.env)"),
+  "Read(~/.config/**)", "Read(~/.ssh/**)", "Read(~/.hermes/auth.json)", "Read(~/.hermes/profiles/*/.env)",
+  "Read(~/.hermes/profiles/*/auth.json)", "Read(~/.hermes/profiles/*/mcp-tokens/**)", ("Read(" + $h + "/clientes/*/mcp-tokens/**)"),
+  ("Read(" + $h + "/puertas/**)"), ("Read(" + $h + "/correo/**)"), ("Read(" + $h + "/aprobadores.json)"),
+  "Edit(~/.config/**)", "Edit(~/.ssh/**)", "Edit(~/.bashrc)", "Edit(~/.bash_profile)", "Edit(~/.profile)",
+  "Edit(~/.hermes/plugins/**)", "Edit(~/.hermes/scripts/**)", "Edit(~/.hermes/cron/**)", "Edit(~/.hermes/profiles/**)",
+  ("Edit(" + $h + "/0.*/**)"), ("Edit(" + $h + "/correo/**)"), ("Edit(" + $h + "/clientes/*/extensiones/**)"),
+  ("Edit(" + $h + "/clientes/*/mcp-tokens/**)"),
   "Bash(git push origin main:*)", "Bash(git push origin HEAD:main:*)", "Bash(git push -f:*)", "Bash(git push --force:*)",
   "Bash(gh pr merge:*)", "Bash(wrangler:*)", "Bash(npx wrangler:*)", "Bash(pnpm exec wrangler:*)", "Bash(pnpm wrangler:*)"]}}')
 TOOLS="Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(jq:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(curl -sI:*)"

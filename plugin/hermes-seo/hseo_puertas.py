@@ -204,11 +204,14 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
           hallazgos: list | None = None, al_aprobar: str = "nada") -> dict:
     """Abre la puerta de un encargo (la de su pipeline) o una suelta (mantenimiento: tipo + texto + hallazgos)."""
     cfg = C.leer(slug) if slug != CARTERA else {"nombre": "Sistema"}
-    enc, p = None, None
+    enc, p, def_puerta = None, None, {}
     if eid:
         enc = E.leer(slug, eid)
         p = PL.cargar(enc["pipeline"], slug)
-        tipo = (enc.get("puerta") or {}).get("tipo")
+        # qué puerta es y qué ejecuta al aprobarse lo dice la PIPELINE, no encargo.json: ese fichero está en la carpeta
+        # de trabajo de las etapas, y una etapa desviada podría cambiar «publicar» por otra acción
+        def_puerta = p.get("puerta") or {}
+        tipo = def_puerta.get("tipo")
         if not tipo:
             raise Rechazo(f"La pipeline {enc['pipeline']} no tiene puerta")
         if any(x.get("encargo") == eid for x in puertas()):
@@ -231,8 +234,8 @@ def abrir(slug: str, eid: str | None = None, tipo: str | None = None, titulo: st
     gid = f"g{int(time.time()):x}{secrets.token_hex(3)}"
     puerta = {"id": gid, "tipo": tipo, "cliente": slug, "encargo": eid, "pipeline": enc and enc["pipeline"],
               "titulo": titulo, "texto": texto, "opciones": OPCIONES[tipo],
-              "al_aprobar": ((enc or {}).get("puerta") or {}).get("al_aprobar", "nada") if enc else al_aprobar,
-              "rehacer": ((enc or {}).get("puerta") or {}).get("rehacer") or (enc["etapas"][-1]["id"] if enc else None),
+              "al_aprobar": def_puerta.get("al_aprobar", "nada") if enc else al_aprobar,
+              "rehacer": (def_puerta.get("rehacer") or enc["etapas"][-1]["id"]) if enc else None,
               "hallazgos": hallazgos or [], "revision": rev, "creada": B.ahora(), "estado": "abierta"}
     with B.cerrojo("puertas"):
         B.escribir(indice(gid), puerta)
@@ -359,6 +362,8 @@ def _aplicar(puerta: dict, firma: str) -> str:
         elif accion == "retirar":
             resultado = _cargar("hseo_publicacion").retirar(slug, puerta.get("hallazgos") or [], firma)
         elif accion.startswith("instalar:"):
+            if slug != CARTERA or puerta["tipo"] != "mejora" or eid:   # instalar código del plugin: solo la puerta de mejoras del sistema
+                raise Rechazo("Instalar una mejora solo se aprueba en una puerta de mejora del sistema")
             resultado = _cargar("hseo_mejoras").instalar(accion[len("instalar:"):], firma)
         elif accion == "apuntar":
             B.anotar(B.home() / "novedades" / "apuntadas.jsonl", {"ts": B.ahora(), "titulo": puerta["titulo"], "texto": puerta["texto"][:2000], "firma": firma})
@@ -420,6 +425,23 @@ def firmar(gid: str, ahora: float | None = None) -> dict:
             raise Rechazo("Esta puerta no está decidida")
         if (ahora or time.time()) < float(puerta.get("firmar_en") or 0):
             raise Rechazo("Aún está abierta la ventana para deshacer")
+        if (puerta.get("correo") or {}).get("huella") and puerta["decision"]["verbo"] in APRUEBA \
+                and _cargar("hseo_correo").cambiado(puerta):
+            # entre el correo y la firma ha cambiado lo que se publica (el borrador, publicacion.json o el commit del PR):
+            # no se ejecuta; la puerta vuelve a abrirse y se reenvía con lo que hay ahora
+            with B.cerrojo("puertas"):
+                p = leer(gid)
+                p["estado"] = "abierta"
+                for k in ("decision", "firmar_en", "correo"):
+                    p.pop(k, None)
+                B.escribir(indice(gid), p)
+            try:
+                _cargar("hseo_correo").encolar(puerta["cliente"], f"No lo he ejecutado: {puerta['titulo']}",
+                                               "Lo que se iba a publicar cambió después de tu decisión. No he hecho nada: "
+                                               "te reenvío la puerta con la versión actual.", tipo="confirmacion")
+            except Exception:   # noqa: BLE001
+                pass
+            raise Rechazo("Lo que se iba a publicar cambió después de la decisión: la puerta vuelve a estar abierta")
         try:
             firma = _valida_actor(puerta)
             resultado = _aplicar(puerta, firma)
