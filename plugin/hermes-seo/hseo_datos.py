@@ -295,6 +295,12 @@ def resumen(slug: str, dias: int = 28) -> dict:
         "SELECT consulta, pagina, SUM(impresiones) i, SUM(clics), SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0) pos "
         "FROM gsc_consulta WHERE fecha BETWEEN ? AND ? GROUP BY consulta, pagina HAVING pos BETWEEN 8 AND 20 ORDER BY i DESC LIMIT 15",
         (ini.isoformat(), fin.isoformat()))]
+    # lejos: consultas en las que la página casi no aparece (más allá del puesto 20). El parte mira si alguna es justo
+    # la que esa página debería ganar; «página dos» (8-20) no las ve
+    lejos = [{"consulta": q, "pagina": p, "impresiones": int(i), "clics": int(c), "posicion": round(pos, 1)} for q, p, i, c, pos in con.execute(
+        "SELECT consulta, pagina, SUM(impresiones) i, SUM(clics), SUM(posicion * impresiones) / NULLIF(SUM(impresiones), 0) pos "
+        "FROM gsc_consulta WHERE fecha BETWEEN ? AND ? GROUP BY consulta, pagina HAVING pos > 20 ORDER BY i DESC LIMIT 40",
+        (ini.isoformat(), fin.isoformat()))]
     a, b = ini.isoformat(), fin.isoformat()
     paginas = _grupo(con, "gsc_pagina", "pagina", a, b, 25)
     for p in paginas:   # clics que tendría con el CTR de referencia de su posición
@@ -308,7 +314,7 @@ def resumen(slug: str, dias: int = 28) -> dict:
         if any(t in (q or "").lower() for t in terminos):
             marca["consultas"] += 1; marca["clics"] += int(c); marca["impresiones"] += int(i)
     out = {"hay_datos": True, "hasta": fin.isoformat(), "dias": dias, "actual": ahora_, "anterior": antes,
-           "serie": serie, "pagina_dos": cerca, "paginas": paginas, "bajo_ctr": bajo[:10],
+           "serie": serie, "pagina_dos": cerca, "lejos": lejos, "paginas": paginas, "bajo_ctr": bajo[:10],
            "paises": _grupo(con, "gsc_pais", "pais", a, b, 10), "dispositivos": _grupo(con, "gsc_dispositivo", "dispositivo", a, b, 5),
            "marca": marca,
            "curva_ctr": "propia" if ahora_["clics"] >= 500 else "referencia (pocos clics para estimar la propia)"}

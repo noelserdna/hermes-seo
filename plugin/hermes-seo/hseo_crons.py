@@ -75,7 +75,8 @@ def plan(slug: str) -> list:
                 out.append({"nombre": "aterrizaje", "horario": horario, "orden": ["aterrizaje", "recordar", slug]})
             continue
         if nombre in ("parte", "vigilancia"):
-            out.append({"nombre": nombre, "horario": horario, "orden": [nombre, slug]})
+            # el cron es el único que genera y envía; sin la opción, la orden solo consulta
+            out.append({"nombre": nombre, "horario": horario, "orden": [nombre, slug, "--enviar" if nombre == "parte" else "--ciclo"]})
             continue
         try:
             PL.plan(nombre, slug)   # ¿se puede lanzar con lo que tiene configurado?

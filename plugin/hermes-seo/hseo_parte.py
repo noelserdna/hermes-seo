@@ -3,6 +3,7 @@
 clientes/<web>/informes/partes/<fecha>.json (+ ultimo.json, que leen el estado por turno y «hseo propuesta»).
 
   hseo_parte.py generar <web> [--no-guardar]     imprime el parte (texto para Telegram)
+  hseo_parte.py ver <web>                        el último parte guardado, sin tocar nada
   hseo_parte.py propuesta <web> <n>              ejecuta la propuesta n del último parte (una vez)
 
 Las propuestas salen de un catálogo cerrado; el texto y la orden los compone el código (nunca un modelo), y cada orden
@@ -39,6 +40,27 @@ ES = _cargar("hseo_estado")
 Rechazo = B.Rechazo
 MAX_PROPUESTAS = 3
 DIAS = 7
+# Mínimos para proponer a partir de Search Console. Por debajo, la cifra es ruido y la propuesta cuesta una pipeline entera.
+DIAS_ARRANQUE = 28        # días con datos antes de proponer nada basado en búsquedas (web nueva: «arranque»)
+MIN_IMP_PAGINA_DOS = 50   # impresiones en 28 días de una consulta en posiciones 8-20
+MIN_IMP_LEJOS = 20        # impresiones de la consulta objetivo cuando la página está más allá del puesto 20
+MIN_GANANCIA_CTR = 3      # clics que faltan frente a lo esperado para proponer título y entrada
+OBJETIVO_POS = 5          # «llevar a la primera página» se valora como llegar al puesto 5
+
+
+def _tokens(t: str) -> set:
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(t).lower())
+    t = "".join(c if c.isalnum() else " " for c in t if unicodedata.category(c) != "Mn")
+    return {x for x in t.split() if x}
+
+
+def _objetivo(consulta: str, url: str) -> bool:
+    """¿Es la consulta que esa página debería ganar? Las palabras de su dirección y las de la consulta son las mismas
+    (unas contienen a las otras) y hay al menos dos: /blog/que-es-mcp ↔ «que es mcp», «mcp que es», «que es un mcp»."""
+    slug = _tokens(_ruta(url).rstrip("/").rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    q = _tokens(consulta)
+    return len(slug & q) >= 2 and (slug <= q or q <= slug)
 
 
 def _carpeta(slug: str) -> Path:
@@ -76,7 +98,7 @@ def _ruta(url: str) -> str:
     return "/" + url.split("://", 1)[-1].split("/", 1)[-1] if "://" in url else url
 
 
-def propuestas(slug: str, r: dict) -> list:
+def propuestas(slug: str, r: dict, sin_gsc: bool = False) -> list:
     """Catálogo cerrado, ordenado por clics que podría ganar; como mucho una de título y MAX_PROPUESTAS en total."""
     cand = []
     en_marcha = json.dumps([e.get("params") for e in E.listar(slug, abiertos=True)], ensure_ascii=False)
@@ -87,30 +109,60 @@ def propuestas(slug: str, r: dict) -> list:
     # lo que la persona descartó hace poco no se le vuelve a proponer (lo acaba de decir que no)
     en_marcha += " " + json.dumps([e.get("params") for e in E.listar(slug)
                                    if e.get("estado") == "descartado" and ES._ts(e.get("creado")) >= hace], ensure_ascii=False)
-    if r.get("hay_datos"):
+    D = _cargar("hseo_datos")
+    marca = [t for t in ((r.get("marca") or {}).get("terminos") or []) if t]
+    # sin datos fiables no se propone a partir de búsquedas: web con menos de 28 días de datos, o el acceso caído
+    con_gsc = r.get("hay_datos") and not sin_gsc and int((r.get("actual") or {}).get("dias") or 0) >= DIAS_ARRANQUE
+    if con_gsc:
         for p in r.get("bajo_ctr") or []:   # muchas impresiones y pocos clics para su posición
             url = p["pagina"]
             if url.rstrip("/") in en_marcha or _ruta(url).rstrip("/") in en_marcha:
                 continue
+            if (p.get("posicion") or 99) > 10 or p["clics_esperados"] - p["clics"] < MIN_GANANCIA_CTR:
+                continue   # fuera de la primera página el título no es el problema; con menos ganancia, es ruido
             params = {"que": f"Título, meta descripción y primer párrafo de {url}: tiene {_miles(p['impresiones'])} "
                              f"impresiones y {p['clics']} clics en 28 días en la posición {p['posicion']}; con esa posición "
                              f"se esperarían unos {p['clics_esperados']:.0f}. Que el resultado de Google responda mejor a lo que se busca."}
-            cand.append({"id": "bajo-ctr", "titulo": True, "valor": p["clics_esperados"] - p["clics"],
+            cand.append({"id": "bajo-ctr", "titulo": True, "url": url, "valor": p["clics_esperados"] - p["clics"],
                          "texto": f"Mejorar el título y la entrada de {_ruta(url)} ({_miles(p['impresiones'])} impresiones, "
                                   f"{p['clics']} clics, posición {_dec(p['posicion'])})",
                          "orden": {"tipo": "lanzar", "pipeline": "cambio-seo", "params": params}})
-        for q in (r.get("pagina_dos") or [])[:5]:   # consultas en posiciones 8-20: de la página 2 a la 1
+        # la consulta que la página debería ganar y en la que casi no aparece (más allá del puesto 20)
+        lejos = {}
+        for q in r.get("lejos") or []:
+            url = q.get("pagina") or ""
+            if url and q["impresiones"] >= MIN_IMP_LEJOS and _objetivo(q["consulta"], url) and url not in lejos:
+                lejos[url] = q
+        for q in r.get("pagina_dos") or []:   # consultas en posiciones 8-20: de la página 2 a la 1
             url = q.get("pagina") or ""
             if not url or url.rstrip("/") in en_marcha or _ruta(url).rstrip("/") in en_marcha:
                 continue
+            if q["impresiones"] < MIN_IMP_PAGINA_DOS or any(t in q["consulta"].lower() for t in marca):
+                continue
+            extra = ""
+            if url in lejos:
+                x = lejos.pop(url)
+                extra = (f" Además, la consulta que esta página debería ganar, «{x['consulta']}», está en la posición "
+                         f"{x['posicion']} ({x['impresiones']} impresiones): que la respuesta a esa pregunta sea lo primero.")
             params = {"url": url, "motivo": f"La consulta «{q['consulta']}» tiene {q['impresiones']} impresiones en la "
-                                            f"posición {q['posicion']}: llevarla a la primera página."}
-            cand.append({"id": "pagina-dos", "titulo": False, "valor": q["impresiones"] * 0.03,
-                         "texto": f"Llevar «{q['consulta']}» a la primera página ({q['impresiones']} impresiones, posición {_dec(q['posicion'])})",
+                                            f"posición {q['posicion']}: llevarla a la primera página.{extra}"}
+            ganancia = q["impresiones"] * max(0.0, D.ctr_esperado(OBJETIVO_POS) - D.ctr_esperado(q["posicion"]))
+            cand.append({"id": "pagina-dos", "titulo": False, "url": url, "valor": ganancia,
+                         "texto": f"Llevar «{q['consulta']}» a la primera página ({q['impresiones']} impresiones, posición {_dec(q['posicion'])})"
+                                  + (" y reforzar su consulta objetivo" if extra else ""),
+                         "orden": {"tipo": "lanzar", "pipeline": "actualizacion", "params": params}})
+        for url, x in lejos.items():
+            if url.rstrip("/") in en_marcha or _ruta(url).rstrip("/") in en_marcha:
+                continue
+            params = {"url": url, "motivo": f"Esta página debería responder a «{x['consulta']}» y está en la posición "
+                                            f"{x['posicion']} ({x['impresiones']} impresiones en 28 días): reforzar esa respuesta."}
+            # tan lejos, las impresiones se quedan muy cortas frente a la demanda real: se valora como un tercio de ellas en clics
+            cand.append({"id": "objetivo-lejos", "titulo": False, "url": url, "valor": x["impresiones"] * 0.3,
+                         "texto": f"Reforzar {_ruta(url)} para «{x['consulta']}», su consulta objetivo (posición {_dec(x['posicion'])}, {x['impresiones']} impresiones)",
                          "orden": {"tipo": "lanzar", "pipeline": "actualizacion", "params": params}})
     try:   # la tanda siguiente: varias páginas a la vez, con grupo de control (mejor que una suelta)
         T = _cargar("hseo_tandas")
-        if not [t for t in T.abiertas(slug) if not t.get("encargo")]:
+        if con_gsc and not [t for t in T.abiertas(slug) if not t.get("encargo")]:
             pr = T.proponer(slug)
             if len(pr["tratadas"]) >= 2:
                 T.limites(slug, [p["url"] for p in pr["tratadas"]])
@@ -129,9 +181,11 @@ def propuestas(slug: str, r: dict) -> list:
             cand.append({"id": "parada", "titulo": False, "valor": 3,
                          "texto": f"Reintentar «{e.get('nombre')}», que está parado",
                          "orden": {"tipo": "reintentar", "encargo": e["id"]}})
-    out, titulo = [], False
+    out, titulo, urls = [], False, set()
     for c in sorted(cand, key=lambda c: c["valor"], reverse=True):
         if c["titulo"] and titulo:
+            continue
+        if c.get("url") and c["url"].rstrip("/") in urls:   # una propuesta por página: dos a la vez se pisan
             continue
         o = c["orden"]
         if o["tipo"] == "tanda" and not _valida(slug, "cambio-seo", {"que": "x"}):
@@ -139,6 +193,8 @@ def propuestas(slug: str, r: dict) -> list:
         if o["tipo"] == "lanzar" and not _valida(slug, o["pipeline"], o["params"]):
             continue
         titulo = titulo or c["titulo"]
+        if c.get("url"):
+            urls.add(c["url"].rstrip("/"))
         out.append({**{k: c[k] for k in ("id", "texto", "orden")}, "codigo": __import__("secrets").token_urlsafe(12)})
         if len(out) == MAX_PROPUESTAS:
             break
@@ -176,7 +232,7 @@ def generar(slug: str, ahora: float | None = None) -> dict:
         faltan.append(f"Search Console ({e})")
     if not r.get("hay_datos"):
         faltan.append("Search Console (no hay datos guardados)")
-    elif r.get("hasta") and (date.today() - date.fromisoformat(r["hasta"])).days > 5:
+    elif r.get("hasta") and (date.today() - date.fromisoformat(r["hasta"])).days > 4:   # lo normal son 2-3 días de retraso
         faltan.append(f"Search Console (los datos llegan hasta el {r['hasta']})")
     desde = ahora - DIAS * 86400
     hecho = []
@@ -187,6 +243,11 @@ def generar(slug: str, ahora: float | None = None) -> dict:
     puertas = [p for p in PU.puertas(("abierta",)) if p.get("cliente") == slug]
     inc = [B.leer(f) or {} for f in sorted((d / "incidencias").glob("*.json"))] if (d / "incidencias").is_dir() else []
     resueltas = [i for i in inc if i.get("estado") == "resuelta" and i.get("sola") and ES._ts(i.get("resuelta")) >= desde]
+    vivas = [i for i in inc if i.get("estado") in ("viva", "intentando", "avisada")]
+    # con el acceso o la recogida de Search Console caídos, las cifras son viejas: no se propone nada a partir de ellas
+    sin_gsc = any(i.get("clase") in ("acceso", "datos") or (i.get("clase") == "recogida" and "gsc" in str(i.get("recurso")))
+                  for i in vivas)
+    dias_datos = int((r.get("actual") or {}).get("dias") or 0) if r.get("hay_datos") else 0
     criterio = cfg.get("criterio") if isinstance(cfg.get("criterio"), dict) else None
     try:
         tuyas = [f"{r.get('n')}. {r.get('destino')}" for r in _cargar("hseo_autoridad").pendientes_persona(slug)]
@@ -198,18 +259,28 @@ def generar(slug: str, ahora: float | None = None) -> dict:
             "puertas": [{"id": p["id"], "titulo": p["titulo"], "creada": p.get("creada")} for p in puertas],
             "resueltas": [i.get("texto", "") for i in resueltas], "criterio": criterio, "gestiones_tuyas": tuyas,
             "aplazados": _aplazados(slug),
-            "propuestas": propuestas(slug, r)}
+            "incidencias": [{"texto": i.get("texto", ""), "desde": str(i.get("creada", ""))[:10], "mano": i.get("mano", "")} for i in vivas],
+            "sin_gsc": sin_gsc, "arranque": dias_datos if r.get("hay_datos") and dias_datos < DIAS_ARRANQUE else None,
+            "propuestas": propuestas(slug, r, sin_gsc)}
 
 
 def texto(parte: dict) -> str:
     l = [f"📊 Parte de la semana · {parte['nombre']}"]
+    for i in parte.get("incidencias") or []:   # lo roto va lo primero: un aviso suelto se pierde
+        l.append(f"🔴 Sin resolver desde el {i['desde']}: {i['texto']}." + (f" Hace falta tu mano: {i['mano']}." if i.get("mano") else ""))
     c = parte.get("cifras")
+    w = parte.get("web_propia") or {}
+    google = ""
     if c:
         a, b = c["actual"], c["anterior"]
-        l.append(f"Google, 28 días hasta el {c['hasta']}: {_miles(a['clics'])} clics{_var(a['clics'], b['clics'])} · "
-                 f"{_miles(a['impresiones'])} impresiones{_var(a['impresiones'], b['impresiones'])} · "
-                 f"{_dec(a['ctr'])} % de clic · posición {_dec(a['posicion'])}")
-    w = parte.get("web_propia") or {}
+        comparable = b.get("dias", 0) >= 0.9 * a.get("dias", 0)   # 28 días contra 21 no es un «+138 %»
+        v = (lambda x, y: _var(x, y)) if comparable else (lambda x, y: "")
+        google = (f"Google, 28 días hasta el {c['hasta']}: {_miles(a['clics'])} clics{v(a['clics'], b['clics'])} · "
+                  f"{_miles(a['impresiones'])} impresiones{v(a['impresiones'], b['impresiones'])} · "
+                  f"{_dec(a['ctr'])} % de clic · posición {_dec(a['posicion'])}"
+                  + ("" if comparable or not b.get("dias") else f" (sin comparación: del periodo anterior solo hay {b['dias']} días)"))
+    if google and not w.get("mes"):
+        l.append(google)
     if w.get("mes"):
         m, p = w["mes"], w.get("anterior") or {}
         l.append(f"La web, {m['mes']} (hasta el {w.get('fecha')}): {_miles(m['visitas'])} visitas · {_miles(m['descargas'])} descargas · "
@@ -218,6 +289,8 @@ def texto(parte: dict) -> str:
     if w.get("blog"):
         b = w["blog"]
         l.append(f"Blog ({b['publicados']} artículos): {_miles(b['visitas'])} visitas este mes · desde buscadores {_miles(b['buscadores'])} · desde IA {_miles(b['ia'])}")
+    if google and w.get("mes"):   # primero lo que vende la web; después, las búsquedas
+        l.append(google)
     for f in parte.get("faltan") or []:
         l.append(f"⚠️ Falta: {f}")
     if parte.get("hecho"):
@@ -235,6 +308,11 @@ def texto(parte: dict) -> str:
         l.append("")
         l.append("Propuestas (responde «haz la 1», «haz la 2»…):")
         l += [f"{i}. {p['texto']}" for i, p in enumerate(parte["propuestas"], 1)]
+    elif parte.get("sin_gsc"):
+        l.append("Sin propuestas esta semana: los datos de Google están parados (arriba) y no propongo sobre cifras viejas.")
+    elif parte.get("arranque") is not None:
+        l.append(f"🌱 Web en arranque: {parte['arranque']} de {DIAS_ARRANQUE} días de datos de Google. Aún no propongo cambios "
+                 f"a partir de búsquedas: con tan poco, cualquier cifra es ruido.")
     else:
         l.append("Nada que proponer esta semana.")
     cr = parte.get("criterio")
@@ -250,6 +328,18 @@ def texto(parte: dict) -> str:
         if partes:
             l.append(f"🎯 Objetivo del {cr.get('fecha', '?')}: " + " · ".join(partes))
     return "\n".join(l)
+
+
+def ver(slug: str) -> str:
+    """El último parte guardado, tal cual se envió. No genera, no guarda, no envía."""
+    parte = B.leer(_carpeta(slug) / "ultimo.json")
+    if not isinstance(parte, dict):
+        return f"{slug} aún no tiene ningún parte (sale los lunes)."
+    return texto(parte) + f"\n\n(parte del {parte.get('fecha')}; vista previa con datos de hoy: hseo parte {slug} --no-guardar)"
+
+
+def hecho_hoy(slug: str) -> bool:
+    return (_carpeta(slug) / f"{datetime.now(timezone.utc).date().isoformat()}.json").exists()
 
 
 def guardar(slug: str, parte: dict) -> Path:
@@ -300,6 +390,8 @@ def main(argv=None) -> int:
             if "--no-guardar" not in a:
                 guardar(a[1], parte)
             print(texto(parte))
+        elif a[:1] == ["ver"] and len(a) == 2:
+            print(ver(a[1]))
         elif a[:1] == ["propuesta"] and len(a) == 3:
             print(ejecutar_propuesta(a[1], int(a[2])))
         else:

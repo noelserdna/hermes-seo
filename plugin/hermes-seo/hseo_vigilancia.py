@@ -110,12 +110,31 @@ def detectar(slug: str, ahora: float | None = None) -> list:
         if fotos and ahora - fotos[-1].stat().st_mtime > 3 * 86400 and not caducado:
             out.append({"clase": "datos", "recurso": "search-console", "arreglo": "recoger",
                         "texto": f"los datos de Search Console no se actualizan desde hace {ES._edad(ahora - fotos[-1].stat().st_mtime)}"})
+        # cualquier herramienta que falla dos recogidas seguidas (de días distintos), aunque el mensaje no diga «caducado»
+        previa = next((x for x in reversed(rec[:-1]) if ES._ts(ultima.get("ts")) - ES._ts(x.get("ts")) > 12 * 3600), {})
+        for fallo in ultima.get("fallos") or []:
+            herramienta = str(fallo).split(":", 1)[0].strip()
+            if fallo == caducado or not herramienta:
+                continue
+            if any(str(x).split(":", 1)[0].strip() == herramienta for x in previa.get("fallos") or []):
+                out.append({"clase": "recogida", "recurso": herramienta, "arreglo": None,
+                            "texto": f"la recogida de datos falla dos días seguidos en {herramienta}: {str(fallo)[:140]}"})
         caida = _caida_clics(slug)
         if caida:
             out.append({"clase": "caida-clics", "recurso": "google", "arreglo": None, "texto": caida})
     for x in out:
         x["firma"] = _firma(x["clase"], x["recurso"])
     return out
+
+
+REAVISO = 24 * 3600
+
+
+def vivas(slug: str) -> list:
+    """Las incidencias sin resolver de una web (para el parte y el estado): la más antigua primero."""
+    d = _dir(slug)
+    inc = [B.leer(f) or {} for f in sorted(d.glob("*.json"))] if d.is_dir() else []
+    return sorted([i for i in inc if i.get("estado") in ("viva", "intentando", "avisada")], key=lambda i: str(i.get("creada")))
 
 
 DESCRIBE = {"reintentar": "reintenté la etapa", "firmar": "volví a intentar ejecutarla",
@@ -142,11 +161,15 @@ def ciclo(slug: str, ahora: float | None = None, lanzar=None) -> list:
                 B.escribir(f, inc)
                 lanzar(slug, firma)
                 continue
-            inc["estado"] = "avisada"
+            inc.update(estado="avisada", aviso_ts=ahora, avisos=1)
             avisos.append(_aviso(inc))
         elif inc["estado"] == "intentando" and ahora - float(inc.get("intento_ts") or 0) > ESPERA_ARREGLO:
-            inc["estado"] = "avisada"
+            inc.update(estado="avisada", aviso_ts=ahora, avisos=1)
             avisos.append(_aviso(inc))
+        elif inc["estado"] == "avisada" and ahora - float(inc.get("aviso_ts") or ES._ts(inc.get("creada"))) >= REAVISO:
+            # sigue viva un día después: se recuerda cada día hasta que se resuelva (un solo aviso se pierde)
+            inc.update(aviso_ts=ahora, avisos=int(inc.get("avisos") or 1) + 1)
+            avisos.append(_aviso(inc, recordatorio=True))
         B.escribir(f, inc)
     for f in dd.glob("*.json"):
         inc = B.leer(f) or {}
@@ -157,8 +180,10 @@ def ciclo(slug: str, ahora: float | None = None, lanzar=None) -> list:
     return avisos
 
 
-def _aviso(inc: dict) -> str:
+def _aviso(inc: dict, recordatorio: bool = False) -> str:
     l = f"⚠️ {inc['texto']}."
+    if recordatorio:
+        l = f"⏰ Sigue sin resolver desde el {str(inc.get('creada', ''))[:10]} (aviso n.º {inc.get('avisos')}): {inc['texto']}."
     if inc.get("intentos"):
         l += f" Ya {DESCRIBE.get(inc.get('arreglo'), 'lo intenté')}" + (f" ({inc['probado']})" if inc.get("probado") else "") + " y sigue igual."
     if inc.get("mano"):

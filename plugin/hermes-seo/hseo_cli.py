@@ -16,7 +16,9 @@ y lo ejecuta el notario.
     hseo reintentar <cliente> <encargo> <etapa>          (una vez por etapa; después, una persona)
     hseo vueltas                                         (lanza las vueltas a redactar que pidió la verificación)
     hseo preguntar <cliente> "<texto>" · hseo ordenar <cliente> "<texto>"   (solo la coordinadora: habla con el encargado)
-    hseo parte <cliente> [--no-guardar]                  (el parte semanal, sin IA)
+    hseo parte <cliente> [--no-guardar]                  (el último parte enviado; --no-guardar: vista previa de hoy;
+                                                          --enviar lo genera y lo envía: solo el cron)
+    hseo vigilancia <cliente>                            (incidencias vivas; --ciclo detecta, arregla y avisa: solo el cron)
     hseo gestion pendientes <cliente> · hseo gestion hecha <cliente> <n> [url]   (autoridad: las gestiones tuyas)
     hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
@@ -263,7 +265,7 @@ def main(argv=None) -> int:
     x.add_argument("--param", action="append", default=[]); x.add_argument("--brief", default="")
     x.add_argument("--excepcion", action="store_true")
     sub.add_parser("vueltas")
-    sub.add_parser("vigilancia").add_argument("cliente")
+    x = sub.add_parser("vigilancia"); x.add_argument("cliente"); x.add_argument("--ciclo", action="store_true")
     sub.add_parser("cuaderno").add_argument("accion", choices=("apuntar",))
     x = sub.add_parser("novedad"); x.add_argument("accion", choices=("recoger", "proponer", "descartar")); x.add_argument("args", nargs="*")
     x = sub.add_parser("mejora"); x.add_argument("accion", choices=("proponer",)); x.add_argument("rama")
@@ -282,6 +284,7 @@ def main(argv=None) -> int:
     for n in ("preguntar", "ordenar"):
         x = sub.add_parser(n); x.add_argument("cliente"); x.add_argument("texto", nargs="+")
     x = sub.add_parser("parte"); x.add_argument("cliente"); x.add_argument("--no-guardar", action="store_true")
+    x.add_argument("--enviar", action="store_true"); x.add_argument("--rehacer", action="store_true")
     x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
     x = sub.add_parser("retirar"); x.add_argument("cliente"); x.add_argument("urls", nargs="+"); x.add_argument("--motivo", default="")
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
@@ -394,6 +397,13 @@ def main(argv=None) -> int:
             sys.exit(T.main([a.accion, a.cliente] + ([a.id] if a.id else [])))
         elif a.cmd == "wiki":
             print("🧠 Memoria sembrada: " + ", ".join(_cargar("hseo_wiki").sembrar(a.cliente)))
+        elif a.cmd == "vigilancia" and not a.ciclo:   # consulta: no marca avisos ni lanza arreglos
+            vivas = _cargar("hseo_vigilancia").vivas(a.cliente)
+            for i in vivas:
+                print(f"⚠️ desde el {str(i.get('creada', ''))[:10]} ({i.get('estado')}): {i.get('texto')}"
+                      + (f" · hace falta tu mano: {i['mano']}" if i.get("mano") else ""))
+            if not vivas:
+                print(f"✅ {a.cliente}: sin incidencias vivas")
         elif a.cmd == "vigilancia":
             avisos = _cargar("hseo_vigilancia").ciclo(a.cliente)
             avisos += aterrizaje_al_dia(a.cliente)
@@ -403,6 +413,11 @@ def main(argv=None) -> int:
             if HC.por_telegram(a.cliente):
                 for l in avisos:
                     print(l)
+        elif a.cmd == "parte" and not (a.enviar or a.no_guardar):   # consulta: el último enviado, sin tocar nada
+            print(_cargar("hseo_parte").ver(a.cliente))
+        elif a.cmd == "parte" and a.enviar and not a.rehacer and _cargar("hseo_parte").hecho_hoy(a.cliente):
+            # ya salió hoy: rehacerlo cambiaría los códigos de las propuestas que la persona tiene en su correo
+            print(f"El parte de hoy de {a.cliente} ya se envió (para repetirlo: --enviar --rehacer).", file=sys.stderr)
         elif a.cmd == "parte":
             PA, HC = _cargar("hseo_parte"), _cargar("hseo_correo")
             parte = PA.generar(a.cliente)
@@ -429,8 +444,9 @@ def main(argv=None) -> int:
             D = _cargar("hseo_datos")
             if a.accion == "recoger":
                 fallos = D.recoger(a.cliente)
-                if fallos:
-                    print(f"⚠️ No se pudieron recoger todos los datos de {a.cliente}:\n" + "\n".join(f"- {f}" for f in fallos))
+                if fallos:   # la salida del cron va al tema de Telegram: solo si la web usa ese canal (la vigilancia avisa por el suyo)
+                    hacia = sys.stdout if sys.stdout.isatty() or _cargar("hseo_correo").por_telegram(a.cliente) else sys.stderr
+                    print(f"⚠️ No se pudieron recoger todos los datos de {a.cliente}:\n" + "\n".join(f"- {f}" for f in fallos), file=hacia)
             elif a.accion == "resumen":
                 print(json.dumps(D.resumen(a.cliente, a.dias), ensure_ascii=False, indent=1))
             else:

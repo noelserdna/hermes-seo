@@ -147,6 +147,8 @@ def orden_hseo(args: list) -> str | None:
         if not lectura_global and cli != AMBITO:
             return f"solo puede actuar sobre {AMBITO}"
     texto = " ".join(args)
+    if sub in ("parte", "vigilancia") and {"--enviar", "--rehacer", "--ciclo"} & set(args):
+        return f"hseo {sub} con esa opción genera y envía: lo hace solo el cron (sin opción, consulta)"
     if sub in HSEO_SOLA:
         if sub == "mcp" and args[1:2] == ["conectar"]:   # pide un código a una persona: con su aprobación
             APROBAR.append(f"hseo {' '.join(args)[:200]}")

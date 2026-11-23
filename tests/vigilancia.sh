@@ -25,8 +25,13 @@ inc = B.leer(V._dir("web") / f"{lanzados[0]}.json"); inc["probado"] = "reintenta
 av = V.ciclo("web", t0 + 20 * 60, lanzar=lambda s, f: lanzados.append(f))
 assert len(av) == 1 and "parado" in av[0] and "reintenté" in av[0] and "reintentada" in av[0], av
 assert V.ciclo("web", t0 + 30 * 60, lanzar=lambda s, f: lanzados.append(f)) == []                   # no se repite
+av = V.ciclo("web", t0 + 25 * 3600, lanzar=lambda s, f: lanzados.append(f))                          # sigue un día después: se recuerda
+assert len(av) == 1 and "Sigue sin resolver" in av[0] and "n.º 2" in av[0] and len(lanzados) == 1, av
+assert V.ciclo("web", t0 + 26 * 3600, lanzar=lambda s, f: lanzados.append(f)) == []                # una vez al día, no cada ciclo
+assert len(V.ciclo("web", t0 + 50 * 3600, lanzar=lambda s, f: lanzados.append(f))) == 1
+assert [i["clase"] for i in V.vivas("web")] == ["parada"]
 e["estado"] = "en-curso"; E.guardar("web", e)
-assert V.ciclo("web", t0 + 40 * 60) == []
+assert V.ciclo("web", t0 + 40 * 60) == []   # (con la hora real: «en curso» de hace 51 h sería otra incidencia)
 inc = B.leer(V._dir("web") / f"{lanzados[0]}.json"); assert inc["estado"] == "resuelta" and inc["sola"] is False
 PY
 python3 - "$P" <<'PY' && ok "sin arreglo posible (puerta con error): avisa en el primer ciclo, una vez" || bad "sin arreglo"
@@ -56,5 +61,5 @@ e["estado"] = "en-curso"; E.guardar("web", e)
 assert V.ciclo("web") == []
 inc = B.leer(V._dir("web") / f"{f[0]}.json"); assert inc["estado"] == "resuelta" and inc["sola"] is True
 PY
-python3 "$P/hseo_crons.py" plan web | jq -e 'any(.[]; .nombre == "vigilancia" and .orden == ["vigilancia", "web"])' >/dev/null && ok "el plan de crons incluye la vigilancia" || bad "cron vigilancia"
+python3 "$P/hseo_crons.py" plan web | jq -e 'any(.[]; .nombre == "vigilancia" and .orden == ["vigilancia", "web", "--ciclo"])' >/dev/null && ok "el plan de crons incluye la vigilancia" || bad "cron vigilancia"
 exit $fail
