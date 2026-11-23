@@ -187,3 +187,37 @@ sistema solo sabía publicar). Ahora es igual en todas las webs:
 - **Repo y PR:** lanza un `cambio-seo` que prepara el PR que las quita; esa es la decisión.
 - **Sin forma de publicar:** se dice que es a mano.
 Cartas de la coordinadora y del encargado: nunca contestar que no se puede; usar `hseo retirar` con cada idioma.
+
+## 23-11: auditoría con cuatro agentes y primeros arreglos (0.1.0-92b1db5)
+
+Auditoría de código, seguridad, operación y eficacia SEO. Lo arreglado ese día:
+
+- **Botones del correo.** El botón repite «VERBO código» en asunto y cuerpo; se casaba el asunto y «lo añadido» era el
+  cuerpo entero con el código dentro («Solo algunas: 2» aprobaba gestiones con los dígitos del código; «Cambios» nunca
+  preguntaba qué cambiar). Ahora se busca primero en el cuerpo, se quitan los textos de ejemplo, «algunas» solo admite
+  números de la lista (`PU.seleccion`, comprobado al decidir) y un código en un correo citado sin «>» no decide.
+- **Bucle de puertas.** Cada puerta va aislada (`_una`): una que falla no deja sin correo ni firma a las demás. El
+  notario pasa a «error» también con excepciones inesperadas (antes reintentaba cada 5 s).
+- **Consultar no envía.** `hseo parte <web>` enseña el último parte; `--no-guardar` es la vista previa; `--enviar` lo
+  genera y lo envía (solo el cron, y una vez al día: rehacerlo cambia los códigos del correo). `hseo vigilancia <web>`
+  lista las incidencias vivas; `--ciclo` es el del cron. La guardia no deja esas opciones a los agentes.
+- **Incidencias.** Una incidencia viva se recuerda cada 24 h. Cualquier herramienta que falla dos recogidas seguidas
+  es incidencia (`recogida`). El parte abre con lo que sigue roto y no propone sobre datos parados.
+- **Parte.** Embudo de la web antes que Google; sin porcentaje si el periodo anterior está incompleto. Propuestas: nada
+  de búsquedas con menos de 28 días de datos («arranque»), 50 impresiones mínimas en «página dos», sin marca, una por
+  página, título solo en primera página y con ≥3 clics de ganancia, y la clase nueva «consulta objetivo lejos del top 20».
+- **Lo aprobado es lo que se ejecuta.** La huella de la puerta cubre texto, `publicacion.json`, borrador y traducciones
+  y el commit del PR; se recomprueba al firmar (si cambió, se reabre y se reenvía) y viaja al despliegue en
+  `HSEO_PR_SHA`. `tipo` y `al_aprobar` salen de la pipeline, no de `encargo.json`. `instalar:` solo en la puerta de
+  mejoras del sistema. Más bloqueos de lectura y escritura en el ejecutor de Claude Code.
+
+**Pendiente de la auditoría (no hecho):**
+- Separar el notario, las puertas, los aprobadores y las credenciales de publicación en otro usuario Unix. Hoy todo
+  corre como el mismo usuario que los agentes: la puerta protege de errores, no de un agente desviado. Los bloqueos del
+  ejecutor son una lista negra y `Bash(cat:*)` los salta.
+- Guardar los códigos de las puertas como hash; token MCP de solo lectura para los agentes.
+- Que el radar y las métricas lleguen a la persona (hoy acaban en «hecho» sin enviarse) y que el parte use sus propuestas.
+- Embudo de DesarrolloMCP en el parte (se perdió en la migración); veredicto de los cambios sueltos a los 28 días;
+  cerrar las tandas cuyo encargo se descarta; `cambios.jsonl` al terminar el despliegue y no al lanzarlo.
+- Respaldo de proveedor en los perfiles `seo-*`; vigilancia de la entrada del correo; ensayo de restauración de la copia.
+- Puerta de «tema y ángulo» tras investigar y freno de coste cuando el techo es bajo; `negocio.producto` obligatorio.
