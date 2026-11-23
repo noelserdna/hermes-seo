@@ -81,6 +81,36 @@ r = [json.loads(l) for l in (B.home() / "correo/recibidos.jsonl").read_text().sp
 pend({"id": "8", "de": "ana@gmail.com", "asunto": "x", "texto": f"CAMBIOS {cod['cambios']}: menos tecnicismos", "message_id": "<h@g>"})
 HC.recoger(); p = PU.leer(g); assert p["estado"] == "decidida" and p["decision"]["texto"] == "menos tecnicismos", p.get("decision")
 PY
+python3 - "$P" "$T" <<'PY' && ok "forma REAL del botón (asunto = cuerpo): el ejemplo sin editar no decide; lo añadido es solo lo de detrás; «algunas» solo admite números de la lista; cita sin «>» no decide" || bad "forma real del botón"
+import importlib.util, json, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, PU, HC = m("hseo_base"), m("hseo_puertas"), m("hseo_correo")
+pend = lambda *ms: (T / "buzon/pendientes.json").write_text(json.dumps(list(ms)))
+ult = lambda: [json.loads(l) for l in (B.home() / "correo/recibidos.jsonl").read_text().splitlines()][-1]["resultado"]
+g = PU.abrir("web", tipo="decision", titulo="📊 Botones", texto="v1")["id"]
+PU.marcar(g, correo=HC.enviar_puerta(PU.leer(g))); cod = PU.leer(g)["correo"]["codigos"]
+c = cod["cambios"]
+# el botón tal cual, sin escribir nada: el texto de ejemplo no es un motivo
+pend({"id": "b1", "de": "ana@gmail.com", "asunto": f"CAMBIOS {c}", "texto": f"CAMBIOS {c}: (escribe aquí qué cambiar)", "message_id": "<b1@g>"})
+HC.recoger(); assert PU.leer(g)["estado"] == "abierta" and "se pide" in ult(), ult()
+# con motivo: el motivo es lo de detrás del código, sin el verbo ni el código
+pend({"id": "b2", "de": "ana@gmail.com", "asunto": f"CAMBIOS {c}", "texto": f"CAMBIOS {c}: quita el párrafo 2", "message_id": "<b2@g>"})
+HC.recoger(); p = PU.leer(g); assert p["estado"] == "decidida" and p["decision"]["texto"] == "quita el párrafo 2", p.get("decision")
+# «Solo algunas»: números de la lista y nada más (antes los dígitos del código contaban como elegidos)
+for mal in ("APROBAR abc123def456xy: 2", "2 y 9", "la 2", ""):
+    try: PU.seleccion(mal, 3); raise SystemExit(f"aceptó «{mal}»")
+    except B.Rechazo: pass
+assert PU.seleccion("2", 3) == [2] and PU.seleccion("1, 3", 3) == [1, 3] and PU.seleccion("1 y 3.", 3) == [1, 3]
+# un código que solo aparece en el correo citado sin «>» (Outlook) no decide
+g2 = PU.abrir("web", tipo="decision", titulo="📊 Cita", texto="v1")["id"]
+PU.marcar(g2, correo=HC.enviar_puerta(PU.leer(g2))); cod2 = PU.leer(g2)["correo"]["codigos"]
+pend({"id": "b3", "de": "ana@gmail.com", "asunto": "Re: puerta", "message_id": "<b3@g>",
+      "texto": f"Todavía no lo publiques\n\n-----Original Message-----\nFrom: hermes\nPara decidir:\n  APROBAR {cod2['acepto']}"})
+HC.recoger(); assert PU.leer(g2)["estado"] == "abierta" and ult() == "petición al encargado", ult()
+PY
 python3 - "$P" "$T" <<'PY' && ok "botón de un correo viejo: no decide, y se contesta cuál vale; cada puerta con su asunto" || bad "código viejo"
 import importlib.util, json, sys
 from pathlib import Path

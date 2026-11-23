@@ -237,12 +237,19 @@ def enviar_puerta(p: dict) -> dict:
     return {"codigos": cod, "hash": _hash(p), "enviado": B.ahora()}
 
 
+# clientes que citan sin «>» (Outlook, algunos móviles) y reenvíos: desde ahí todo es el correo anterior, no la respuesta
+CITA = re.compile(r"^\s*(-{2,}\s*(Original Message|Mensaje original|Forwarded message|Mensaje reenviado)\s*-{2,}|_{8,}\s*$"
+                  r"|(De|From|Enviado el|Sent):\s.{3,}$)", re.I)
+# lo que el botón deja escrito para que la persona lo sustituya: si llega tal cual, no ha escrito nada
+EJEMPLOS = re.compile(r"\((escribe aquí qué cambiar|números, p\. ej\. 1,3)\)")
+
+
 # ── entrada ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 def _sin_cita(texto: str) -> str:
     """Lo que escribió la persona: sin la cita del correo anterior ni la firma."""
     out = []
     for l in texto.splitlines():
-        if l.startswith(">") or re.match(r"^(El|On) .{5,120}(escribió|wrote):\s*$", l) or l.strip() in ("--", "-- "):
+        if l.startswith(">") or re.match(r"^(El|On) .{5,120}(escribió|wrote):\s*$", l) or l.strip() in ("--", "-- ") or CITA.match(l):
             break
         out.append(l)
     return "\n".join(out).strip()
@@ -310,7 +317,13 @@ def procesar(m: dict) -> str:
     if not candidatas:
         return "descartado: remitente desconocido"
     texto = _sin_cita(str(m.get("texto") or ""))
-    hallado = CODIGO.search(f"{m.get('asunto', '')}\n{texto}") or CODIGO.search(texto)
+    # primero el cuerpo: el botón repite «VERBO código» en el asunto y en el cuerpo, y lo que la persona añade va detrás
+    # del código del CUERPO. Si se casara el asunto, «lo que añadió» sería el cuerpo entero, con el código dentro.
+    hallado = CODIGO.search(texto)
+    en_asunto = False
+    if not hallado:
+        hallado = CODIGO.search(str(m.get("asunto", "")))
+        en_asunto = bool(hallado)
     ref = m.get("message_id") or ""
     # ¿de qué web es? El hilo manda; si no, la dirección exacta; si solo hay una web con esa etiqueta, esa
     hilo = _web_del_hilo(m.get("in_reply_to"))
@@ -340,7 +353,10 @@ def procesar(m: dict) -> str:
         subprocess.Popen(B.desacoplar([sys.executable, str(Path(__file__)), "responder", str(f)]), start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return "petición al encargado"
-    verbo_c, codigo, resto = hallado.group(1).upper(), hallado.group(2), _sin_cita(hallado.group(3) or "").strip()
+    verbo_c, codigo = hallado.group(1).upper(), hallado.group(2)
+    # código solo en el asunto: lo que añade es el cuerpo; código en el cuerpo: lo que va detrás de él
+    resto = texto if en_asunto else _sin_cita(hallado.group(3) or "")
+    resto = EJEMPLOS.sub("", resto).strip()
     if VERBOS[verbo_c] == "propuesta":
         return _propuesta(slug, codigo, persona, ref)
     for p in PU.puertas(("abierta", "decidida")):
@@ -374,6 +390,10 @@ def procesar(m: dict) -> str:
                 encolar(slug, f"¿Qué cambio? {p['titulo']}", f"Responde con «CAMBIOS {codigo}: …» y, detrás, qué quieres cambiar.",
                         en_respuesta_a=ref, tipo="confirmacion")
                 return "cambios sin motivo: se pide"
+            if verbo == "algunas":
+                encolar(slug, f"¿Cuáles? {p['titulo']}", f"Responde con «APROBAR {codigo}: 1,3» poniendo detrás los números que apruebas.",
+                        en_respuesta_a=ref, tipo="confirmacion")
+                return "algunas sin números: se piden"
             texto_dec = "Descartado por correo"
         try:
             PU.decidir(p["id"], verbo, texto_dec, persona, "email", de, {"message_id": ref})

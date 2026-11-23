@@ -273,6 +273,9 @@ def decidir(gid: str, verbo: str, texto: str, persona: str, canal: str, ident, p
         texto = (texto or "").strip()
         if opcion.get("texto") and not texto:
             raise Rechazo(f"«{opcion['etiqueta']}» necesita un motivo")
+        if verbo == "algunas" and puerta.get("al_aprobar") == "gestiones" and puerta.get("encargo"):
+            # se comprueba al decidir, no al firmar: un fallo aquí se le dice a la persona; al firmar dejaría la puerta en error
+            seleccion(texto, _cargar("hseo_autoridad").cuantas(puerta["cliente"], puerta["encargo"]))
         ventana = _segundos("deshacer_email_s", 1800) if canal == "email" else deshacer_s()   # el correo se lee más tarde
         return _registrar(puerta, verbo, texto, {"persona": persona, "canal": canal, "id": str(ident)},
                           prueba or {}, ventana)
@@ -318,6 +321,18 @@ def _valida_actor(puerta: dict) -> str:
     return f"{(datos or {}).get('nombre') or clave} ({actor.get('canal')})"
 
 
+def seleccion(texto: str, total: int) -> list:
+    """Los números de «Solo algunas»: una lista «1,3» o «1 y 3» y nada más. Cualquier otra cosa (un código, una frase con
+    cifras, un número fuera de la lista) se rechaza: aprobar lo que no se eligió es peor que volver a preguntar."""
+    t = str(texto or "").strip().rstrip(".")
+    if not re.fullmatch(r"\d{1,2}(\s*(,|y|e|and|&|\s)\s*\d{1,2})*", t):
+        raise Rechazo("«Solo algunas» necesita solo los números, p. ej. «1,3»")
+    sel = sorted({int(x) for x in re.findall(r"\d+", t)})
+    if not sel or sel[0] < 1 or sel[-1] > total:
+        raise Rechazo(f"«Solo algunas»: los números van del 1 al {total}")
+    return sel
+
+
 def _aplicar(puerta: dict, firma: str) -> str:
     """Ejecuta lo decidido. Devuelve una línea con el resultado."""
     dec = puerta["decision"]
@@ -339,9 +354,7 @@ def _aplicar(puerta: dict, firma: str) -> str:
         elif accion == "gestiones":
             sel = None
             if verbo == "algunas":
-                sel = [int(x) for x in re.findall(r"\d+", texto)]
-                if not sel:
-                    raise Rechazo("«Solo algunas» necesita los números, p. ej. «1,3»")
+                sel = seleccion(texto, _cargar("hseo_autoridad").cuantas(slug, eid))
             resultado = _cargar("hseo_autoridad").aplicar(slug, eid, sel, firma)
         elif accion == "retirar":
             resultado = _cargar("hseo_publicacion").retirar(slug, puerta.get("hallazgos") or [], firma)
@@ -410,12 +423,14 @@ def firmar(gid: str, ahora: float | None = None) -> dict:
         try:
             firma = _valida_actor(puerta)
             resultado = _aplicar(puerta, firma)
-        except Rechazo as e:
+        except Exception as e:   # noqa: BLE001 — también lo inesperado: si quedara «decidida» se reintentaría cada 5 s
             with B.cerrojo("puertas"):
                 p = leer(gid)
-                p.update(estado="error", error=str(e), error_at=B.ahora())
+                p.update(estado="error", error=str(e)[:500], error_at=B.ahora())
                 B.escribir(indice(gid), p)
-            raise
+            if isinstance(e, Rechazo):
+                raise
+            raise Rechazo(f"Error inesperado al ejecutar la puerta: {e}") from e
         with B.cerrojo("puertas"):
             p = leer(gid)
             p.update(estado="firmada", firmada=B.ahora(), firma=firma, resultado=resultado)
@@ -451,7 +466,7 @@ def vencidas() -> list:
             try:
                 r = firmar(p["id"])
                 out.append((p["id"], True, r.get("resultado", "")))
-            except Rechazo as e:
+            except Exception as e:   # noqa: BLE001 — una puerta que revienta no deja sin firmar a las demás
                 out.append((p["id"], False, str(e)))
     return out
 

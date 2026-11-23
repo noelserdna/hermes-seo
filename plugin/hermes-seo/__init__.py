@@ -298,37 +298,50 @@ async def _vuelta() -> None:
         except Exception as e:   # noqa: BLE001 — nunca para el bucle de las puertas
             log.warning("hermes-seo: vueltas de verificación: %s", e)
     for p in PU.puertas(("abierta", "decidida", "error", "firmada", *CERRADAS)):
-        if p["estado"] == "firmada" and not p.get("despliegue") and "despliegue lanzado" in str(p.get("resultado", "")):
-            await asyncio.wait_for(_resultado_despliegue(bot, p), 60)
-        if p["estado"] in ("firmada", *CERRADAS) and p.get("tg_vista") == _vista(p):
-            continue
-        if p["estado"] in CERRADAS:
-            if p.get("telegram"):
-                await asyncio.wait_for(_sincronizar(bot, p), 60)
-            continue
-        HC = _cargar("hseo_correo")
-        if p["estado"] == "abierta" and not p.get("correo") and HC.por_correo(p["cliente"]):
-            try:
-                PU.marcar(p["id"], correo=await asyncio.to_thread(HC.enviar_puerta, p))
-                p = PU.leer(p["id"])
-            except Exception as e:   # noqa: BLE001
-                log.warning("hermes-seo: no pude preparar el correo de %s: %s", p["id"], e)
-        if p["estado"] == "firmada" and p.get("correo") and not p.get("correo_resultado"):
-            HC.encolar(p["cliente"], f"{'✅' if p.get('resultado') else '⚠️'} {p['titulo']}",
-                       f"{p.get('firma')}: {p.get('resultado')}\n\nSi hay que deshacer algo ya publicado, responde a este correo.",
-                       tipo="resultado")
-            PU.marcar(p["id"], correo_resultado=B.ahora())
-        if p["estado"] in ("abierta", "decidida") and not p.get("telegram") and HC.por_telegram(p["cliente"]):
-            await asyncio.wait_for(_publicar(bot, p), 60)
-            continue
-        if p["estado"] == "decidida" and time.time() >= float(p.get("firmar_en") or 0) \
-                and (p.get("decision") or {}).get("actor", {}).get("canal") != "local":
-            try:
-                p = await asyncio.to_thread(PU.firmar, p["id"])
-            except B.Rechazo as e:
-                log.warning("hermes-seo: no se pudo firmar %s: %s", p["id"], e)
+        try:
+            await _una(bot, p)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:   # noqa: BLE001 — una puerta que falla (un tema borrado, un envío caído) no para a las demás
+            n = _RT.setdefault("fallos_puerta", {})
+            n[p["id"]] = n.get(p["id"], 0) + 1
+            if n[p["id"]] in (1, 12) or n[p["id"]] % 720 == 0:   # la primera vez, al minuto y luego cada hora
+                log.warning("hermes-seo: la puerta %s falla en el bucle (%d veces): %s", p["id"], n[p["id"]], e)
+
+
+async def _una(bot, p: dict) -> None:
+    """Una puerta en una vuelta del bucle: correo, Telegram, firma y resultado."""
+    if p["estado"] == "firmada" and not p.get("despliegue") and "despliegue lanzado" in str(p.get("resultado", "")):
+        await asyncio.wait_for(_resultado_despliegue(bot, p), 60)
+    if p["estado"] in ("firmada", *CERRADAS) and p.get("tg_vista") == _vista(p):
+        return
+    if p["estado"] in CERRADAS:
+        if p.get("telegram"):
+            await asyncio.wait_for(_sincronizar(bot, p), 60)
+        return
+    HC = _cargar("hseo_correo")
+    if p["estado"] == "abierta" and not p.get("correo") and HC.por_correo(p["cliente"]):
+        try:
+            PU.marcar(p["id"], correo=await asyncio.to_thread(HC.enviar_puerta, p))
             p = PU.leer(p["id"])
-        await asyncio.wait_for(_sincronizar(bot, p), 60)
+        except Exception as e:   # noqa: BLE001
+            log.warning("hermes-seo: no pude preparar el correo de %s: %s", p["id"], e)
+    if p["estado"] == "firmada" and p.get("correo") and not p.get("correo_resultado"):
+        HC.encolar(p["cliente"], f"{'✅' if p.get('resultado') else '⚠️'} {p['titulo']}",
+                   f"{p.get('firma')}: {p.get('resultado')}\n\nSi hay que deshacer algo ya publicado, responde a este correo.",
+                   tipo="resultado")
+        PU.marcar(p["id"], correo_resultado=B.ahora())
+    if p["estado"] in ("abierta", "decidida") and not p.get("telegram") and HC.por_telegram(p["cliente"]):
+        await asyncio.wait_for(_publicar(bot, p), 60)
+        return
+    if p["estado"] == "decidida" and time.time() >= float(p.get("firmar_en") or 0) \
+            and (p.get("decision") or {}).get("actor", {}).get("canal") != "local":
+        try:
+            p = await asyncio.to_thread(PU.firmar, p["id"])
+        except B.Rechazo as e:
+            log.warning("hermes-seo: no se pudo firmar %s: %s", p["id"], e)
+        p = PU.leer(p["id"])
+    await asyncio.wait_for(_sincronizar(bot, p), 60)
 
 
 async def _bucle() -> None:

@@ -91,6 +91,10 @@ def _gestiones(slug: str, eid: str) -> list:
     return g[:MAX_GESTIONES]
 
 
+def cuantas(slug: str, eid: str) -> int:
+    return len(_gestiones(slug, eid))
+
+
 def aplicar(slug: str, eid: str, seleccion: list | None, firma: str) -> str:
     """Lo aprobado en la puerta: se apuntan las gestiones elegidas; las del sistema se lanzan; las de la persona, al parte."""
     gs = _gestiones(slug, eid)
