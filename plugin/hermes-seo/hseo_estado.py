@@ -180,6 +180,8 @@ def cartera(ahora: float | None = None) -> str:
             pass
         cifra = f"{r['actual']['clics']} clics / {r['actual']['impresiones']} impr. en 28 días" if r.get("hay_datos") else "sin datos"
         lineas.append(f"- {cfg.get('nombre') or slug}: {len(ps)} puerta(s), {len(marcha)} en marcha, {cifra}")
+        for sg in _cargar("hseo_seguir").pendientes(slug):
+            lineas.append(f"  📌 apuntado para cuando se cierre la puerta de {sg['encargo'] or sg['puerta']}: {sg['texto'][:160]}")
         at = B.leer(C.carpeta(slug) / "aterrizaje.json")
         apl = _cargar("hseo_aterrizaje").aplazados(slug) if isinstance(at, dict) else []
         if apl:

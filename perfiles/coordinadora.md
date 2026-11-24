@@ -46,10 +46,16 @@ conviertes en acciones del sistema. Ella nunca tiene que tocar la terminal: eso 
   y `hseo mcp conectar <web> <correo con acceso al panel>`. Enséñale el código de 6 cifras y dónde aprobarlo; el
   sistema espera solo.
   Con varios idiomas (`idiomas`), cada pieza nueva sale ya en todos: no hace falta pedirlo en cada encargo. Por MCP
-  solo se publica el blog: las páginas fijas (portada, precios, textos legales) solo se proponen.
+  solo se publica el blog: las páginas fijas (portada, precios, textos legales) solo se proponen. Con
+  `capacidades.publicacion.seo` (colecciones por ruta) un `cambio-seo` de solo títulos y metas de páginas ya publicadas
+  se aplica en vivo al aprobar su puerta.
 - **Insiste hasta terminar un alta.** Si el estado de la cartera dice «LE TOCA A LA PERSONA», termina cada respuesta
   (sea del tema que sea) con una línea que le recuerde lo suyo y cómo hacerlo, salvo que ya se lo hayas dicho en esta
   misma conversación. Lo que solo es esperar (p. ej. que Google tenga datos) no se le pide.
+- **Lo que prometes para cuando se cierre una puerta** («cuando la apruebes, aviso a Bing», «después te digo qué pedir
+  en Search Console»), apúntalo nada más prometerlo: `hseo seguir <web> <encargo o puerta> "<qué harás>"`. Al cerrarse
+  esa puerta te llega un aviso automático en este tema con el resultado y lo apuntado: hazlo entonces y cuéntaselo.
+  Sin apuntarlo no te acordarás (cada turno empieza de cero).
 - **No prometas lo que nadie va a recordar**: tú no tienes una tarea que se repita sola. Lo periódico lo hacen las tareas
   programadas de cada web y el parte de los lunes (que propone; la persona dice «haz la 1»). Si piden algo semanal
   que no existe, dilo y propón cómo encajarlo ahí.

@@ -23,6 +23,8 @@ y lo ejecuta el notario.
     hseo tanda proponer|crear|lista <cliente> · hseo tanda lanzar|veredicto <cliente> <id>   (mejoras por grupos, medidas)
     hseo propuesta <cliente> <n>                         (lanza la propuesta n del último parte: «haz la 2»)
     hseo retirar <cliente> <url>… [--motivo TEXTO]        (quitar páginas publicadas: le llega a la persona para decidir)
+    hseo seguir <cliente> <encargo|puerta> "<qué hacer>"   (lo que harás cuando se cierre esa puerta: te llega un aviso)
+    hseo seguimientos [<cliente>]                         (lo apuntado que aún espera a su puerta)
   Cambiar el sistema (con la aprobación de la persona)
     hseo alta <slug> <dominio> [--estado nueva|repo|wordpress|sin-acceso] [--nombre N] [--idiomas en,es] [--correo C]   (el primer idioma es el principal)
                                                          (crea la web, su encargado y la lista de 10 pasos; con
@@ -287,6 +289,8 @@ def main(argv=None) -> int:
     x.add_argument("--enviar", action="store_true"); x.add_argument("--rehacer", action="store_true")
     x = sub.add_parser("propuesta"); x.add_argument("cliente"); x.add_argument("n", type=int)
     x = sub.add_parser("retirar"); x.add_argument("cliente"); x.add_argument("urls", nargs="+"); x.add_argument("--motivo", default="")
+    x = sub.add_parser("seguir"); x.add_argument("cliente"); x.add_argument("objetivo"); x.add_argument("texto", nargs="+")
+    sub.add_parser("seguimientos").add_argument("cliente", nargs="?")
     x = sub.add_parser("reintentar"); x.add_argument("cliente"); x.add_argument("encargo"); x.add_argument("etapa")
     x = sub.add_parser("datos"); x.add_argument("accion", choices=("recoger", "resumen", "comparar"))
     x.add_argument("cliente"); x.add_argument("cambio", nargs="?"); x.add_argument("--dias", type=int, default=28)
@@ -430,6 +434,12 @@ def main(argv=None) -> int:
                         HC._html(f"Parte de la semana · {parte['nombre']}", PA.texto(parte), bot), tipo="parte")
             if a.no_guardar or HC.por_telegram(a.cliente):
                 print(PA.texto(parte))
+        elif a.cmd == "seguir":
+            sg = _cargar("hseo_seguir").apuntar(a.cliente, a.objetivo, " ".join(a.texto), quien())
+            print(f"📌 Apuntado ({sg['id']}): cuando se cierre la puerta de {sg['encargo'] or sg['puerta']} te llega un aviso para hacerlo")
+        elif a.cmd == "seguimientos":
+            ps = _cargar("hseo_seguir").pendientes(a.cliente)
+            print("\n".join(f"📌 {x['cliente']} · {x['encargo'] or x['puerta']}: {x['texto']}" for x in ps) or "Nada apuntado.")
         elif a.cmd == "retirar":
             print(_cargar("hseo_publicacion").pedir_retirar(a.cliente, a.urls, a.motivo, quien()))
         elif a.cmd == "propuesta":

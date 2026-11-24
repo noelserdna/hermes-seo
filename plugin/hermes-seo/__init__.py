@@ -287,9 +287,52 @@ async def _on_leccion(update, context) -> None:
         pass
 
 
+# ── seguimientos: lo que la coordinadora dejó para cuando se cierre una puerta ─────────────────────────────────────
+async def _despertar_coordinadora(texto: str) -> None:
+    """Un turno de la coordinadora en su tema (📊 Cartera), como los avisos «wake» del Kanban de Hermes."""
+    import weakref
+    from gateway.session import SessionSource
+    from gateway.wake import deliver_wake
+    adapter = _RT.get("adapter")
+    tg = (B.leer(B.home() / "seo.json", {}) or {}).get("telegram_cartera") or {}
+    if adapter is None or not tg.get("chat_id"):
+        raise B.Rechazo("sin adaptador de Telegram o sin telegram_cartera en seo.json")
+    plat = getattr(adapter, "platform", None)
+    if plat is None:
+        from gateway.config import Platform
+        plat = Platform.TELEGRAM
+    src = SessionSource(platform=plat, chat_id=str(tg["chat_id"]), chat_type="dm", user_id=str(tg["chat_id"]),
+                        thread_id=str(tg["thread_id"]) if tg.get("thread_id") else None, chat_topic=tg.get("nombre") or None)
+    src._transport_adapter_ref = weakref.ref(adapter)
+    await deliver_wake(adapter, text=texto, source=src)
+
+
+async def _seguimientos(bot) -> None:
+    S = _cargar("hseo_seguir")
+    for s, p, fin in await asyncio.to_thread(S.listos):
+        try:
+            await asyncio.wait_for(_despertar_coordinadora(S.texto_aviso(s, p, fin)), 60)
+            S.quitar(s["id"])
+            log.info("hermes-seo: seguimiento %s entregado a la coordinadora (%s)", s["id"], p.get("id"))
+        except Exception as e:   # noqa: BLE001 — se reintenta en la vuelta siguiente
+            n = S.fallo(s["id"])
+            log.warning("hermes-seo: no pude despertar a la coordinadora por %s (%d): %s", s["id"], n, e)
+            if n >= S.MAX_INTENTOS:   # que no se pierda: al menos un mensaje en el tema
+                for chat, hilo in _destinos({"cliente": "__cartera__"}):
+                    await bot.send_message(chat_id=chat, message_thread_id=hilo, text=(
+                        f"🔔 Pendiente tras «{p.get('titulo', '')}» ({fin[:300]}): {s['texto']}"))
+                S.quitar(s["id"])
+
+
 # ── el bucle: publicar, firmar, sincronizar ────────────────────────────────────────────────────────────────────
 async def _vuelta() -> None:
     bot = _RT["app"].bot
+    if time.time() - _RT.get("seguir_t", 0) > 30:
+        _RT["seguir_t"] = time.time()
+        try:
+            await _seguimientos(bot)
+        except Exception as e:   # noqa: BLE001 — nunca para el bucle de las puertas
+            log.warning("hermes-seo: seguimientos: %s", e)
     if time.time() - _RT.get("vueltas_t", 0) > 30:   # la verificación pidió cambios: vuelta automática (una vez)
         _RT["vueltas_t"] = time.time()
         try:
@@ -484,6 +527,7 @@ def register(ctx):
                 return bool(r and str(r.message_id) in _pendientes())
 
         _RT["app"] = application
+        _RT["adapter"] = adapter
         application.add_handler(CallbackQueryHandler(_on_boton, pattern=rf"^{PREFIJO}:"))
         application.add_handler(CallbackQueryHandler(_on_leccion, pattern=r"^hl:"))
         application.add_handler(MessageHandler(filters.TEXT & _EsRespuesta(), _on_respuesta))
