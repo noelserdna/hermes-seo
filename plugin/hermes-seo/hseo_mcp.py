@@ -135,6 +135,26 @@ def _servidor_auth(u: str) -> tuple:
     return {}, pr.get("resource") or u
 
 
+def _oauth(texto: str) -> dict:
+    """Respuesta de un servidor OAuth: algunos (EmDash) la envuelven en {"success": …, "data": {…}} y dan los errores
+    como objeto {"error": {"code", "message"}}; se deja todo en la forma de la norma (campos sueltos, error en texto)."""
+    r = _json(texto)
+    if isinstance(r.get("data"), dict) and "success" in r:
+        r = {**r["data"], **({"error": r["error"]} if r.get("error") else {})}
+    if isinstance(r.get("error"), dict):
+        e = r["error"]
+        r = {**r, "error": str(e.get("code") or e.get("error") or "error"), "error_description": str(e.get("message") or "")}
+    return r
+
+
+def _post_oauth(url: str, datos: dict) -> tuple:
+    """POST a un punto de OAuth: formulario, que es lo de la norma; si el servidor solo acepta JSON, otra vez en JSON."""
+    c, h, t = _pedir("POST", url, datos, form=True)
+    if c in (400, 415) and "json" in t.lower():
+        c, h, t = _pedir("POST", url, datos)
+    return c, _oauth(t)
+
+
 def metadatos(slug: str) -> dict:
     u = url_mcp(slug)
     o = _origen(u)
@@ -190,7 +210,7 @@ def _cliente_oauth(slug: str, m: dict, nombre: str) -> str:
     c, _, t = _pedir("POST", m["registro"], {"client_name": nombre, "grant_types": [GRANT_DISPOSITIVO, "refresh_token"],
                                               "token_endpoint_auth_method": "none", "redirect_uris": ["http://127.0.0.1/callback"],
                                               "response_types": ["code"], "scope": _permisos(slug)})
-    r = _json(t)
+    r = _oauth(t)
     if c >= 300 or not r.get("client_id"):
         raise Rechazo(f"El registro del cliente OAuth no funcionó ({c}): {(r.get('error_description') or r.get('error') or t)[:200]}")
     _guardar(f, {"client_id": r["client_id"], "registro": m["registro"], "creado": B.ahora()})
@@ -199,8 +219,7 @@ def _cliente_oauth(slug: str, m: dict, nombre: str) -> str:
 
 def _conectar_dispositivo(slug: str, correo: str, m: dict, nombre: str, esperar_aparte: bool) -> dict:
     cid = _cliente_oauth(slug, m, nombre)
-    c, _, t = _pedir("POST", m["dispositivo"], {"client_id": cid, "scope": _permisos(slug), "resource": m["recurso"]}, form=True)
-    r = _json(t)
+    c, r = _post_oauth(m["dispositivo"], {"client_id": cid, "scope": _permisos(slug), "resource": m["recurso"]})
     if c >= 300 or not r.get("device_code") or not r.get("user_code"):
         raise Rechazo(f"El servidor no dio el código de dispositivo ({c}): {(r.get('error_description') or r.get('error') or t)[:200]}")
     _guardar(_dir(slug) / "pendiente.json", {"tipo": "dispositivo", "device_code": r["device_code"], "client_id": cid,
@@ -234,8 +253,7 @@ def esperar(slug: str, tope_s: int = 900) -> str:
                       "resource": p["recurso"]}
         else:
             pedido = {"grant_type": GRANT_CLAIM, "claim_token": p["claim_token"]}
-        c, _, t = _pedir("POST", p["token_url"], pedido, form=True)
-        r = _json(t)
+        c, r = _post_oauth(p["token_url"], pedido)
         if c == 200 and r.get("access_token"):
             _sesion(slug, r, p["correo"], p["token_url"],
                     {"client_id": p["client_id"], "recurso": p["recurso"]} if p.get("tipo") == "dispositivo" else None)
@@ -284,8 +302,8 @@ def token(slug: str) -> str:
         pedido = {"grant_type": GRANT_JWT, "assertion": s["assertion"]}
     else:
         raise Rechazo("El acceso caducó y no hay con qué renovarlo: vuelve a conectar (hseo mcp conectar)")
-    c, _, t = _pedir("POST", s["token_url"], pedido, form=True)
-    r = _json(t)
+    c, r = _post_oauth(s["token_url"], pedido)
+    t = json.dumps(r)
     if c != 200 or not r.get("access_token"):
         if r.get("error") == "invalid_grant":
             _anotar(slug, "revocado", s.get("correo", ""), "")

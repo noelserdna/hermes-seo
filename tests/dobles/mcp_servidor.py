@@ -46,11 +46,13 @@ def _oauth(metodo, url, datos, cab, e):
         e["registros"] = e.get("registros", 0) + 1; e["scope_registro"] = datos.get("scope"); _g(e)
         return _r(201, {"client_id": "cli-1"})
     if ruta == "/_emdash/api/oauth/device/code":
+        if e.get("_form"):   # como EmDash: este punto solo acepta JSON, y envuelve la respuesta
+            return _r(400, {"success": False, "error": {"code": "INVALID_REQUEST", "message": "Request body must be valid JSON"}})
         if datos.get("client_id") != "cli-1" or "admin" in datos.get("scope", ""):
             return _r(400, {"error": "invalid_request"})
         e["scope_pedido"] = datos.get("scope"); e["recurso_pedido"] = datos.get("resource"); _g(e)
-        return _r(200, {"device_code": "dev-secreto", "user_code": "ABCD-EFGH", "verification_uri": f"{o}/_emdash/device",
-                        "expires_in": 600, "interval": 0})
+        return _r(200, {"success": True, "data": {"device_code": "dev-secreto", "user_code": "ABCD-EFGH",
+                        "verification_uri": f"{o}/_emdash/device", "expires_in": 600, "interval": 0}})
     if ruta == "/_emdash/api/oauth/token":
         if datos.get("grant_type") == "urn:ietf:params:oauth:grant-type:device_code" and datos.get("device_code") == "dev-secreto":
             if e["pendientes"] > 0:
@@ -73,6 +75,7 @@ def _oauth(metodo, url, datos, cab, e):
 def pedir(metodo, url, datos, cab, form=False):
     e = _e()
     if urllib.parse.urlsplit(url).netloc == "oauth.test":
+        e["_form"] = bool(form)
         return _oauth(metodo, url, datos, cab, e)
     ruta = urllib.parse.urlsplit(url).path
     if ruta == "/.well-known/oauth-authorization-server":
