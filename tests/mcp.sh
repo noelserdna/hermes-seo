@@ -208,4 +208,32 @@ si "las preguntas para la IA se guardan donde las leen las herramientas" "python
 printf 'Usar estas en la prueba, son las de un cliente.\n\n1. ¿Una pregunta larga?\n2. ¿Otra pregunta larga?\n3. ¿La tercera pregunta?\n4. ¿La cuarta pregunta?\n5. ¿La quinta pregunta?\n' > "$T/p2.txt"
 si "con una lista numerada, el texto de alrededor no cuenta como pregunta" "python3 $ROOT/plugin/hermes-seo/hseo_cli.py preguntas tour < $T/p2.txt | grep -q '5 preguntas'"
 no "menos de 5 preguntas no se guardan" "printf '1. ¿Una?\n' | python3 $ROOT/plugin/hermes-seo/hseo_cli.py preguntas tour"
+$C alta salud oauth.test --estado repo >/dev/null
+$C config salud capacidades.publicacion '{"adaptador":"mcp","url":"https://oauth.test/_emdash/api/mcp"}' >/dev/null
+python3 - "$ROOT" <<'PY' && ok "OAuth 2.1 normal (EmDash): registro dinámico, flujo de dispositivo con permisos de SEO, token de refresco que rota" || bad "oauth dispositivo"
+import importlib.util, json, os, stat, sys, time
+from pathlib import Path
+P = Path(sys.argv[1]) / "plugin/hermes-seo"; sys.path.insert(0, str(P))
+s = importlib.util.spec_from_file_location("hseo_mcp", P / "hseo_mcp.py"); X = importlib.util.module_from_spec(s); sys.modules["hseo_mcp"] = X; s.loader.exec_module(X)
+e = Path(os.environ["MCP_DOBLE_ESTADO"]); est = lambda: json.loads(e.read_text())
+e.write_text(json.dumps({"pendientes": 1, "tokens": 0, "llamadas": [], "revocado": False, "id": 100}))
+r = X.conectar("salud", "seo@oauth.test", esperar_aparte=False)
+assert r["codigo"] == "ABCD-EFGH" and r["donde"].endswith("/_emdash/device"), r
+assert est()["recurso_pedido"] == "https://oauth.test/_emdash/api/mcp" and "admin" not in est()["scope_pedido"] and "content:write" in est()["scope_pedido"]
+assert X.esperar("salud", tope_s=30) == "conectado"
+d = Path(os.environ["HERMES_SEO_HOME"]) / "clientes/salud/mcp-tokens"
+assert stat.S_IMODE((d / "sesion.json").stat().st_mode) == 0o600 and "(OAuth)" in X.estado("salud")
+X.conectar("salud", "seo@oauth.test", esperar_aparte=False); assert est()["registros"] == 1   # el cliente se registra una vez
+X.esperar("salud", tope_s=30)
+# caducado: se renueva con el de refresco, que rota; con el viejo ya no vale
+ses = json.loads((d / "sesion.json").read_text()); ses["expira"] = 0; (d / "sesion.json").write_text(json.dumps(ses))
+t1 = X.token("salud"); ses2 = json.loads((d / "sesion.json").read_text())
+assert t1.startswith("tok") and ses2["refresh_token"] != ses["refresh_token"], ses2
+ses2["expira"] = 0; (d / "sesion.json").write_text(json.dumps(ses2)); assert X.token("salud") != t1
+assert X.llamar("salud", "estadisticas_blog")["posts"]["published"] == 8   # el MCP responde con el token de OAuth
+x = est(); x["revocado"] = True; e.write_text(json.dumps(x))
+ses3 = json.loads((d / "sesion.json").read_text()); ses3["expira"] = 0; (d / "sesion.json").write_text(json.dumps(ses3))
+try: X.token("salud"); raise SystemExit("renovó un acceso revocado")
+except X.Rechazo as ex: assert "vuelve a conectar" in str(ex)
+PY
 exit $fail

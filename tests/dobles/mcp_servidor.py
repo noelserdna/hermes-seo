@@ -32,8 +32,48 @@ HERRAMIENTAS = [
 ]
 
 
-def pedir(metodo, url, datos, cab, form):
+def _oauth(metodo, url, datos, cab, e):
+    """Un MCP con OAuth 2.1 normal, como EmDash: RFC 9728 + 8414 bajo /_emdash, registro dinámico y flujo de dispositivo."""
+    o, ruta = "https://oauth.test", urllib.parse.urlsplit(url).path
+    if ruta == "/.well-known/oauth-protected-resource":
+        return _r(200, {"resource": f"{o}/_emdash/api/mcp", "authorization_servers": [f"{o}/_emdash"]})
+    if ruta == "/.well-known/oauth-authorization-server/_emdash":
+        return _r(200, {"issuer": f"{o}/_emdash", "token_endpoint": f"{o}/_emdash/api/oauth/token",
+                        "registration_endpoint": f"{o}/_emdash/api/oauth/register",
+                        "device_authorization_endpoint": f"{o}/_emdash/api/oauth/device/code",
+                        "grant_types_supported": ["authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"]})
+    if ruta == "/_emdash/api/oauth/register":
+        e["registros"] = e.get("registros", 0) + 1; e["scope_registro"] = datos.get("scope"); _g(e)
+        return _r(201, {"client_id": "cli-1"})
+    if ruta == "/_emdash/api/oauth/device/code":
+        if datos.get("client_id") != "cli-1" or "admin" in datos.get("scope", ""):
+            return _r(400, {"error": "invalid_request"})
+        e["scope_pedido"] = datos.get("scope"); e["recurso_pedido"] = datos.get("resource"); _g(e)
+        return _r(200, {"device_code": "dev-secreto", "user_code": "ABCD-EFGH", "verification_uri": f"{o}/_emdash/device",
+                        "expires_in": 600, "interval": 0})
+    if ruta == "/_emdash/api/oauth/token":
+        if datos.get("grant_type") == "urn:ietf:params:oauth:grant-type:device_code" and datos.get("device_code") == "dev-secreto":
+            if e["pendientes"] > 0:
+                e["pendientes"] -= 1; _g(e)
+                return _r(400, {"error": "authorization_pending"})
+            e["tokens"] += 1; _g(e)
+            return _r(200, {"access_token": f"tok{e['tokens']}", "expires_in": 3600, "refresh_token": "ref-1", "scope": datos.get("scope", "content:read content:write")})
+        if datos.get("grant_type") == "refresh_token":
+            esperado = e.get("refresco", "ref-1")
+            if e["revocado"] or datos.get("refresh_token") != esperado or datos.get("client_id") != "cli-1":
+                return _r(400, {"error": "invalid_grant"})
+            e["tokens"] += 1; e["refresco"] = f"ref-{e['tokens']}"; _g(e)   # rota
+            return _r(200, {"access_token": f"tok{e['tokens']}", "expires_in": 3600, "refresh_token": e["refresco"]})
+        return _r(400, {"error": "unsupported_grant_type"})
+    if ruta == "/_emdash/api/mcp":
+        return pedir(metodo, "https://web.test/mcp", datos, cab)
+    return 404, {}, "no"
+
+
+def pedir(metodo, url, datos, cab, form=False):
     e = _e()
+    if urllib.parse.urlsplit(url).netloc == "oauth.test":
+        return _oauth(metodo, url, datos, cab, e)
     ruta = urllib.parse.urlsplit(url).path
     if ruta == "/.well-known/oauth-authorization-server":
         return _r(200, {"issuer": ORIGEN, "token_endpoint": f"{ORIGEN}/oauth/token",

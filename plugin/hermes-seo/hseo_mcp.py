@@ -1,9 +1,13 @@
 """Cliente MCP de una web (su propio servidor MCP con OAuth), sin modelo. Sirve para publicar (adaptador «mcp» de
 hseo_publicacion) y para leer sus datos (analítica, artículos…).
 
-Acceso por registro de agentes de auth.md («service_auth»): el sistema pide un código de 6 cifras para el correo de
-una persona con acceso al panel de la web; esa persona lo aprueba en la web, y el sistema guarda una «aserción» que
-renueva el token (90 días) sin volver a preguntar. Nada de esto pasa por el chat ni por un modelo.
+Dos formas de acceso, según lo que anuncie el servidor (nada de esto pasa por el chat ni por un modelo):
+- Registro de agentes de auth.md («service_auth»): el sistema pide un código de 6 cifras para el correo de una persona
+  con acceso al panel; esa persona lo aprueba en la web y el sistema guarda una «aserción» que renueva el token 90 días.
+- OAuth 2.1 normal con flujo de dispositivo (RFC 8628; EmDash y cualquier MCP estándar): el sistema se registra como
+  cliente (RFC 7591), pide un código, la persona entra en la web con la cuenta indicada y lo escribe; el sistema guarda
+  el token de refresco y renueva solo. Pide solo los permisos de `capacidades.publicacion.permisos` (por defecto,
+  leer y escribir contenido).
 
   hseo_mcp.py conectar <web> <correo>     pide el código y espera la aprobación en segundo plano (10 min)
   hseo_mcp.py estado <web>                conectado o no, y hasta cuándo
@@ -46,6 +50,8 @@ UA = "hermes-seo/0.1 (mcp)"
 PROTOCOLO = "2025-06-18"
 GRANT_CLAIM = "urn:workos:agent-auth:grant-type:claim"
 GRANT_JWT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+GRANT_DISPOSITIVO = "urn:ietf:params:oauth:grant-type:device_code"
+PERMISOS = "content:read content:write media:read mcp:tools"   # lo justo para SEO; nunca «admin» ni esquema
 
 
 # ── dónde ───────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -113,14 +119,37 @@ def _json(texto: str) -> dict:
         return {}
 
 
+def _servidor_auth(u: str) -> tuple:
+    """(metadatos del servidor de autorización, recurso protegido): RFC 9728 → RFC 8414; si no, el origen."""
+    o = _origen(u)
+    c, _, t = _pedir("GET", f"{o}/.well-known/oauth-protected-resource")
+    pr = _json(t) if c == 200 else {}
+    for emisor in (pr.get("authorization_servers") or []) + [o]:
+        p = urllib.parse.urlsplit(emisor)
+        base, ruta = f"{p.scheme}://{p.netloc}", p.path.rstrip("/")
+        for cand in ([f"{base}/.well-known/oauth-authorization-server{ruta}"] if ruta else []) + [f"{base}/.well-known/oauth-authorization-server"]:
+            c, _, t = _pedir("GET", cand)
+            m = _json(t) if c == 200 else {}
+            if m.get("token_endpoint") or m.get("agent_auth"):
+                return m, pr.get("resource") or u
+    return {}, pr.get("resource") or u
+
+
 def metadatos(slug: str) -> dict:
-    o = _origen(url_mcp(slug))
-    c, _, t = _pedir("GET", f"{o}/.well-known/oauth-authorization-server")
-    m = _json(t) if c == 200 else {}
+    u = url_mcp(slug)
+    o = _origen(u)
+    m, recurso = _servidor_auth(u)
     aa = m.get("agent_auth") or {}
     return {"token": m.get("token_endpoint") or f"{o}/oauth/token",
             "identidad": aa.get("identity_endpoint") or aa.get("registration_endpoint") or f"{o}/agent/identity",
-            "tipos": aa.get("identity_types_supported") or ["service_auth"]}
+            "tipos": aa.get("identity_types_supported") or ([] if m.get("device_authorization_endpoint") else ["service_auth"]),
+            "dispositivo": m.get("device_authorization_endpoint", ""), "registro": m.get("registration_endpoint", ""),
+            "recurso": recurso}
+
+
+def _permisos(slug: str) -> str:
+    cap = C.leer(slug).get("capacidades") or {}
+    return str(((cap.get("publicacion") or {}).get("permisos")) or PERMISOS)
 
 
 # ── acceso ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -130,9 +159,11 @@ def conectar(slug: str, correo: str, esperar_aparte: bool = True) -> dict:
     if "@" not in correo:
         raise Rechazo("Hace falta el correo de una persona con acceso al panel de la web")
     m = metadatos(slug)
-    if "service_auth" not in m["tipos"] and "identity_assertion" not in m["tipos"]:
-        raise Rechazo("Ese servidor no admite el registro de agentes por correo (auth.md, service_auth)")
     nombre = f"hermes-seo · {C.leer(slug).get('nombre') or slug}"
+    if "service_auth" not in m["tipos"] and "identity_assertion" not in m["tipos"]:
+        if m["dispositivo"]:
+            return _conectar_dispositivo(slug, correo, m, nombre, esperar_aparte)
+        raise Rechazo("Ese servidor no admite ni el registro de agentes de auth.md ni el flujo de dispositivo de OAuth")
     c, _, t = _pedir("POST", m["identidad"], {"type": "service_auth", "login_hint": correo, "agent_name": nombre})
     r = _json(t)
     if c >= 300 or not r.get("claim_token"):
@@ -148,6 +179,41 @@ def conectar(slug: str, correo: str, esperar_aparte: bool = True) -> dict:
             "correo": correo}
 
 
+def _cliente_oauth(slug: str, m: dict, nombre: str) -> str:
+    """El client_id de hermes-seo en ese servidor (registro dinámico, una vez; se reutiliza)."""
+    f = _dir(slug) / "cliente-oauth.json"
+    cli = B.leer(f) or {}
+    if cli.get("client_id") and cli.get("registro") == m["registro"]:
+        return cli["client_id"]
+    if not m["registro"]:
+        raise Rechazo("El servidor no permite registrar clientes (sin registration_endpoint)")
+    c, _, t = _pedir("POST", m["registro"], {"client_name": nombre, "grant_types": [GRANT_DISPOSITIVO, "refresh_token"],
+                                              "token_endpoint_auth_method": "none", "redirect_uris": ["http://127.0.0.1/callback"],
+                                              "response_types": ["code"], "scope": _permisos(slug)})
+    r = _json(t)
+    if c >= 300 or not r.get("client_id"):
+        raise Rechazo(f"El registro del cliente OAuth no funcionó ({c}): {(r.get('error_description') or r.get('error') or t)[:200]}")
+    _guardar(f, {"client_id": r["client_id"], "registro": m["registro"], "creado": B.ahora()})
+    return r["client_id"]
+
+
+def _conectar_dispositivo(slug: str, correo: str, m: dict, nombre: str, esperar_aparte: bool) -> dict:
+    cid = _cliente_oauth(slug, m, nombre)
+    c, _, t = _pedir("POST", m["dispositivo"], {"client_id": cid, "scope": _permisos(slug), "resource": m["recurso"]}, form=True)
+    r = _json(t)
+    if c >= 300 or not r.get("device_code") or not r.get("user_code"):
+        raise Rechazo(f"El servidor no dio el código de dispositivo ({c}): {(r.get('error_description') or r.get('error') or t)[:200]}")
+    _guardar(_dir(slug) / "pendiente.json", {"tipo": "dispositivo", "device_code": r["device_code"], "client_id": cid,
+                                             "recurso": m["recurso"], "correo": correo, "token_url": m["token"],
+                                             "creado": time.time(), "expira": time.time() + int(r.get("expires_in") or 600),
+                                             "intervalo": int(r.get("interval") or 5)})
+    if esperar_aparte:
+        subprocess.Popen(B.desacoplar([sys.executable, str(Path(__file__)), "esperar", slug]), start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"codigo": r["user_code"], "donde": r.get("verification_uri_complete") or r.get("verification_uri"),
+            "minutos": int(r.get("expires_in") or 600) // 60, "correo": correo}
+
+
 def esperar(slug: str, tope_s: int = 900) -> str:
     """Sondea el token hasta que la persona apruebe, caduque o pasen tope_s segundos."""
     f = _dir(slug) / "pendiente.json"
@@ -156,15 +222,23 @@ def esperar(slug: str, tope_s: int = 900) -> str:
         return "no hay ninguna conexión pendiente"
     fin = min(p["expira"] + 30, time.time() + tope_s)
 
+    marca = "device_code" if p.get("tipo") == "dispositivo" else "claim_token"
+
     def soltar():   # solo la petición propia: si alguien pidió otro código, ese fichero ya es de otra espera
-        if (B.leer(f) or {}).get("claim_token") == p["claim_token"]:
+        if (B.leer(f) or {}).get(marca) == p[marca]:
             f.unlink(missing_ok=True)
 
     while time.time() < fin:
-        c, _, t = _pedir("POST", p["token_url"], {"grant_type": GRANT_CLAIM, "claim_token": p["claim_token"]}, form=True)
+        if p.get("tipo") == "dispositivo":
+            pedido = {"grant_type": GRANT_DISPOSITIVO, "device_code": p["device_code"], "client_id": p["client_id"],
+                      "resource": p["recurso"]}
+        else:
+            pedido = {"grant_type": GRANT_CLAIM, "claim_token": p["claim_token"]}
+        c, _, t = _pedir("POST", p["token_url"], pedido, form=True)
         r = _json(t)
         if c == 200 and r.get("access_token"):
-            _sesion(slug, r, p["correo"], p["token_url"])
+            _sesion(slug, r, p["correo"], p["token_url"],
+                    {"client_id": p["client_id"], "recurso": p["recurso"]} if p.get("tipo") == "dispositivo" else None)
             soltar()
             _anotar(slug, "conectado", p["correo"], r.get("scope", ""))
             return "conectado"
@@ -185,6 +259,8 @@ def _sesion(slug: str, r: dict, correo: str, token_url: str, previa: dict | None
              token_url=token_url, scope=r.get("scope", s.get("scope", "")))
     if r.get("identity_assertion"):
         s.update(assertion=r["identity_assertion"], assertion_expira=time.time() + 90 * 86400)
+    if r.get("refresh_token"):   # OAuth normal: el de refresco puede rotar en cada renovación
+        s.update(refresh_token=r["refresh_token"], refresco_renovado=time.time())
     _guardar(_dir(slug) / "sesion.json", s)
     return s
 
@@ -200,9 +276,15 @@ def token(slug: str) -> str:
         raise Rechazo(f"{C.leer(slug).get('nombre') or slug} no está conectada a su servidor MCP (hseo mcp conectar)")
     if s.get("expira", 0) - time.time() > 60:
         return s["access_token"]
-    if not s.get("assertion"):
+    if s.get("refresh_token"):
+        pedido = {"grant_type": "refresh_token", "refresh_token": s["refresh_token"], "client_id": s.get("client_id", "")}
+        if s.get("recurso"):
+            pedido["resource"] = s["recurso"]
+    elif s.get("assertion"):
+        pedido = {"grant_type": GRANT_JWT, "assertion": s["assertion"]}
+    else:
         raise Rechazo("El acceso caducó y no hay con qué renovarlo: vuelve a conectar (hseo mcp conectar)")
-    c, _, t = _pedir("POST", s["token_url"], {"grant_type": GRANT_JWT, "assertion": s["assertion"]}, form=True)
+    c, _, t = _pedir("POST", s["token_url"], pedido, form=True)
     r = _json(t)
     if c != 200 or not r.get("access_token"):
         if r.get("error") == "invalid_grant":
@@ -220,6 +302,8 @@ def estado(slug: str) -> str:
     s = B.leer(d / "sesion.json")
     if not s:
         return "❌ sin conectar"
+    if s.get("refresh_token"):
+        return f"✅ conectada como {s.get('correo')} (OAuth) · permisos: {s.get('scope') or '—'} · se renueva sola mientras se use"
     dias = int((s.get("assertion_expira", 0) - time.time()) / 86400)
     return f"✅ conectada como {s.get('correo')} · permisos: {s.get('scope') or '—'} · renovación válida {max(dias, 0)} días más"
 
