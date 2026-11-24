@@ -28,6 +28,8 @@ HERRAMIENTAS = [
     {"name": "estadisticas_blog", "annotations": {"readOnlyHint": True}},
     {"name": "embudo", "annotations": {"readOnlyHint": True}},
     {"name": "guardar_articulo", "annotations": {"readOnlyHint": False}},
+    {"name": "content_get", "annotations": {"readOnlyHint": True}},
+    {"name": "content_update", "annotations": {"readOnlyHint": False}},
     {"name": "despublicar_articulo", "annotations": {"readOnlyHint": False, "destructiveHint": True}},
 ]
 
@@ -133,6 +135,16 @@ def pedir(metodo, url, datos, cab, form=False):
                         x["status"] = "draft"
                 _g(e)
                 res = {"ok": True}
+            elif p["name"] in ("content_get", "content_update"):   # como EmDash: _rev obligatorio, solo seo
+                a = p["arguments"]
+                it = next((x for x in e.get("contenido", []) if x["collection"] == a.get("collection") and a.get("id") in (x["id"], x["slug"])), None)
+                if not it:
+                    return _r(200, {"jsonrpc": "2.0", "id": datos["id"], "result": {"isError": True, "content": [{"type": "text", "text": "[NOT_FOUND] Content item not found"}]}})
+                if p["name"] == "content_update":
+                    if a.get("_rev") != f"rev{it['version']}" or it["id"] in e.get("falla_update", []):
+                        return _r(200, {"jsonrpc": "2.0", "id": datos["id"], "result": {"isError": True, "content": [{"type": "text", "text": "[CONFLICT] rev"}]}})
+                    it["seo"].update(a.get("seo") or {}); it["version"] += 1; _g(e)
+                res = {"item": {k: it[k] for k in ("id", "slug", "status", "seo")}, "_rev": f"rev{it['version']}"}
             elif p["name"] == "embudo":
                 res = {"months": [{"month": "2026-10", "visits": 10, "downloads": 1, "checkouts": 0, "sales": 0},
                                   {"month": "2026-11", "visits": 425, "downloads": 3, "checkouts": 2, "sales": 1}]}

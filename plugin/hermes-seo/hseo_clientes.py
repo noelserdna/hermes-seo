@@ -136,6 +136,12 @@ def validar(cfg: dict) -> list:
         e.append("capacidades.publicacion.url_api: la dirección https de la API de WordPress")
     if ad == "mcp" and not str(pub.get("url", "")).startswith("https://"):
         e.append("capacidades.publicacion.url: la dirección https del servidor MCP de la web")
+    seo = pub.get("seo")
+    if seo is not None and not (ad == "mcp" and isinstance(seo, dict) and isinstance(seo.get("colecciones"), dict) and seo["colecciones"]
+                                and all(isinstance(k, str) and k.startswith("/") and isinstance(v, str) and v.strip()
+                                        for k, v in seo["colecciones"].items())):
+        e.append("capacidades.publicacion.seo (solo con mcp): {colecciones: {\"/ruta/\": \"colección\"}, leer, actualizar} "
+                 "para cambiar títulos y metas de páginas ya publicadas")
     prep = pub.get("preparar")
     if prep is not None and not (isinstance(prep, dict) and re.fullmatch(r"[a-z][a-z0-9-]{1,60}", str(prep.get("skill", "")))
                                  and prep.get("ejecutor", "hermes") in ("hermes", "claude")

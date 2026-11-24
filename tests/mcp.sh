@@ -83,7 +83,39 @@ R=$(pub tour enc2); [ $? = 2 ] && echo "$R" | grep -q "Falta el título" && ok "
 
 d="$W/encargos/enc3"; mkdir -p "$d"
 echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"title","url":"https://web.test/precios","antes":"a","despues":"b"}]}' > "$d/publicacion.json"
-si "un cambio técnico (páginas fijas) va como entrega a mano" "pub tour enc3 | grep -q 'por MCP solo se publica el blog'"
+si "un cambio técnico (páginas fijas) va como entrega a mano" "pub tour enc3 | grep -q 'por MCP solo se publican artículos'"
+
+# ── solo el SEO (títulos y metas) de páginas publicadas, en vivo y todo o nada ──
+no "capacidades.publicacion.seo exige colecciones por ruta" "$C config tour capacidades.publicacion.seo '{\"colecciones\":{\"articulos\":\"posts\"}}'"
+$C config tour capacidades.publicacion.seo '{"colecciones":{"/articulos/":"posts","/sintomas/":"sintomas"}}' >/dev/null || bad "config seo"
+python3 - "$MCP_DOBLE_ESTADO" <<'PY'
+import json, sys
+e = json.load(open(sys.argv[1]))
+e["contenido"] = [{"collection": "posts", "id": "P1", "slug": "que-es", "status": "published", "version": 3, "seo": {"title": None, "description": None}},
+                  {"collection": "sintomas", "id": "S1", "slug": "insomnio", "status": "published", "version": 1, "seo": {"title": None, "description": "vieja"}},
+                  {"collection": "posts", "id": "P2", "slug": "borrador", "status": "draft", "version": 1, "seo": {"title": None, "description": None}}]
+json.dump(e, open(sys.argv[1], "w"))
+PY
+seo_estado() { jq -c "[.contenido[]|{id,seo}]" $MCP_DOBLE_ESTADO; }
+d="$W/encargos/enc4"; mkdir -p "$d"
+echo '{"tipo":"cambio-tecnico","clase":"tecnico","cambios":[{"accion":"titulo","url":"https://web.test/articulos/que-es","antes":"x","despues":"Qué es: guía corta"},{"accion":"meta","url":"https://web.test/articulos/que-es/","antes":"x","despues":"Meta nueva"},{"accion":"meta","url":"https://web.test/sintomas/insomnio","antes":"vieja","despues":"Duermes mal"}]}' > "$d/publicacion.json"
+R=$(pub tour enc4)
+si "títulos y metas se cambian por MCP en vivo (dos campos de la misma página en una sola llamada)" \
+  "echo '$R' | grep -q 'MCP SEO: 2 página(s), 3 campo(s)' && jq -e '[.llamadas[]|select(.name==\"content_update\")]|length == 2' $MCP_DOBLE_ESTADO && jq -e '.contenido[0].seo == {\"title\":\"Qué es: guía corta\",\"description\":\"Meta nueva\"} and .contenido[1].seo.description == \"Duermes mal\"' $MCP_DOBLE_ESTADO"
+si "solo se manda el seo (ni data ni status) y con el _rev leído" \
+  "jq -e '[.llamadas[]|select(.name==\"content_update\")|.arguments|keys] | all(. == [\"_rev\",\"collection\",\"id\",\"seo\"])' $MCP_DOBLE_ESTADO"
+si "guarda el valor anterior de cada campo para deshacer" "jq -e '.seo[1].antes == {\"description\":\"vieja\"} and .seo[0].antes.title == null' $d/publicado.json"
+
+d="$W/encargos/enc5"; mkdir -p "$d"; ANTES=$(seo_estado)
+echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"titulo","url":"https://web.test/articulos/que-es","despues":"Otro"},{"accion":"titulo","url":"https://web.test/articulos/borrador","despues":"No"}]}' > "$d/publicacion.json"
+R=$(pub tour enc5); [ $? = 2 ] && echo "$R" | grep -q "no está publicada" && [ "$(seo_estado)" = "$ANTES" ] && ok "una página en borrador no se toca, ni las demás del mismo cambio" || bad "borrador: $R"
+echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"titulo","url":"https://web.test/articulos/que-es","despues":"Otro"},{"accion":"redireccion","url":"https://web.test/a","despues":"/b"}]}' > "$d/publicacion.json"
+si "si mezcla algo que no es SEO, todo va como entrega" "pub tour enc5 | grep -q 'paquete listo' && [ '$(seo_estado)' = '$ANTES' ]"
+echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"titulo","url":"https://web.test/blog/otra","despues":"Otro"}]}' > "$d/publicacion.json"
+no "una ruta que no está en las colecciones no se toca" "pub tour enc5"
+jq '.falla_update = ["S1"]' $MCP_DOBLE_ESTADO > $T/x && mv $T/x $MCP_DOBLE_ESTADO
+echo '{"tipo":"cambio-tecnico","cambios":[{"accion":"titulo","url":"https://web.test/articulos/que-es","despues":"Otro título"},{"accion":"titulo","url":"https://web.test/sintomas/insomnio","despues":"Insomnio"}]}' > "$d/publicacion.json"
+R=$(pub tour enc5); [ $? = 2 ] && echo "$R" | grep -q "Devueltas a como estaban" && [ "$(seo_estado)" = "$ANTES" ] && ok "si una falla a medias, las ya cambiadas vuelven a como estaban" || bad "todo o nada: $R $(seo_estado)"
 
 # ── retirar páginas publicadas: la persona lo pide, decide en una puerta y la web las despublica ──
 python3 - "$MCP_DOBLE_ESTADO" <<'PY'

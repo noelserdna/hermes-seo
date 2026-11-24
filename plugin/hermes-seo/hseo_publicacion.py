@@ -13,7 +13,8 @@ Lee publicacion.json del encargo (lo deja la etapa «preparar» o «aplicar-camb
   entrega     un paquete con los cambios exactos para quien lleve la web (clientes/<web>/entregas/<encargo>/)
   mcp         el artículo (y sus traducciones, enlazadas) por el servidor MCP de la propia web (hseo_mcp: acceso
               aprobado por una persona con un código). capacidades.publicacion: {url, guardar: {herramienta, args:
-              plantilla}, id, url_resultado, reglas}. Los cambios técnicos van como entrega.
+              plantilla}, id, url_resultado, reglas}. Con capacidades.publicacion.seo, un cambio técnico que solo toca
+              títulos y metas de páginas ya publicadas se aplica en vivo (seo_mcp); los demás cambios técnicos, entrega.
 
 Cada publicación queda en clientes/<web>/cambios.jsonl (clase, hipótesis, URL, fecha): de ahí sale el veredicto.
 """
@@ -380,7 +381,10 @@ def mcp(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firm
     en publicacion.json → traducciones: [{idioma, contenido, titulo, meta_descripcion, slug}] y se guardan enlazadas."""
     conf = cfg["capacidades"]["publicacion"]
     if pub.get("tipo") == "cambio-tecnico":
-        return entrega(slug, eid, cfg, pub, meta, cuerpo, firma) + " (por MCP solo se publica el blog: lo demás, a mano)"
+        if _solo_seo(conf, pub):
+            return seo_mcp(slug, eid, cfg, conf, pub)
+        return entrega(slug, eid, cfg, pub, meta, cuerpo, firma) + (
+            " (por MCP solo se publican artículos y, con capacidades.publicacion.seo, títulos y metas: lo demás, a mano)")
     g = conf.get("guardar") or {}
     if not g.get("herramienta") or not isinstance(g.get("args"), dict):
         raise Rechazo("Falta capacidades.publicacion.guardar (herramienta y args) para publicar por MCP")
@@ -411,6 +415,104 @@ def mcp(slug: str, eid: str, cfg: dict, pub: dict, meta: dict, cuerpo: str, firm
         avisos += [str(w) for w in rt.get("warnings") or []]
     B.escribir(d / "publicado.json", {"principal": original, "hechos": hechos, "ts": B.ahora()})   # para deshacer después
     return "MCP " + " · ".join(hechos) + (f" · avisos de la web: {'; '.join(avisos)[:300]}" if avisos else "")
+
+
+# ── solo el SEO de páginas ya publicadas, por MCP (títulos y metas; nunca el texto ni el estado) ──────────────────────
+# capacidades.publicacion.seo: {"colecciones": {"/articulos/": "posts", "/sintomas/": "sintomas"},
+#                               "leer": "content_get", "actualizar": "content_update"}
+# Forma de las herramientas de contenido de EmDash: leer {collection, id} → {item: {id, status, seo: {title,
+# description…}}, _rev}; actualizar {collection, id, _rev, seo: {…}} cambia solo el SEO de la versión publicada (no
+# crea borrador ni toca los de la autora). Todo o nada: si una página falla, se devuelven las ya cambiadas.
+SEO_CAMPOS = {"titulo": "title", "title": "title", "titulo-seo": "title", "titulo_seo": "title",
+              "meta": "description", "meta-descripcion": "description", "meta_descripcion": "description",
+              "description": "description"}
+
+
+def _solo_seo(conf: dict, pub: dict) -> bool:
+    cambios = pub.get("cambios") or []
+    return (isinstance(conf.get("seo"), dict) and bool(cambios)
+            and all(str(c.get("accion", "")).strip().lower() in SEO_CAMPOS and c.get("url") and str(c.get("despues") or "").strip()
+                    for c in cambios))
+
+
+def _pieza_seo(cfg: dict, s: dict, url: str) -> tuple:
+    """URL → (colección, slug) según capacidades.publicacion.seo.colecciones (prefijo de ruta más largo)."""
+    dom = str(cfg.get("dominio", "")).lower().removeprefix("www.")
+    host = (urllib.parse.urlsplit(url).hostname or "").lower().removeprefix("www.")
+    if not host or not host.endswith(dom):
+        raise Rechazo(f"No es de {dom}: {url}")
+    ruta = _ruta(url) + "/"
+    for pre in sorted(s.get("colecciones") or {}, key=len, reverse=True):
+        p = "/" + pre.strip("/") + "/" if pre.strip("/") else "/"
+        resto = ruta[len(p):].strip("/") if ruta.startswith(p) else ""
+        if resto and "/" not in resto:
+            return s["colecciones"][pre], resto
+    raise Rechazo(f"No sé en qué colección está {url} (capacidades.publicacion.seo.colecciones)")
+
+
+def _comprobar_en_web(url: str, campo: str, valor: str) -> bool | None:
+    """¿La página publicada ya muestra el valor? None si no se pudo mirar."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "hermes-seo/0.1", "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            h = html.unescape(r.read(600_000).decode("utf-8", "replace"))
+    except Exception:   # noqa: BLE001  comprobar nunca frena
+        return None
+    if campo == "title":
+        m = re.search(r"<title[^>]*>(.*?)</title>", h, re.S | re.I)
+        return bool(m) and valor.strip() in m.group(1)
+    m = re.search(r'<meta[^>]+name=["\']description["\'][^>]*>', h, re.I)
+    return bool(m) and valor.strip() in m.group(0)
+
+
+def seo_mcp(slug: str, eid: str, cfg: dict, conf: dict, pub: dict) -> str:
+    s, X = conf["seo"], _cargar("hseo_mcp")
+    leer, actualizar = s.get("leer", "content_get"), s.get("actualizar", "content_update")
+    # 1. Agrupar por página y leer cada una antes de tocar nada (si algo no cuadra, no se cambia ninguna)
+    paginas: dict = {}
+    for c in pub.get("cambios") or []:
+        col, sl = _pieza_seo(cfg, s, c["url"])
+        p = paginas.setdefault((col, sl), {"url": c["url"], "coleccion": col, "slug": sl, "despues": {}})
+        p["despues"][SEO_CAMPOS[str(c["accion"]).strip().lower()]] = str(c["despues"]).strip()
+    for p in paginas.values():
+        r = X.llamar(slug, leer, {"collection": p["coleccion"], "id": p["slug"]})
+        item = (r or {}).get("item") or {}
+        if not item.get("id") or not r.get("_rev"):
+            raise Rechazo(f"La web no devolvió la página {p['url']} (ni se ha tocado nada)")
+        if str(item.get("status", "")).lower() != "published":
+            raise Rechazo(f"{p['url']} no está publicada: no se toca (ni se ha tocado nada)")
+        p["id"], p["rev"] = item["id"], r["_rev"]
+        p["antes"] = {k: (item.get("seo") or {}).get(k) for k in p["despues"]}
+
+    def poner(p: dict, valores: dict, rev: str):
+        return X.llamar(slug, actualizar, {"collection": p["coleccion"], "id": p["id"], "_rev": rev, "seo": valores}, escribir=True)
+
+    # 2. Aplicar; si una falla, devolver las ya cambiadas a su valor anterior
+    hechas = []
+    for p in paginas.values():
+        try:
+            poner(p, p["despues"], p["rev"])
+        except Rechazo as e:
+            vueltas = []
+            for h in hechas:
+                try:
+                    r = X.llamar(slug, leer, {"collection": h["coleccion"], "id": h["id"]})
+                    poner(h, h["antes"], r["_rev"]); vueltas.append(h["url"])
+                except Exception:   # noqa: BLE001
+                    pass
+            raise Rechazo(f"Falló {p['url']}: {e}. " + (f"Devueltas a como estaban: {', '.join(vueltas)}" if vueltas else "No se había cambiado ninguna")
+                          + (f"; NO se pudieron devolver: {', '.join(h['url'] for h in hechas if h['url'] not in vueltas)}"
+                             if len(vueltas) < len(hechas) else ""))
+        hechas.append(p)
+    # 3. Para deshacer: el valor anterior de cada campo (null = la web usaba el título/resumen de la página)
+    d = E.carpeta(slug, eid)
+    B.escribir(d / "publicado.json", {"seo": [{k: p[k] for k in ("url", "coleccion", "id", "antes", "despues")} for p in hechas],
+                                      "deshacer": f"{actualizar} con seo = antes en cada página", "ts": B.ahora()})
+    vistas = [_comprobar_en_web(p["url"], k, v) for p in hechas for k, v in p["despues"].items()]
+    n_campos = len(vistas)
+    nota = (f"comprobado en la web: {sum(1 for v in vistas if v)} de {n_campos}" if any(v is not None for v in vistas)
+            else "sin comprobar en la web")
+    return f"MCP SEO: {len(hechas)} página(s), {n_campos} campo(s) cambiados en vivo ({nota}); los anteriores quedan en publicado.json"
 
 
 ADAPTADORES = {"repo-pr": repo_pr, "wordpress": wordpress, "entrega": entrega, "mcp": mcp}
