@@ -555,11 +555,13 @@ def register(ctx):
         return _cli("reanudar", raw.split()[0] if raw.split() else "todo") if _persona_sesion()[0] else "Solo una persona autorizada."
 
     ctx.register_telegram_handler(_wire)
+    # Con guion: Hermes busca la orden con «_» cambiado por «-» (/seo_tema → seo-tema) y en el menú de Telegram la
+    # enseña con «_». Con «_» en el registro, /seo_tema llegaba como orden desconocida.
     # args_hint siempre entre [ ]: Hermes deja fuera del menú las órdenes cuya ayuda empieza por «<»
     ctx.register_command("seo", _cmd_seo, description="Estado del SEO de tus webs", args_hint="[web]")
-    ctx.register_command("seo_puertas", _cmd_puertas, description="Decisiones SEO pendientes")
-    ctx.register_command("seo_tema", _cmd_tema, description="Tema para hablar con el encargado de una web", args_hint="[web]")
-    ctx.register_command("seo_pausar", _cmd_pausar, description="Pausa una web (o todo)", args_hint="[web|todo]")
-    ctx.register_command("seo_reanudar", _cmd_reanudar, description="Reanuda una web (o todo)", args_hint="[web|todo]")
+    ctx.register_command("seo-puertas", _cmd_puertas, description="Decisiones SEO pendientes")
+    ctx.register_command("seo-tema", _cmd_tema, description="Tema para hablar con el encargado de una web", args_hint="[web]")
+    ctx.register_command("seo-pausar", _cmd_pausar, description="Pausa una web (o todo)", args_hint="[web|todo]")
+    ctx.register_command("seo-reanudar", _cmd_reanudar, description="Reanuda una web (o todo)", args_hint="[web|todo]")
     if hasattr(ctx, "register_system_prompt_section"):
         ctx.register_system_prompt_section("hermes-seo.foto", _foto, max_chars=4000)

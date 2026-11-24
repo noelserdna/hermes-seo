@@ -108,7 +108,7 @@ async def main():
                register_command=lambda n, f, **k: cmds.__setitem__(n, (f, k)),
                register_system_prompt_section=lambda i, f, **k: secciones.__setitem__(i, f))
     m.register(ctx_h)
-    ok(set(cmds) == {"seo", "seo_puertas", "seo_tema", "seo_pausar", "seo_reanudar"}, f"comandos ({sorted(cmds)})")
+    ok(set(cmds) == {"seo", "seo-puertas", "seo-tema", "seo-pausar", "seo-reanudar"}, f"comandos ({sorted(cmds)})")
     ok(all(not k.get("args_hint", "").startswith("<") for _, k in cmds.values()), "ninguna ayuda empieza por «<» (saldría del menú)")
     ok("web.com" in cmds["seo"][0](""), "/seo da el estado")
     foto = secciones["hermes-seo.foto"]
