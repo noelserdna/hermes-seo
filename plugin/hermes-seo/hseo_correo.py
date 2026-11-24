@@ -149,7 +149,7 @@ def poner_contacto(slug: str, correo: str, canal: str = "correo", quien: str = "
     B.escribir(B.home() / "aprobadores.json", ap)
     os.chmod(B.home() / "aprobadores.json", 0o600)
     aviso = ""
-    if canal in ("correo", "ambos") and not cfg["contacto"].get("verificado") and activo():
+    if canal in ("correo", "ambos") and not cfg["contacto"].get("verificado") and activo() and not _confirmacion_reciente(slug, correo):
         nombre = cfg.get("nombre") or slug
         encolar(slug, f"📧 Confirma tu correo · {nombre}",
                 f"Hola,\n\nA partir de ahora te escribiré a esta dirección sobre {nombre}: lo que se hace, lo que propongo "
@@ -157,6 +157,24 @@ def poner_contacto(slug: str, correo: str, canal: str = "correo", quien: str = "
                 f"cualquier texto. Si no esperabas este correo, ignóralo.", tipo="confirmacion")
         aviso = " · correo de confirmación enviado (cuenta al responderlo)"
     return f"📧 {cfg.get('nombre') or slug}: contacto {correo}, por {canal}{aviso}"
+
+
+def _confirmacion_reciente(slug: str, correo: str, horas: int = 24) -> bool:
+    """¿Ya salió (o está en cola) un correo de confirmación a esa dirección? Cambiar solo el canal no lo repite."""
+    limite = time.time() - horas * 3600
+    for f in (_dir() / "salida").glob("*.json"):
+        m = B.leer(f) or {}
+        if m.get("tipo") == "confirmacion" and m.get("web") == slug and m.get("to") == correo and "Confirma tu correo" in str(m.get("subject")):
+            return True
+    try:
+        for l in reversed((_dir() / "enviados.jsonl").read_text().splitlines()[-500:]):
+            r = json.loads(l)
+            if r.get("web") == slug and r.get("to") == correo and "Confirma tu correo" in str(r.get("asunto")) \
+                    and _epoch(r.get("ts", "")) >= limite:
+                return True
+    except (OSError, ValueError):
+        pass
+    return False
 
 
 # ── salida ──────────────────────────────────────────────────────────────────────────────────────────────────────────

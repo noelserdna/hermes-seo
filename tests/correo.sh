@@ -143,6 +143,20 @@ g3 = PU.abrir("web", tipo="mejora", titulo="x", texto="x", al_aprobar="instalar:
 try: PU._aplicar({**PU.leer(g3), "decision": {"verbo": "acepto"}}, "Ana"); raise SystemExit("instaló desde la puerta de una web")
 except B.Rechazo: pass
 PY
+python3 - "$P" "$T" <<'PY' && ok "cambiar solo el canal de un contacto sin confirmar no manda otra confirmación" || bad "confirmación repetida"
+import importlib.util, json, sys
+from pathlib import Path
+P, T = Path(sys.argv[1]), Path(sys.argv[2]); sys.path.insert(0, str(P))
+def m(n):
+    s = importlib.util.spec_from_file_location(n, P / f"{n}.py"); x = importlib.util.module_from_spec(s); sys.modules[n] = x; s.loader.exec_module(x); return x
+B, C, HC = m("hseo_base"), m("hseo_clientes"), m("hseo_correo")
+import subprocess
+subprocess.run([sys.executable, str(P / "hseo_clientes.py"), "alta", "doble", "doble.com"], check=True, capture_output=True)
+cuenta = lambda: sum(1 for f in (B.home() / "correo/salida").glob("*.json") if "Confirma tu correo" in (B.leer(f) or {}).get("subject", "") and (B.leer(f) or {}).get("web") == "doble")
+HC.poner_contacto("doble", "seo@doble.com", "correo"); assert cuenta() == 1
+HC.poner_contacto("doble", "seo@doble.com", "ambos"); assert cuenta() == 1, cuenta()
+HC.despachar(); HC.poner_contacto("doble", "seo@doble.com", "correo"); assert cuenta() == 0   # enviado hace nada: tampoco
+PY
 python3 - "$P" "$T" <<'PY' && ok "botón de un correo viejo: no decide, y se contesta cuál vale; cada puerta con su asunto" || bad "código viejo"
 import importlib.util, json, sys
 from pathlib import Path
