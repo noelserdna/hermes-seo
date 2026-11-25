@@ -3,10 +3,12 @@
 sesión de la cuenta) y guarda las respuestas tal cual. Es la mitad Claude de la prueba de visibilidad en IA.
 
 Uso: claude-busca --cliente <slug> [--salida <salida.json>] [--repeticiones 2] [--preguntas <archivo.md>]
-                  [--modelo sonnet]
+                  [--modelo <alias o id>]
 
 Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
-Salida por defecto: clientes/<slug>/datos/ia/claude-AAAA-MM-DD.json.
+Modelo: --modelo, o el primero de cliente.json → ia.modelos.claude, o sonnet (el de la versión gratuita de claude.ai).
+Salida por defecto: clientes/<slug>/datos/ia/claude-AAAA-MM-DD.json con el modelo principal;
+con otro, claude-<modelo>-AAAA-MM-DD.json.
 Sesión: CLAUDE_CODE_OAUTH_TOKEN en secretos.env (si no está, la sesión de Claude Code de la máquina). Nunca se imprime.
 Ejecutable: CLAUDE_BIN o `claude` en el PATH (o ~/.npm-global/bin/claude).
 Última línea: CLAUDE_OK <n respuestas> | CLAUDE_ERROR <motivo> (código 1 si falta alguna respuesta).
@@ -51,10 +53,11 @@ def main():
     ap.add_argument("--salida")
     ap.add_argument("--repeticiones", type=int, default=2)
     ap.add_argument("--preguntas")
-    ap.add_argument("--modelo", default="sonnet")
+    ap.add_argument("--modelo")
     x = ap.parse_args()
-    H.cliente(x.cliente)
-    salida = Path(x.salida or H.datos(x.cliente, "ia") / f"claude-{H.hoy()}.json")
+    cfg = H.cliente(x.cliente)
+    x.modelo = x.modelo or H.modelos_ia(cfg, "claude", "sonnet")[0]
+    salida = Path(x.salida or H.salida_ia(x.cliente, cfg, "claude", x.modelo, "sonnet"))
     archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
     preguntas = H.leer_preguntas(archivo)
     exe = binario()

@@ -163,6 +163,11 @@ def validar(cfg: dict) -> list:
     mot = (cfg.get("ia") or {}).get("motores") if isinstance(cfg.get("ia"), dict) else None
     if mot is not None and not (isinstance(mot, list) and mot and set(mot) <= {"chatgpt", "claude", "brave"}):
         e.append("ia.motores: lista con chatgpt, claude o brave (p. ej. [\"claude\"])")
+    mods = (cfg.get("ia") or {}).get("modelos") if isinstance(cfg.get("ia"), dict) else None
+    if mods is not None and not (isinstance(mods, dict) and set(mods) <= {"chatgpt", "claude"} and all(
+            isinstance(v, list) and v and all(isinstance(x, str) and re.fullmatch(r"[\w.:/-]{2,60}", x) for x in v)
+            and len(set(v)) == len(v) for v in mods.values())):
+        e.append("ia.modelos: {\"chatgpt\": [\"gpt-5.5\", \"gpt-5.6-luna\"], \"claude\": [\"sonnet\", \"haiku\"]} (el primero, el principal)")
     pol = cfg.get("politicas") or {}
     if not isinstance(pol.get("pausado", False), bool):
         e.append("politicas.pausado: true o false")

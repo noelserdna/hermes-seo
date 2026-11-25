@@ -73,6 +73,10 @@ def contexto(slug: str, etapa: str | None = None) -> str:
     motores = (cfg.get("ia") or {}).get("motores")
     if motores:
         l.append(f"- Motores para la visibilidad en IA: {', '.join(motores)} (solo estos)")
+    modelos = (cfg.get("ia") or {}).get("modelos")
+    if modelos:
+        l.append("- Modelos para la visibilidad en IA (el primero, el principal; lanza cada motor con cada uno, --modelo): "
+                 + "; ".join(f"{m}: {', '.join(v)}" for m, v in modelos.items()))
     if pol.get("congelado_hasta"):
         l.append(f"- Sin piezas nuevas hasta {pol['congelado_hasta']}")
     l += ["", f"Memoria del cliente (wiki): {wiki} (empieza por index.md; enlaza, no copies).",

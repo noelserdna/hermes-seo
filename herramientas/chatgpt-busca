@@ -3,7 +3,7 @@
 respuestas tal cual. Es la mitad ChatGPT de la prueba de visibilidad en IA.
 
 Uso: chatgpt-busca --cliente <slug> [<salida.json> | --salida <salida.json>] [--repeticiones 2]
-                   [--preguntas <archivo.md>] [--modelo gpt-5.5] [--pausa 2] [--reanudar]
+                   [--preguntas <archivo.md>] [--modelo <id>] [--pausa 2] [--reanudar]
 
 Errores de la API: sin saldo («insufficient_quota») corta en la primera llamada (código 3, CHATGPT_ERROR sin saldo);
 demasiado rápido (429) espera lo que diga Retry-After (o 20/60/120 s) y reintenta; tras 3 fallos seguidos, para.
@@ -11,7 +11,10 @@ demasiado rápido (429) espera lo que diga Retry-After (o 20/60/120 s) y reinten
 
 De cliente.json lee mercados[0].pais (ubicación aproximada del buscador).
 Preguntas por defecto: clientes/<slug>/preguntas-decision.md (líneas numeradas «1. …»).
-Salida por defecto: clientes/<slug>/datos/ia/chatgpt-AAAA-MM-DD.json.
+Modelo: --modelo, o el primero de cliente.json → ia.modelos.chatgpt, o gpt-5.5. Para comparar con lo que ve quien
+usa ChatGPT gratis, lánzalo otra vez con el modelo de la versión gratuita (p. ej. --modelo gpt-5.6-luna).
+Salida por defecto: clientes/<slug>/datos/ia/chatgpt-AAAA-MM-DD.json con el modelo principal;
+con otro, chatgpt-<modelo>-AAAA-MM-DD.json.
 Clave: OPENAI_API_KEY en secretos.env (pago por uso). Nunca se imprime.
 Última línea: CHATGPT_OK <n respuestas> | CHATGPT_ERROR <motivo> (código 1 si falta alguna respuesta).
 """
@@ -70,13 +73,14 @@ def main():
     ap.add_argument("--salida")
     ap.add_argument("--repeticiones", type=int, default=2)
     ap.add_argument("--preguntas")
-    ap.add_argument("--modelo", default="gpt-5.5")
+    ap.add_argument("--modelo")
     ap.add_argument("--pausa", type=float, default=2.0)
     ap.add_argument("--reanudar", action="store_true")
     x = ap.parse_args()
     cfg = H.cliente(x.cliente)
     pais, _ = H.mercado_principal(cfg)
-    salida = Path(x.salida or x.salida_pos or H.datos(x.cliente, "ia") / f"chatgpt-{H.hoy()}.json")
+    x.modelo = x.modelo or H.modelos_ia(cfg, "chatgpt", "gpt-5.5")[0]
+    salida = Path(x.salida or x.salida_pos or H.salida_ia(x.cliente, cfg, "chatgpt", x.modelo, "gpt-5.5"))
     archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
     preguntas = H.leer_preguntas(archivo)
     k = H.clave(x.cliente, "OPENAI_API_KEY", "CHATGPT_ERROR ")

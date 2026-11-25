@@ -21,4 +21,18 @@ F="$HERMES_SEO_HOME/clientes/web/datos/ia/claude-$(date +%Y-%m-%d).json"
 jq -e '.filas[0].citas == ["https://otra.com/x","https://web.com/curso"]' "$F" >/dev/null && ok "saca las URL citadas" || bad "citas"
 [ "$(cat "$T/token-visto")" = secreto-sesion ] && ok "usa la sesión de la web" || bad "sesión"
 grep -q secreto-sesion "$F" || ! echo "$out" | grep -q secreto-sesion && ok "no imprime ni guarda la sesión" || bad "sesión impresa"
+# otro modelo (p. ej. Haiku, el pequeño): mismo motor, su propio fichero; el principal sale de ia.modelos
+python3 "$ROOT/plugin/hermes-seo/hseo_clientes.py" config web ia '{"modelos": {"claude": ["sonnet", "haiku"]}}' >/dev/null && ok "ia.modelos se acepta" || bad "ia.modelos"
+! python3 "$ROOT/plugin/hermes-seo/hseo_clientes.py" config web ia '{"modelos": {"gemini": ["x"]}}' >/dev/null 2>&1 && ok "ia.modelos rechaza un motor desconocido" || bad "ia.modelos sin validar"
+printf '# Preguntas\n\n1. ¿Mejor curso de X?\n' > "$HERMES_SEO_HOME/clientes/web/preguntas-decision.md"
+cat > "$T/claude" <<'C'
+#!/usr/bin/env bash
+echo "$@" > "${0%/*}/args"
+echo '{"is_error": false, "result": "web.com\nSOURCES:\nhttps://web.com/a"}'
+C
+"$ROOT/herramientas/claude-busca" --cliente web --repeticiones 1 >/dev/null 2>&1
+grep -q -- "--model sonnet" "$T/args" && jq -e '.modelo == "sonnet"' "$F" >/dev/null && ok "sin --modelo: el principal de ia.modelos, en claude-<fecha>.json" || bad "modelo principal"
+"$ROOT/herramientas/claude-busca" --cliente web --repeticiones 1 --modelo haiku >/dev/null 2>&1
+H="$HERMES_SEO_HOME/clientes/web/datos/ia/claude-haiku-$(date +%Y-%m-%d).json"
+grep -q -- "--model haiku" "$T/args" && jq -e '.modelo == "haiku"' "$H" >/dev/null && ok "con otro modelo: su propio fichero (claude-haiku-<fecha>.json)" || bad "modelo secundario"
 exit $fail

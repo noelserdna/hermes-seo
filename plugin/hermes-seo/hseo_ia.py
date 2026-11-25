@@ -45,6 +45,11 @@ def _rondas(slug: str) -> dict:
     """{fecha: {motor: fichero}} con las salidas de las herramientas."""
     out: dict = {}
     for f in sorted((C.carpeta(slug) / "datos" / "ia").glob("*.json")):
+        # con un modelo que no es el principal: <motor>-<modelo>-<fecha> → motor «chatgpt · <modelo>»
+        v = re.match(r"^(chatgpt|claude|brave)-(.+)-(\d{4}-\d{2}-\d{2})$", f.stem)
+        if v:
+            out.setdefault(v.group(3), {})[f"{v.group(1)} · {v.group(2)}"] = f
+            continue
         m = re.match(r"^(?:decision-)?(\d{4}-\d{2}-\d{2})?-?(chatgpt|claude|brave)(?:-(\d{4}-\d{2}-\d{2}))?$", f.stem) or \
             re.match(r"^(chatgpt|claude|brave)-(\d{4}-\d{2}-\d{2})$", f.stem)
         if not m:
@@ -88,7 +93,7 @@ def resumen(slug: str, fecha: str | None = None) -> dict:
                               "competidores": {}, "sin_datos": "todas las preguntas fallaron"}
             continue
         lo, hi = wilson(cita, n)
-        motores[motor] = {"respuestas": n, "cita": cita, "menciona": menciona, "cita_pct": round(cita / n * 100, 1) if n else 0,
+        motores[motor] = {"modelo": d.get("modelo"), "respuestas": n, "cita": cita, "menciona": menciona, "cita_pct": round(cita / n * 100, 1) if n else 0,
                           "intervalo_cita": [lo, hi], "competidores": {k: v for k, v in comp.items() if v}}
     anteriores = sorted(f for f in rondas if f < fecha)
     cambios = {}
@@ -99,7 +104,20 @@ def resumen(slug: str, fecha: str | None = None) -> dict:
             if p and p["respuestas"] and v["respuestas"]:   # una ronda sin respuestas (cuota, 429) no dice nada
                 a, b = p["intervalo_cita"], v["intervalo_cita"]
                 cambios[motor] = "sube" if b[0] > a[1] else ("baja" if b[1] < a[0] else "sin cambio que se pueda afirmar")
-    r = {"hay_datos": True, "fecha": fecha, "motores": motores, "frente_a": anteriores[-1] if anteriores else None, "cambios": cambios}
+    # mismo motor con otro modelo (p. ej. el de la versión gratuita) frente al principal, en la misma ronda
+    modelos = {}
+    for motor, v in motores.items():
+        if " · " not in motor or not v.get("respuestas"):
+            continue
+        base, otro = motor.split(" · ", 1)
+        p = motores.get(base)
+        if p and p.get("respuestas"):
+            a, b = p["intervalo_cita"], v["intervalo_cita"]
+            modelos[motor] = {"frente_a": p.get("modelo") or base, "cita_pct": v["cita_pct"], "cita_pct_principal": p["cita_pct"],
+                              "diferencia": "más citas" if b[0] > a[1] else ("menos citas" if b[1] < a[0]
+                                                                              else "sin diferencia que se pueda afirmar")}
+    r = {"hay_datos": True, "fecha": fecha, "motores": motores, "frente_a": anteriores[-1] if anteriores else None, "cambios": cambios,
+         "modelos": modelos}
     return r
 
 

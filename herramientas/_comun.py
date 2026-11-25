@@ -12,6 +12,7 @@ import argparse
 import datetime as dt
 import importlib.util
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -83,6 +84,21 @@ def datos(slug: str, fuente: str) -> Path:
 
 def hoy() -> str:
     return dt.date.today().isoformat()
+
+
+def modelos_ia(cfg: dict, motor: str, defecto: str) -> list:
+    """Modelos con los que se pregunta a un motor de IA: cliente.json → ia.modelos.<motor> (el primero es el
+    principal), o solo el de la herramienta. Sirve para comparar lo que ve quien paga con lo que ve quien usa la
+    versión gratuita o un modelo pequeño."""
+    m = ((cfg.get("ia") or {}).get("modelos") or {}).get(motor) if isinstance(cfg.get("ia"), dict) else None
+    return [str(x) for x in m] if isinstance(m, list) and m else [defecto]
+
+
+def salida_ia(slug: str, cfg: dict, motor: str, modelo: str, defecto: str) -> Path:
+    """datos/ia/<motor>-<fecha>.json con el modelo principal; con otro, <motor>-<modelo>-<fecha>.json."""
+    principal = modelos_ia(cfg, motor, defecto)[0]
+    etiqueta = "" if modelo == principal else "-" + re.sub(r"[^a-z0-9.]+", "-", modelo.lower()).strip("-")
+    return datos(slug, "ia") / f"{motor}{etiqueta}-{hoy()}.json"
 
 
 def url_base(variable: str, defecto: str) -> str:

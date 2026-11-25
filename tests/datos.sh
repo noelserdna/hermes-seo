@@ -88,5 +88,12 @@ assert r["cambios"]["chatgpt"] == "sube" and (d / "resumen-2026-11-01.json").exi
 (d / "chatgpt-2026-11-15.json").write_text(json.dumps({"filas": [{"error": "HTTP Error 429"}] * 30}))
 r = IA.resumen("web", "2026-11-15")
 assert r["motores"]["chatgpt"]["sin_datos"] and "chatgpt" not in r["cambios"], r   # una ronda fallida no es una bajada
+# el mismo motor con el modelo de la versión gratuita, en la misma ronda: se cuenta aparte y se compara con el principal
+(d / "chatgpt-2026-12-01.json").write_text(json.dumps({"modelo": "gpt-5.5", "filas": [fila(True)] * 20 + [fila(False)] * 10}))
+(d / "chatgpt-gpt-5.6-luna-2026-12-01.json").write_text(json.dumps({"modelo": "gpt-5.6-luna", "filas": [fila(True)] * 2 + [fila(False)] * 28}))
+r = IA.resumen("web", "2026-12-01")
+g = r["motores"]["chatgpt · gpt-5.6-luna"]
+assert g["modelo"] == "gpt-5.6-luna" and g["cita"] == 2 and r["motores"]["chatgpt"]["cita"] == 20, r
+assert r["modelos"]["chatgpt · gpt-5.6-luna"]["diferencia"] == "menos citas" and r["modelos"]["chatgpt · gpt-5.6-luna"]["frente_a"] == "gpt-5.5", r
 PY
 exit $fail
