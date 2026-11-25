@@ -94,6 +94,8 @@ assert r["motores"]["chatgpt"]["sin_datos"] and "chatgpt" not in r["cambios"], r
 r = IA.resumen("web", "2026-12-01")
 g = r["motores"]["chatgpt · gpt-5.6-luna"]
 assert g["modelo"] == "gpt-5.6-luna" and g["cita"] == 2 and r["motores"]["chatgpt"]["cita"] == 20, r
+(d / "chatgpt-2027-01-01.json").write_text(json.dumps({"modelo": "gpt-5.6-luna", "filas": [fila(True)] * 30}))
+assert IA.resumen("web", "2027-01-01")["cambios"]["chatgpt"].startswith("no comparable"), "otro modelo principal: no se compara"
 assert r["modelos"]["chatgpt · gpt-5.6-luna"]["diferencia"] == "menos citas" and r["modelos"]["chatgpt · gpt-5.6-luna"]["frente_a"] == "gpt-5.5", r
 PY
 exit $fail

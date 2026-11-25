@@ -102,6 +102,9 @@ def resumen(slug: str, fecha: str | None = None) -> dict:
         for motor, v in motores.items():
             p = (prev.get("motores") or {}).get(motor)
             if p and p["respuestas"] and v["respuestas"]:   # una ronda sin respuestas (cuota, 429) no dice nada
+                if p.get("modelo") and v.get("modelo") and p["modelo"] != v["modelo"]:
+                    cambios[motor] = f"no comparable: la ronda anterior usó {p['modelo']} y esta {v['modelo']}"
+                    continue
                 a, b = p["intervalo_cita"], v["intervalo_cita"]
                 cambios[motor] = "sube" if b[0] > a[1] else ("baja" if b[1] < a[0] else "sin cambio que se pueda afirmar")
     # mismo motor con otro modelo (p. ej. el de la versión gratuita) frente al principal, en la misma ronda

@@ -14,10 +14,11 @@ HT="$ROOT/herramientas"
 LOG="$T/peticiones.log"
 corre() { out=$("$@" 2>&1); rc=$?; }
 si() { if eval "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
+no() { if eval "$2" >/dev/null 2>&1; then bad "$1"; else ok "$1"; fi; }
 
 # ---------- servidor falso ----------
 cat > "$T/falso.py" <<'PY'
-import json, sys, urllib.parse
+import json, os, sys, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 T = Path(sys.argv[1])
@@ -113,6 +114,20 @@ class Falso(BaseHTTPRequestHandler):
                 {"type": "web_search_call", "action": {"query": "buscada"}},
                 {"type": "message", "content": [{"text": "Respuesta de prueba",
                                                  "annotations": [{"type": "url_citation", "url": "https://prueba-web.com/a/"}]}]}]})
+        if self.path == "/chatgpt-limite/responses":
+            return self.enviar(429, {"error": {"type": "usage_limit_reached", "message": "The usage limit has been reached"}})
+        if self.path == "/chatgpt/responses":   # backend de la suscripción: token de la cuenta y respuesta en flujo
+            if auth != "Bearer " + open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "token-sus")).read().strip() or self.headers.get("ChatGPT-Account-ID") != "cuenta-1":
+                return self.enviar(401, {"error": "token"})
+            if '"stream": true' not in cuerpo or '"store": false' not in cuerpo:
+                return self.enviar(400, {"error": "stream y store"})
+            item = {"type": "message", "content": [{"text": "Respuesta suscripción",
+                    "annotations": [{"type": "url_citation", "url": "https://prueba-web.com/s/"}]}]}
+            datos = "".join(f"event: x\ndata: {json.dumps(e)}\n\n" for e in (
+                {"type": "response.created"}, {"type": "response.output_item.done", "item": {"type": "web_search_call", "action": {"query": "q"}}},
+                {"type": "response.output_item.done", "item": item}, {"type": "response.completed"}))
+            self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
+            self.wfile.write(datos.encode()); return
         if self.path == "/cf/graphql":
             if auth != f"Bearer {CLAVES['cf']}":
                 return self.enviar(401, {"error": "clave"})
@@ -231,6 +246,19 @@ corre "$HT/chatgpt-busca" --cliente prueba "$T/otra/salida.json" --repeticiones 
 [ $rc -eq 0 ] && [ -f "$T/otra/salida.json" ] && ok "chatgpt-busca admite otra salida" || bad "chatgpt-busca otra salida"
 
 # ---------- bots-ia ----------
+# ---------- chatgpt-busca por la suscripción (la cuenta de ChatGPT de Hermes) ----------
+TOKEN_SUS="cab.$(printf '{"exp": %s, "https://api.openai.com/auth": {"chatgpt_account_id": "cuenta-1"}}' $(( $(date +%s) + 86400 )) | base64 | tr -d '=\n' | tr '/+' '_-').firma"
+echo "$TOKEN_SUS" > "$T/token-sus"
+printf '{"credential_pool": {"openai-codex": [{"access_token": "%s"}]}}' "$TOKEN_SUS" > "$T/auth.json"
+export HSEO_CODEX_AUTH="$T/auth.json" HSEO_SIN_REFRESCO=1 HSEO_URL_CHATGPT="$B/chatgpt"
+corre "$HT/chatgpt-busca" --cliente prueba "$T/sus.json" --repeticiones 1 --pausa 0 --via suscripcion --modelo gpt-5.6-luna
+[ $rc -eq 0 ] && jq -e '.via == "suscripcion" and .filas[0].citas == ["https://prueba-web.com/s/"] and .filas[0].busquedas == ["q"]' "$T/sus.json" >/dev/null && ok "chatgpt-busca por la suscripción: lee el flujo y guarda citas y búsquedas" || bad "suscripción ($rc: $out)"
+! echo "$out" | grep -q "$TOKEN_SUS" && ! grep -q "$TOKEN_SUS" "$T/sus.json" && ok "chatgpt-busca no imprime ni guarda el token de la cuenta" || bad "token impreso"
+si "ia.chatgpt_via de la web elige la suscripción sin --via" "$C config prueba ia '{\"chatgpt_via\": \"suscripcion\"}' && $HT/chatgpt-busca --cliente prueba $T/sus2.json --repeticiones 1 --pausa 0 && jq -e '.via == \"suscripcion\"' $T/sus2.json"
+no "ia.chatgpt_via rechaza otra cosa" "$C config prueba ia '{\"chatgpt_via\": \"gratis\"}'"
+HSEO_URL_CHATGPT="$B/chatgpt-limite" corre "$HT/chatgpt-busca" --cliente prueba "$T/lim.json" --repeticiones 1 --pausa 0
+[ $rc -eq 3 ] && echo "$out" | tail -1 | grep -q 'CHATGPT_ERROR límite de la suscripción' && ok "límite de la suscripción: para (código 3) y dice que hay que esperar" || bad "límite ($rc: $out)"
+$C config prueba ia '{}' >/dev/null
 corre "$HT/bots-ia" --cliente prueba --dias 2
 if [ $rc -eq 0 ] && echo "$out" | grep -q '| GPTBot | OpenAI | entrenamiento | 10 | /a/ (10) |'; then ok "bots-ia suma los bots de la zona"; else bad "bots-ia ($rc: $out)"; fi
 sin_clave && ok "bots-ia no imprime la clave" || bad "bots-ia imprime la clave"

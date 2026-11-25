@@ -15,11 +15,17 @@ Modelo: --modelo, o el primero de cliente.json → ia.modelos.chatgpt, o gpt-5.5
 usa ChatGPT gratis, lánzalo otra vez con el modelo de la versión gratuita (p. ej. --modelo gpt-5.6-luna).
 Salida por defecto: clientes/<slug>/datos/ia/chatgpt-AAAA-MM-DD.json con el modelo principal;
 con otro, chatgpt-<modelo>-AAAA-MM-DD.json.
-Clave: OPENAI_API_KEY en secretos.env (pago por uso). Nunca se imprime.
+Vía: --via api (por defecto; OPENAI_API_KEY en secretos.env, pago por uso) o --via suscripcion (la cuenta de ChatGPT
+conectada a Hermes, «hermes auth add openai-codex»: sin pago aparte, gasta del plan y lo comparte con Hermes). Se puede
+fijar por web en cliente.json → ia.chatgpt_via. La suscripción solo da los modelos de ChatGPT (gpt-5.6-luna, gpt-6-sol…).
+Claves y tokens nunca se imprimen.
 Última línea: CHATGPT_OK <n respuestas> | CHATGPT_ERROR <motivo> (código 1 si falta alguna respuesta).
 """
+import base64
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -34,15 +40,84 @@ class SinSaldo(Exception):
     pass
 
 
-def preguntar(api, k, modelo, pais, pregunta):
-    cuerpo = {"model": modelo, "input": pregunta,
-              "tools": [{"type": "web_search", "user_location": {"type": "approximate", "country": pais}}]}
-    req = urllib.request.Request(f"{api}/responses", json.dumps(cuerpo).encode(),
-                                 {"Authorization": f"Bearer {k}", "Content-Type": "application/json", "User-Agent": H.UA})
+def _jwt(t: str) -> dict:
+    try:
+        p = t.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4)))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _tokens(o):
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k == "access_token" and isinstance(v, str) and v.count(".") == 2:
+                yield v
+            else:
+                yield from _tokens(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from _tokens(v)
+
+
+def token_suscripcion() -> str:
+    """El token de la cuenta de ChatGPT de Hermes (auth.json). Si caduca en menos de 10 min, se lo pide a Hermes
+    («hermes auth refresh openai-codex», que lo renueva y lo guarda): nunca se renueva por fuera, para no romper el suyo."""
+    f = Path(os.environ.get("HSEO_CODEX_AUTH") or Path.home() / ".hermes" / "auth.json")
+
+    def leer():
+        try:
+            ts = set(_tokens(json.loads(f.read_text())))
+        except (OSError, ValueError):
+            ts = set()
+        return max(ts, key=lambda t: _jwt(t).get("exp", 0)) if ts else ""
+    t = leer()
+    if t and _jwt(t).get("exp", 0) - time.time() < 600 and os.environ.get("HSEO_SIN_REFRESCO") != "1":
+        subprocess.run(["hermes", "auth", "refresh", "openai-codex"], capture_output=True, timeout=120)
+        t = leer()
+    if not t:
+        H.fallar("no hay cuenta de ChatGPT conectada a Hermes (hermes auth add openai-codex)", 3, "CHATGPT_ERROR ")
+    H._CLAVES_VISTAS.append(t)
+    return t
+
+
+def _leer_sse(resp) -> dict:
+    """Respuesta en flujo (backend de ChatGPT): junta los elementos terminados en un «output» como el de la API."""
+    salida = []
+    for linea in resp:
+        l = linea.decode("utf-8", "replace").strip()
+        if not l.startswith("data:"):
+            continue
+        try:
+            ev = json.loads(l[5:])
+        except ValueError:
+            continue
+        if ev.get("type") == "response.output_item.done":
+            salida.append(ev["item"])
+        elif ev.get("type") in ("response.failed", "error"):
+            raise RuntimeError(str(ev)[:200])
+    return {"output": salida}
+
+
+def preguntar(api, k, modelo, pais, pregunta, suscripcion=False):
+    herramienta = {"type": "web_search", "user_location": {"type": "approximate", "country": pais}}
+    if suscripcion:
+        cuerpo = {"model": modelo, "instructions": "You are ChatGPT, a helpful assistant.", "store": False, "stream": True,
+                  "input": [{"role": "user", "content": [{"type": "input_text", "text": pregunta}]}], "tools": [herramienta]}
+        cab = {"Authorization": f"Bearer {k}", "Content-Type": "application/json", "Accept": "text/event-stream",
+               "User-Agent": "HermesAgent/hermes-seo", "originator": "hermes-agent"}
+        cuenta = (_jwt(k).get("https://api.openai.com/auth") or {}).get("chatgpt_account_id")
+        if cuenta:
+            cab["ChatGPT-Account-ID"] = cuenta
+    else:
+        cuerpo = {"model": modelo, "input": pregunta, "tools": [herramienta]}
+        cab = {"Authorization": f"Bearer {k}", "Content-Type": "application/json", "User-Agent": H.UA}
+    req = urllib.request.Request(f"{api}/responses", json.dumps(cuerpo).encode(), cab)
     r = {}
     for intento in range(4):
         try:
-            r = json.load(urllib.request.urlopen(req, timeout=240))
+            resp = urllib.request.urlopen(req, timeout=240)
+            r = _leer_sse(resp) if suscripcion else json.load(resp)
             break
         except urllib.error.HTTPError as e:
             cuerpo = ""
@@ -52,6 +127,8 @@ def preguntar(api, k, modelo, pais, pregunta):
                 pass
             if e.code == 429 and "insufficient_quota" in cuerpo:
                 raise SinSaldo("sin saldo en la cuenta de OpenAI (insufficient_quota)")
+            if e.code == 429 and "usage_limit" in cuerpo:
+                raise SinSaldo("límite de uso de la suscripción de ChatGPT alcanzado (usage_limit_reached)")
             if e.code in (429, 500, 502, 503) and intento < 3:
                 try:
                     espera = min(int(float(e.headers.get("Retry-After") or 0)), 120)
@@ -76,6 +153,7 @@ def main():
     ap.add_argument("--modelo")
     ap.add_argument("--pausa", type=float, default=2.0)
     ap.add_argument("--reanudar", action="store_true")
+    ap.add_argument("--via", choices=("api", "suscripcion"))
     x = ap.parse_args()
     cfg = H.cliente(x.cliente)
     pais, _ = H.mercado_principal(cfg)
@@ -83,8 +161,13 @@ def main():
     salida = Path(x.salida or x.salida_pos or H.salida_ia(x.cliente, cfg, "chatgpt", x.modelo, "gpt-5.5"))
     archivo = Path(x.preguntas) if x.preguntas else H.C.carpeta(x.cliente) / "preguntas-decision.md"
     preguntas = H.leer_preguntas(archivo)
-    k = H.clave(x.cliente, "OPENAI_API_KEY", "CHATGPT_ERROR ")
-    api = H.url_base("HSEO_URL_OPENAI", "https://api.openai.com/v1")
+    via = x.via or ((cfg.get("ia") or {}).get("chatgpt_via") if isinstance(cfg.get("ia"), dict) else None) or "api"
+    if via == "suscripcion":
+        k = token_suscripcion()
+        api = H.url_base("HSEO_URL_CHATGPT", "https://chatgpt.com/backend-api/codex")
+    else:
+        k = H.clave(x.cliente, "OPENAI_API_KEY", "CHATGPT_ERROR ")
+        api = H.url_base("HSEO_URL_OPENAI", "https://api.openai.com/v1")
     previas = {}
     if x.reanudar and salida.exists():
         for f in json.loads(salida.read_text()).get("filas", []):
@@ -100,7 +183,7 @@ def main():
                 filas.append({"n": i, "pregunta": p, "repeticion": rep, "error": f"no se preguntó ({motivo})"})
                 continue
             try:
-                filas.append({"n": i, "pregunta": p, "repeticion": rep, **preguntar(api, k, x.modelo, pais, p)})
+                filas.append({"n": i, "pregunta": p, "repeticion": rep, **preguntar(api, k, x.modelo, pais, p, via == "suscripcion")})
                 seguidos = 0
             except SinSaldo as e:
                 motivo = str(e)
@@ -114,11 +197,13 @@ def main():
             if x.pausa and not motivo:
                 time.sleep(x.pausa)
     salida.parent.mkdir(parents=True, exist_ok=True)
-    salida.write_text(json.dumps({"modelo": x.modelo, "cliente": x.cliente, "pais": pais,
+    salida.write_text(json.dumps({"modelo": x.modelo, "via": via, "cliente": x.cliente, "pais": pais,
                                   "fecha": time.strftime("%Y-%m-%d"), "filas": filas}, ensure_ascii=False, indent=1))
     ok = sum("error" not in f and bool(f.get("respuesta", "").strip()) for f in filas)
-    if motivo.startswith("sin saldo"):
-        print(f"CHATGPT_ERROR sin saldo: {ok} respuestas de {len(filas)} en {salida} (recarga la cuenta y usa --reanudar)")
+    if motivo.startswith(("sin saldo", "límite de uso")):
+        que = "sin saldo" if motivo.startswith("sin saldo") else "límite de la suscripción"
+        cura = "recarga la cuenta" if que == "sin saldo" else "espera a que se renueve el límite"
+        print(f"CHATGPT_ERROR {que}: {ok} respuestas de {len(filas)} en {salida} ({cura} y usa --reanudar)")
         sys.exit(3)
     if ok < len(filas):
         print(f"CHATGPT_ERROR incompleto: {ok} respuestas de {len(filas)} en {salida}")
